@@ -1,0 +1,14 @@
+/build/
+/build_vs2022/
+/out/
+/.vs/
+/.playwright-mcp/
+/results/
+/tmp/
+/tools/__pycache__/
+*.pyc
+*.pdf
+*.xlsm
+/TireFy_*.csv
+/docs/reference_figure_from_user.png
+~$*
