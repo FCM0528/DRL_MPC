@@ -229,6 +229,10 @@ void comparisonChart(const std::filesystem::path& file,
             tr.color = "#d97706";
             tr.dash_pattern = "2,5,2,5,9,5";
             tr.stroke_width = 2.2;
+        } else if (tr.name == "TD3 target") {
+            tr.color = "#a78bfa";
+            tr.dash_pattern = "2,6";
+            tr.stroke_width = 2.2;
         } else if (tr.name.rfind("Fixed", 0) == 0) {
             tr.color = tr.name.find("ground") != std::string::npos ? "#60a5fa" : "#1d4ed8";
             tr.dash_pattern = tr.name.find("ground") != std::string::npos ? "8,5,2,5" : "15,8";
@@ -237,6 +241,10 @@ void comparisonChart(const std::filesystem::path& file,
             tr.color = tr.name.find("ground") != std::string::npos ? "#ea580c" : "#be123c";
             tr.dash_pattern = tr.name.find("ground") != std::string::npos
                 ? "4,4,2,4,2,4" : "10,5,2,5";
+            tr.stroke_width = 3.2;
+        } else if (tr.name.rfind("TD3", 0) == 0) {
+            tr.color = tr.name.find("ground") != std::string::npos ? "#a78bfa" : "#6d28d9";
+            tr.dash_pattern = tr.name.find("ground") != std::string::npos ? "3,4" : "5,4";
             tr.stroke_width = 3.2;
         }
     }
@@ -277,8 +285,6 @@ SimulationMetrics exportResults(
     int solver_samples = 0;
     int min_np = rows.front().prediction_horizon;
     int max_np = min_np;
-    double min_dynamic_weight = rows.front().dynamic_model_weight;
-    double max_dynamic_weight = min_dynamic_weight;
     const auto applied_weights = [](const SimulationRecord& p) {
         return std::array<double, 6>{p.q_y, p.q_psi,
             p.q_vy, p.q_r, p.r_steer, p.r_delta};
@@ -289,8 +295,6 @@ SimulationMetrics exportResults(
     for (const auto& p : rows) {
         min_np = std::min(min_np, p.prediction_horizon);
         max_np = std::max(max_np, p.prediction_horizon);
-        min_dynamic_weight = std::min(min_dynamic_weight, p.dynamic_model_weight);
-        max_dynamic_weight = std::max(max_dynamic_weight, p.dynamic_model_weight);
         const auto current_weights = applied_weights(p);
         for (std::size_t k = 0; k < 6; ++k) {
             min_weights[k] = std::min(min_weights[k], current_weights[k]);
@@ -315,7 +319,8 @@ SimulationMetrics exportResults(
             sum_iters += p.qp_iterations;
             sum_solve_ms += p.qp_solve_ms;
             metrics.max_qp_time_ms = std::max(metrics.max_qp_time_ms, p.qp_solve_ms);
-            metrics.qp_nonconverged_steps += (p.qp_converged || p.grip_limited_control) ? 0 : 1;
+            metrics.qp_nonconverged_steps +=
+                (p.fallback_control || (p.qp_iterations > 0 && !p.qp_converged)) ? 1 : 0;
             metrics.grip_limited_steps += p.grip_limited_control ? 1 : 0;
             metrics.fallback_control_steps += p.fallback_control ? 1 : 0;
             metrics.peak_qp_primal_residual = std::max(metrics.peak_qp_primal_residual,
@@ -338,9 +343,9 @@ SimulationMetrics exportResults(
                    "Y_ref_from_carsim_table_m,ey_m,psi_carsim_deg,psi_ref_deg,epsi_deg,"
                    "front_steer_command_deg,vy_carsim_kmh,yaw_rate_carsim_degps,"
                    "yaw_rate_ref_degps,qp_iterations,qp_primal_residual,qp_dual_residual,"
-                   "qp_solve_ms,qp_converged,is_command,fallback_control,np,dynamic_model_weight,"
+                   "qp_solve_ms,qp_converged,is_command,fallback_control,np,"
                    "grip_limited_control,q_y_applied,q_psi_applied,q_vy_applied,"
-                   "q_r_applied,r_steer_applied,r_delta_applied\n";
+                   "q_r_applied,r_steer_applied,r_delta_applied,road_grip_estimate\n";
         out << std::fixed << std::setprecision(9);
         for (const auto& p : rows) {
                 out << p.time << ',' << 3.6 * p.s.vx << ',' << 3.6 * std::hypot(p.s.vx, p.s.vy)
@@ -353,11 +358,11 @@ SimulationMetrics exportResults(
                     << p.qp_dual_residual << ',' << p.qp_solve_ms << ','
                     << (p.qp_converged ? 1 : 0) << ',' << (p.is_command ? 1 : 0)
                     << ',' << (p.fallback_control ? 1 : 0) << ','
-                    << p.prediction_horizon << ',' << p.dynamic_model_weight << ','
+                    << p.prediction_horizon << ','
                     << (p.grip_limited_control ? 1 : 0);
                 out << ',' << p.q_y << ',' << p.q_psi << ','
                     << p.q_vy << ',' << p.q_r << ','
-                    << p.r_steer << ',' << p.r_delta << '\n';
+                    << p.r_steer << ',' << p.r_delta << ',' << p.road_grip << '\n';
         }
     }
 
@@ -407,10 +412,6 @@ SimulationMetrics exportResults(
              "Longitudinal position X (m)", "Np (steps)", {
              makeTrace(rows, "Applied Np", blue, xcoord,
                        [](const auto& v) {return static_cast<double>(v.prediction_horizon);})}, true);
-    svgChart(output / "11_model_weight.svg", "MPC predictor model blend",
-             "Longitudinal position X (m)", "Dynamic model weight (0=kinematic, 1=dynamic)", {
-             makeTrace(rows, "Dynamic weight", blue, xcoord,
-                       [](const auto& v) {return v.dynamic_model_weight;})});
     svgChart(output / "09_q_y_value.svg", "Applied MPC Qy",
              "Longitudinal position X (m)", "Qy absolute value", {
              makeTrace(rows, "Qy", blue, xcoord, [](const auto& v){return v.q_y;})});
@@ -438,9 +439,10 @@ SimulationMetrics exportResults(
             << "C++ experiment label: " << experiment_name << '\n'
             << "Reference source: " << outcome.reference_source << '\n'
             << "Controller mode: " << (outcome.controller_mode == "eval"
-                ? "DDPG adaptive prediction horizon and Q/R weights" : "fixed prediction horizon and Q/R weights") << '\n'
+                ? (outcome.rl_algorithm == "td3" ? "TD3" : "DDPG") : "fixed")
+            << (outcome.controller_mode == "eval" ? " adaptive prediction horizon and Q/R weights" : " prediction horizon and Q/R weights") << '\n'
             << (outcome.controller_mode == "eval"
-                ? "DDPG policy file: " + outcome.policy_file.string() + "\n" : "")
+                ? (outcome.rl_algorithm == "td3" ? "TD3" : "DDPG") + std::string(" policy file: ") + outcome.policy_file.string() + "\n" : "")
             << "Run status: " << (outcome.completed ? "completed" : "incomplete") << '\n'
             << "Requested distance (m): " << fmt(outcome.requested_distance_m, 3) << '\n'
             << "Stop reason: " << (outcome.completed ? "none" : outcome.stop_reason) << '\n'
@@ -477,40 +479,44 @@ SimulationMetrics exportResults(
             << "Sampling period (s): " << fmt(mp.dt, 4) << '\n'
             << "Prediction horizon Np (steps): " << mp.np << '\n'
             << "Applied Np range (steps): " << min_np << " / " << max_np << '\n'
-            << "Dynamic prediction-model weight range (0=kinematic, 1=dynamic): "
-            << fmt(min_dynamic_weight, 6) << " / " << fmt(max_dynamic_weight, 6) << '\n'
             << "Control horizon Nc (steps): " << mp.nc << '\n'
             << "Prediction time Tp (s): " << fmt(mp.np * mp.dt, 4) << '\n'
             << "Control time Tc (s): " << fmt(mp.nc * mp.dt, 4) << '\n'
-            << "Control blocking: hold last optimized steering through Np\n";
+            << "Control blocking: hold last steering after Nc incremental moves\n";
         const char* weight_names[] = {"Q_y", "Q_psi", "Q_vy", "Q_r",
                                       "R_steer", "R_delta"};
         for (std::size_t k = 0; k < 6; ++k)
             out << "Applied " << weight_names[k] << " absolute range: "
                 << fmt(min_weights[k], 6) << " / " << fmt(max_weights[k], 6) << '\n';
-        out << "MPC prediction states: [vy,vx,psi,r,Y,X]; measured-speed blend of low-speed kinematic and paper three-DOF dynamic models\n"
-                << "Model blend: 0 below 32 km/h, 0.5 at 36 km/h, 1 above 40 km/h; no DDPG speed gate\n"
-                << "MPC discretization: current CarSim operating point, forward Euler\n"
+        out << "MPC prediction states: [vy,vx,psi,r,Y,X]; three-DOF dynamic model only\n"
+                << "MPC augmentation: previous steering state, optimized steering increments\n"
+                << "MPC discretization: stage-varying CarSim operating points, bilinear Tustin\n"
                 << "Longitudinal input: measured consecutive CarSim body-vx rate; longitudinal tire slip/stiffness unavailable\n"
                 << "MPC model source: this run's carsim_native/LastRun_echo.par\n"
                 << "MPC total-laden mass (kg): " << fmt(vp.mass, 6) << '\n'
                 << "MPC total-laden yaw inertia (kg m^2): " << fmt(vp.iz, 6) << '\n'
                 << "MPC CG-to-front / CG-to-rear (m): " << fmt(vp.a, 6)
                 << " / " << fmt(vp.b, 6) << '\n'
-                << "MPC road friction coefficient: " << fmt(vp.road_grip_scale, 6) << '\n'
-                << "MPC front / rear linearized axle stiffness (N/rad): "
+                << "Road grip at initial CG station: " << fmt(rows.front().road_grip, 6)
+                << (outcome.variable_road_grip ? " (variable road map)\n" : " (constant road)\n")
+                << "Initial MPC front / rear linearized axle stiffness (N/rad): "
                 << fmt(outcome.model_front_stiffness_n_per_rad, 3) << " / "
                 << fmt(outcome.model_rear_stiffness_n_per_rad, 3) << '\n'
                 << "MPC tire source: carsim_native/carsim_tire_fy.csv (same four tire carpets)\n"
-                << "MPC approximation: static axle loads and small-slip linearization; CarSim plant remains nonlinear\n";
+                << (mp.nonlinear_tire ?
+                    "MPC approximation: static axle loads; nonlinear tire table at each operating point with a slope floor; CarSim plant remains nonlinear\n" :
+                    "MPC approximation: static axle loads and small-slip linearization; CarSim plant remains nonlinear\n");
         out
             << "Configured fixed-mode Q diag: " << fmt(mp.q_y) << ", " << fmt(mp.q_psi)
             << ", " << fmt(mp.q_vy) << ", " << fmt(mp.q_r) << '\n'
-            << "Configured fixed-mode R steering feedforward deviation: " << fmt(mp.r_steer) << '\n'
+            << "Configured fixed-mode R steering feedforward deviation via increments: " << fmt(mp.r_steer) << '\n'
             << "Configured fixed-mode R_delta increment penalty: " << fmt(mp.r_delta) << '\n'
             << "Terminal multiplier: " << fmt(mp.terminal_scale) << '\n'
             << "Steering limit (deg): " << fmt(mp.max_steer * rad2deg) << '\n'
             << "Steering slew limit (deg/s): " << fmt(mp.max_steer_rate * rad2deg) << '\n'
+            << "Speed-based slew schedule: " << (mp.speed_rate_enabled ? "enabled" : "disabled")
+            << "; start/end (km/h): " << fmt(mp.speed_rate_start * 3.6) << " / " << fmt(mp.speed_rate_end * 3.6)
+            << "; end limit (deg/s): " << fmt(mp.speed_rate_end_limit * rad2deg) << '\n'
             << "Simulation samples: " << rows.size() << '\n'
             << "Distance reached (m): " << fmt(rows.back().s.x, 3) << '\n'
             << "Reference parameters: CarSim LTARG_TABLE in staged Run_all.par\n"
@@ -527,7 +533,7 @@ SimulationMetrics exportResults(
             << "Mean QP solve time (ms): " << fmt(metrics.mean_qp_time_ms, 4) << '\n'
             << "Peak QP solve time (ms): " << fmt(metrics.max_qp_time_ms, 4) << '\n'
             << "Nonconverged QP steps: " << metrics.qp_nonconverged_steps << '\n'
-            << "Note: this count includes fallback steering, but excludes intentional grip-limited tracking.\n"
+            << "Note: includes attempted nonconverged QPs and fallback steering; excludes grip tracking without a QP attempt.\n"
             << "Grip-limited reference tracking steps: " << metrics.grip_limited_steps << '\n'
             << "Fallback steering steps: " << metrics.fallback_control_steps << '\n';
         out
@@ -558,7 +564,7 @@ SimulationMetrics exportResults(
             << "</style></head><body><header><h1>"
             << "CarSim 车辆动力学"
             << (outcome.controller_mode == "eval"
-                ? " · DDPG 自适应预测时域与 Q/R 权重 MPC 双移线轨迹跟踪</h1>"
+                ? (outcome.rl_algorithm == "td3" ? " · TD3 自适应预测时域与 Q/R 权重 MPC 双移线轨迹跟踪</h1>" : " · DDPG 自适应预测时域与 Q/R 权重 MPC 双移线轨迹跟踪</h1>")
                 : " · 固定预测时域 MPC 双移线轨迹跟踪</h1>")
             << "<p>C++ 实验标签：" << xmlEscape(experiment_name)
             << " · 参考轨迹：" << xmlEscape(outcome.reference_source)
@@ -579,8 +585,9 @@ SimulationMetrics exportResults(
             out << "MPC 整车质量：" << fmt(vp.mass, 3) << " kg；偏航惯量："
                 << fmt(vp.iz, 3) << " kg·m²<br>"
                 << "质心到前/后轴：" << fmt(vp.a, 4) << " / " << fmt(vp.b, 4)
-                << " m；路面摩擦系数：" << fmt(vp.road_grip_scale, 3) << "<br>"
-                << "前/后轴线性化侧偏刚度："
+                << " m；初始路面摩擦系数：" << fmt(rows.front().road_grip, 3)
+                << (outcome.variable_road_grip ? "（随道路表变化）" : "（常附着）") << "<br>"
+                << "初始前/后轴小侧偏参考刚度："
                 << fmt(outcome.model_front_stiffness_n_per_rad, 1) << " / "
                 << fmt(outcome.model_rear_stiffness_n_per_rad, 1)
                 << " N/rad（按该次轮胎表和静态轴荷计算）<br>";
@@ -656,7 +663,7 @@ SimulationMetrics exportResults(
                                 "08_prediction_horizon.svg", "09_q_y_value.svg",
                                 "09_q_psi_value.svg", "09_q_vy_value.svg",
                                 "09_q_r_value.svg", "10_r_steer_value.svg",
-                                "10_r_delta_value.svg", "11_model_weight.svg"};
+                                "10_r_delta_value.svg"};
         for (const char* name : plots)
             out << "<div class=\"plot\"><img loading=\"lazy\" src=\""
                 << name << "\" alt=\"" << name << "\"></div>";
@@ -665,7 +672,7 @@ SimulationMetrics exportResults(
             << " ｜ <a href=\"effective_config.ini\">本次生效参数</a>"
             << " ｜ <a href=\"tire_data.csv\">"
             << "C++ 预测模型轮胎数据</a><br>"
-            << "车辆状态来自 CarSim；转角曲线是 C++ 控制指令，实际轮角尚未映射。MPC 在 32–40 km/h 平滑融合实测侧偏补偿的运动学模型与六状态三自由度动力学模型；质量、质心、偏航惯量、轮胎表和路面摩擦系数取自本次 CarSim Solver 回显。纵向轮胎滑移与刚度当前未映射，纵向加速度由相邻 CarSim 状态估计。DDPG 在所有车速均调节 Np/Q/R。"
+            << "车辆状态来自 CarSim；转角曲线是 C++ 控制指令，实际轮角尚未映射。MPC 使用三自由度动力学增量式 LTV 预测，沿预测轨迹逐步线性化并作 Tustin 离散化；质量、质心、偏航惯量、轮胎表和路面摩擦系数取自本次 CarSim Solver 回显。纵向轮胎滑移与刚度当前未映射，纵向加速度由相邻 CarSim 状态估计。DDPG 在所有车速均调节 Np/Q/R。"
             << "</footer></body></html>";
     }
     return metrics;
@@ -745,10 +752,71 @@ void exportComparisonVisuals(const std::filesystem::path& output,
             [](const auto& v) { return static_cast<double>(v.prediction_horizon); }),
         makeTrace(adaptive, "DDPG Np", adaptive_color, x,
             [](const auto& v) { return static_cast<double>(v.prediction_horizon); })}, true);
-    comparisonChart(output / "11_model_weight.svg", "Shared MPC predictor model blend",
-        "Longitudinal position X (m)", "Dynamic model weight (0=kinematic, 1=dynamic)", {
-        makeTrace(fixed, "Fixed MPC weight", fixed_color, x,
-            [](const auto& v) { return v.dynamic_model_weight; }),
-        makeTrace(adaptive, "DDPG MPC weight", adaptive_color, x,
-            [](const auto& v) { return v.dynamic_model_weight; })});
+}
+
+void exportThreeComparisonVisuals(const std::filesystem::path& output,
+    const std::vector<SimulationRecord>& fixed,
+    const std::vector<SimulationRecord>& ddpg,
+    const std::vector<SimulationRecord>& td3) {
+    if (fixed.empty() || ddpg.empty() || td3.empty())
+        throw std::invalid_argument("Three-controller comparison requires all trajectories");
+    std::filesystem::create_directories(output);
+    const auto x = [](const auto& v) { return v.s.x; };
+    const auto t = [](const auto& v) { return v.time; };
+    const auto zero = [](const auto&) { return 0.0; };
+    const auto trace = [&](const auto& rows, const char* name,
+                           const auto& getx, const auto& gety) {
+        return makeTrace(rows, name, "#2563eb", getx, gety);
+    };
+    const auto draw = [&](const char* file, const char* title,
+                          const char* xlabel, const char* ylabel,
+                          const auto& getx, const auto& gety,
+                          std::vector<Trace> extra, bool integer_y = false) {
+        extra.push_back(trace(fixed, "Fixed MPC", getx, gety));
+        extra.push_back(trace(ddpg, "DDPG", getx, gety));
+        extra.push_back(trace(td3, "TD3", getx, gety));
+        comparisonChart(output / file, title, xlabel, ylabel, std::move(extra), integer_y);
+    };
+    const char* xpos = "Longitudinal position X (m)";
+    draw("01_lateral_tracking.svg", "Lateral path tracking", xpos, "Lateral position Y (m)", x,
+        [](const auto& v) { return v.s.y; },
+        {makeTrace(fixed, "Reference", "#0f766e", x, [](const auto& v) { return v.reference.y; }, true)});
+    draw("02_heading_tracking.svg", "Heading angle tracking", xpos, "Heading angle (deg)", x,
+        [](const auto& v) { return v.s.psi * rad2deg; },
+        {makeTrace(fixed, "Reference", "#0f766e", x, [](const auto& v) { return v.reference.psi * rad2deg; }, true)});
+    draw("03_lateral_error.svg", "Lateral tracking error", xpos, "Y - Yref (m)", x,
+        [](const auto& v) { return v.lateral_error; },
+        {makeTrace(fixed, "Zero", "#0f766e", x, zero, true)});
+    draw("04_heading_error.svg", "Heading tracking error", xpos, "Psi - Psiref (deg)", x,
+        [](const auto& v) { return v.heading_error * rad2deg; },
+        {makeTrace(fixed, "Zero", "#0f766e", x, zero, true)});
+    draw("05_steering.svg", "Front-wheel steering command", "Time (s)", "Steering angle (deg)", t,
+        [](const auto& v) { return v.steer * rad2deg; }, {});
+    draw("06_yaw_rate.svg", "Yaw rate", xpos, "Yaw rate (deg/s)", x,
+        [](const auto& v) { return v.s.r * rad2deg; },
+        {makeTrace(fixed, "Fixed target", "#64748b", x, [](const auto& v) { return v.yaw_rate_ref * rad2deg; }, true),
+         makeTrace(ddpg, "DDPG target", "#d97706", x, [](const auto& v) { return v.yaw_rate_ref * rad2deg; }, true),
+         makeTrace(td3, "TD3 target", "#a78bfa", x, [](const auto& v) { return v.yaw_rate_ref * rad2deg; }, true)});
+    comparisonChart(output / "07_speed.svg", "Vehicle speed", "Time (s)", "Speed (km/h)", {
+        trace(fixed, "Fixed vx", t, [](const auto& v) { return 3.6 * v.s.vx; }),
+        trace(ddpg, "DDPG vx", t, [](const auto& v) { return 3.6 * v.s.vx; }),
+        trace(td3, "TD3 vx", t, [](const auto& v) { return 3.6 * v.s.vx; }),
+        trace(fixed, "Fixed ground", t, [](const auto& v) { return 3.6 * std::hypot(v.s.vx, v.s.vy); }),
+        trace(ddpg, "DDPG ground", t, [](const auto& v) { return 3.6 * std::hypot(v.s.vx, v.s.vy); }),
+        trace(td3, "TD3 ground", t, [](const auto& v) { return 3.6 * std::hypot(v.s.vx, v.s.vy); })});
+    draw("08_prediction_horizon.svg", "Prediction horizon", xpos, "Np (steps)", x,
+        [](const auto& v) { return static_cast<double>(v.prediction_horizon); }, {}, true);
+    draw("11_road_grip.svg", "Road grip from CarSim map at CG station", xpos, "Road grip mu", x,
+        [](const auto& v) { return v.road_grip; }, {});
+    struct WeightChart { const char* file; const char* title; double SimulationRecord::*field; };
+    const std::array<WeightChart, 6> weights{{
+        {"09_q_y_value.svg", "Lateral-error weight Qy", &SimulationRecord::q_y},
+        {"09_q_psi_value.svg", "Heading-error weight Qpsi", &SimulationRecord::q_psi},
+        {"09_q_vy_value.svg", "Lateral-velocity weight Qvy", &SimulationRecord::q_vy},
+        {"09_q_r_value.svg", "Yaw-rate weight Qr", &SimulationRecord::q_r},
+        {"10_r_steer_value.svg", "Steering weight Rsteer", &SimulationRecord::r_steer},
+        {"10_r_delta_value.svg", "Steering-increment weight Rdelta", &SimulationRecord::r_delta}}};
+    for (const auto& weight : weights)
+        draw(weight.file, weight.title, xpos, "Applied weight", x,
+             [field = weight.field](const auto& v) { return v.*field; }, {});
 }

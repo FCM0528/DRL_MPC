@@ -15,18 +15,18 @@ struct RlRewardConfig {
     double reward_scale = 10.0; // scale the scalar reward and failure penalties
     double ey_scale_m = 0.25;
     double epsi_scale_rad = 0.10;
-    double w_y = 0.75;
+    double w_y = 1.0;
     double w_peak = 0.20;
     double peak_threshold_m = 0.30;
-    double w_psi = 0.25;
-    double w_steer = 0.05;
-    double w_steer_rate = 0.10;
-    double w_horizon = 0.01;
-    double w_np_change = 0.02;
-    double w_vy = 0.08;
-    double w_yaw_error = 0.10;
-    double w_weight_change = 0.03;
-    double w_weight_deviation = 0.01;
+    double w_psi = 0.17;
+    double w_steer = 0.03;
+    double w_steer_rate = 0.08;
+    double w_horizon = 0.005;
+    double w_np_change = 0.01;
+    double w_vy = 0.04;
+    double w_yaw_error = 0.06;
+    double w_weight_change = 0.015;
+    double w_weight_deviation = 0.005;
     double w_grip_limited = 0.03;
     double failure_penalty = 100.0;
     double incomplete_episode_penalty = 100.0;
@@ -35,10 +35,15 @@ struct RlRewardConfig {
 struct RlConfig {
     std::string mode = "train";       // fixed | train | eval
     std::string algorithm = "ddpg";   // policy factory extension point
+    std::string action_profile = "full"; // full | compact | np_only
     int min_np = 10;
     int max_np = 40;
     int nominal_np = 15; // independent center for the learned Np action
     int decision_steps = 5;
+    double discount_gamma = 0.98; // discount per policy decision
+    double actor_learning_rate = 0.0001;
+    double grip_demand_clip = 3.0; // input schema changes when not 3
+    double np_exploration_scale = 1.0;
     // Absolute MPC cost coefficients; these do not depend on [weights].
     std::array<double, 6> weight_min{{60.0, 210.0, 0.24, 4.8, 7.0, 245.0}};
     std::array<double, 6> weight_max{{166.66666666666666, 583.3333333333334,
@@ -48,11 +53,30 @@ struct RlConfig {
     double curvature_preview_s = 1.5;
     int episodes = 200;
     int seed = 42;
+    bool curriculum = false; // ordered low-to-high scenario bins within each complete cycle
+    bool focus_target_speeds = false; // oversample 55–65 and 75–85 km/h
+    bool vary_road_transition = false; // vary station of existing road-table transitions
+    bool preserve_source_road = false; // vary speed only; retain the source friction profile
+    bool relative_advantage = false; // scale paired reward difference by baseline difficulty
+    bool align_integer_np = false; // critic evaluates the Np action actually executed
+    bool direct_block_reward = false; // use scaled block return, not time-paired relative reward
+    bool augmented_observation = false; // compact policy additionally sees steering and protection state
+    bool penalize_qp_failure = false; // penalize failed optimization even if grip control takes over
+    bool strict_tracking_selection = false; // compare heading and grip protection with baseline
+    bool low_speed_blend = false;
+    double blend_start_kmh = 60.0;
+    double blend_end_kmh = 80.0;
+    bool high_speed_blend = false;
+    double high_blend_start_kmh = 85.0;
+    double high_blend_end_kmh = 95.0;
     double train_speed_min = 30.0 / 3.6;
     double train_speed_max = 120.0 / 3.6;
     double train_mu_min = 0.3;
     double train_mu_max = 0.9;
     std::filesystem::path model_file = "ddpg_policy.txt";
+    std::filesystem::path warm_start_file;
+    std::filesystem::path resume_state_file;
+    bool resume_actor_fallback = false;
     RlRewardConfig reward;
 };
 
@@ -67,6 +91,16 @@ struct MpcTuningAction {
     double r_delta = 350.0;
 };
 
+struct RlTrainingStats {
+    double critic1_loss_sum = 0.0;
+    double critic2_loss_sum = 0.0;
+    double actor_objective_sum = 0.0;
+    int critic_updates = 0;
+    int actor_updates = 0;
+    int transitions = 0;
+    int clipped_rewards = 0;
+};
+
 class RlPolicy {
 public:
     virtual ~RlPolicy() = default;
@@ -76,18 +110,33 @@ public:
                          double reward, const RlObservation& next, bool done) = 0;
     virtual void save(const std::filesystem::path& file) const = 0;
     virtual void load(const std::filesystem::path& file) = 0;
+    virtual void warmStart(const std::filesystem::path& file) = 0;
+    virtual void saveTrainingState(const std::filesystem::path& file) const = 0;
+    virtual void loadTrainingState(const std::filesystem::path& file) = 0;
     virtual void setTrainingEpisode(int, int) {}
     virtual double explorationStdDev() const { return 0.0; }
+    virtual RlTrainingStats takeTrainingStats() { return {}; }
 };
 
 std::unique_ptr<RlPolicy> createRlPolicy(const RlConfig& config);
+double pairedRewardAdvantage(double reward, double baseline, const RlConfig& config);
+double trainingBlockReward(double reward, double baseline, const RlConfig& config);
+double quantizeNormalizedNp(double action, int nominal, int minimum, int maximum);
+double lowSpeedActionBlend(double speed_kmh, const RlConfig& config);
+double policyActionBlend(double speed_kmh, const RlConfig& config);
+bool trackingSafetyAcceptable(double heading_rmse_deg, int grip_steps,
+                              double reference_heading_rmse_deg, int reference_grip_steps);
 MpcTuningAction neutralRlAction(const RlConfig& config);
 RlObservation makeRlObservation(const VehicleState& state,
                                 const DoubleLaneChange& reference,
                                 int current_np, double distance_m,
                                 double speed_scale, const RlConfig& config,
                                 const MpcTuningAction& current_action = {},
-                                double road_grip = 0.8);
+                                double road_grip = 0.8,
+                                double previous_steer = 0.0,
+                                bool grip_mode = false,
+                                double previous_plan = 0.0,
+                                double steer_scale = 0.42);
 MpcParameters applyRlAction(const MpcParameters& base, const MpcTuningAction& action,
                             const RlConfig& config);
 double scalarizedRlReward(double ey, double epsi, double steer, int np,
@@ -96,8 +145,10 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           const MpcTuningAction& action = {},
                           const MpcTuningAction& previous_action = {},
                           double vy = 0.0, double yaw_error = 0.0,
-                          bool grip_limited = false);
+                          bool grip_limited = false,
+                          std::array<double, 11>* components = nullptr);
 
 struct AppConfig;
 void runRlTraining(const AppConfig& config);
 void runRlHeldoutEvaluation(const AppConfig& config);
+void exportRlTrainingActor(const AppConfig& config);

@@ -1,6 +1,6 @@
 # CarSim 2024.1 与 C++ MPC 闭环集成
 
-本项目的 `CarSimPlant` 通过 CarSim VS Solver DLL 的 VS API 驱动车辆。MPC 预测模型采用《基于RL-MPC的智能车辆轨迹跟踪横向控制策略》式 (3)–(6) 的三自由度动力学（纵向速度、侧向速度、横摆角速度）和六状态 `[vy,vx,psi,r,Y,X]`，在 CarSim 当前状态处线性化并按前向欧拉离散。论文的全局位置记号与 CarSim 的 X 前向、Y 向左坐标对应时需要调整顺序。质量、惯量、轴距、轮胎侧偏刚度和附着参数来自本次 CarSim Solver 回显；当前接口没有纵向轮胎滑移与刚度输出，因此纵向力在工作点由相邻 CarSim 纵向速度求得的加速度表示，不填写未知轮胎参数。实际车辆状态、车辆运动由 CarSim 计算。固定 MPC、DDPG 训练和 DDPG 策略评估均可接入 CarSim。
+本项目的 `CarSimPlant` 通过 CarSim VS Solver DLL 的 VS API 驱动车辆。MPC 只使用六状态三自由度动力学 `[vy,vx,psi,r,Y,X]`；以转角增量为优化变量，沿名义预测轨迹逐步线性化并按 Tustin 方法离散化。质量、惯量、轴距、轮胎侧偏刚度和附着参数来自本次 CarSim Solver 回显；当前接口没有纵向轮胎滑移与刚度输出，因此纵向力在工作点由相邻 CarSim 纵向速度求得的加速度表示，不填写未知轮胎参数。实际车辆状态、车辆运动由 CarSim 计算。固定 MPC、DDPG 与可选 TD3 的训练和策略评估均可接入 CarSim。
 
 ## 1. 在 CarSim 中生成可控工况
 
@@ -58,13 +58,13 @@ yaw_rate_keyword = AVZ
 也可以通过命令行临时指定（PowerShell）：
 
 ```powershell
-.\out\build\x64-Debug\MPC_DoubleLaneChange.exe --rl-mode fixed --plant carsim --set 'carsim.simfile=D:\Program Files (x86)\CarSim2024_Date\simfile.sim' --set 'carsim.solver_dll=D:\Program Files (x86)\CarSim2024.1_Prog\Programs\solvers\carsim_64.dll' --set carsim.steering_right_index=1 --no-open --out results/carsim_trial
+.\out\build\x64-Release\Release\MPC_DoubleLaneChange.exe --rl-mode fixed --plant carsim --set 'carsim.simfile=D:\Program Files (x86)\CarSim2024_Date\simfile.sim' --set 'carsim.solver_dll=D:\Program Files (x86)\CarSim2024.1_Prog\Programs\solvers\carsim_64.dll' --set carsim.steering_right_index=1 --no-open --out results/carsim_trial
 ```
 
 若需要在**同一 CarSim 工况下训练自适应 Np、Q 和 R 策略**，先运行：
 
 ```powershell
-.\out\build\x64-Debug\MPC_DoubleLaneChange.exe --rl-mode train --rl-episodes 200 --plant carsim --set 'carsim.simfile=D:\Program Files (x86)\CarSim2024_Date\simfile.sim' --set 'carsim.solver_dll=D:\Program Files (x86)\CarSim2024.1_Prog\Programs\solvers\carsim_64.dll' --set carsim.steering_right_index=1 --no-open --out results/carsim_training
+.\out\build\x64-Release\Release\MPC_DoubleLaneChange.exe --rl-mode train --rl-episodes 200 --plant carsim --set 'carsim.simfile=D:\Program Files (x86)\CarSim2024_Date\simfile.sim' --set 'carsim.solver_dll=D:\Program Files (x86)\CarSim2024.1_Prog\Programs\solvers\carsim_64.dll' --set carsim.steering_right_index=1 --no-open --out results/carsim_training
 ```
 
 默认训练 200 回合，目标速度在 30–120 km/h、路面附着系数 μ 在 0.3–0.9 的 6×5 分层网格内抽样，并增加低速过渡区的训练覆盖。每回合运行真实 CarSim Solver，在私有 `training_solver/Run_all.par` 中设置 `SPEED_TARGET_CONSTANT`、`MU_ROAD_CONSTANT`，必要时延长 `TSTOP`；原工况不修改。求解器回显会核对设定速度和 μ，实际车速以求解器输出为准。`training_rewards.csv` 保存逐回合速度、μ、回报、RMSE 和完成情况；每 10 回合在原工况及十三个速度/μ 组合验证，`checkpoint_validation.csv` 保存各工况指标。CarSim 轨迹的当前位置与前方曲率会输入策略，但当前训练只使用这一条 CarSim 参考轨迹。
@@ -74,10 +74,10 @@ DDPG Actor 每次输出七个有界动作：Np、`Q_y/Q_psi/Q_vy/Q_r` 四个绝�
 训练完成后，取终端输出目录中的 `ddpg_policy.txt` 进行**同一 CarSim 工况下的固定 MPC 与 DDPG 自适应 MPC 对比**：
 
 ```powershell
-.\out\build\x64-Debug\MPC_DoubleLaneChange.exe --rl-mode compare --rl-model 'results\carsim_training\<本次运行子目录>\ddpg_policy.txt' --plant carsim --set 'carsim.simfile=D:\Program Files (x86)\CarSim2024_Date\simfile.sim' --set 'carsim.solver_dll=D:\Program Files (x86)\CarSim2024.1_Prog\Programs\solvers\carsim_64.dll' --set carsim.steering_right_index=1 --no-open --out results/carsim_trial
+.\out\build\x64-Release\Release\MPC_DoubleLaneChange.exe --rl-mode compare --rl-model 'results\carsim_training\<本次运行子目录>\ddpg_policy.txt' --plant carsim --set 'carsim.simfile=D:\Program Files (x86)\CarSim2024_Date\simfile.sim' --set 'carsim.solver_dll=D:\Program Files (x86)\CarSim2024.1_Prog\Programs\solvers\carsim_64.dll' --set carsim.steering_right_index=1 --no-open --out results/carsim_trial
 ```
 
-该命令在每次独立结果目录下生成 `fixed/`、`adaptive/`、`comparison/`、`comparison_metrics.csv` 和 `comparison_report.html`。两次运行使用相同的 CarSim 工况快照；报告给出 Np、误差、转向、速度曲线、预测模型融合权重，以及六个 Q/R 绝对值曲线。`adaptive/simulation.csv` 包含每个控制周期实际使用的六个 MPC 权重和模型融合权重。固定 MPC 原生结果保存在 `fixed/carsim_native/`，DDPG 原生结果保存在 `adaptive/carsim_native/`。若启用 Browser 同步，最近的 GUI Video/Plot 对应 DDPG 运行。策略文件作为 `ddpg_policy_used.txt` 单独存档。V14 倍率策略不能直接加载；当训练时基准权重与绝对动作边界满足等价条件，可使用 `tools/convert_v14_policy.py` 迁移 Actor 网络，不满足条件则需重训。
+该命令在每次独立结果目录下生成 `fixed/`、`adaptive/`、`comparison/`、`comparison_metrics.csv` 和 `comparison_report.html`。两次运行使用相同的 CarSim 工况快照；报告给出 Np、误差、转向、速度曲线及六个 Q/R 绝对值曲线。`adaptive/simulation.csv` 包含每个控制周期实际使用的六个 MPC 权重。固定 MPC 原生结果保存在 `fixed/carsim_native/`，DDPG 原生结果保存在 `adaptive/carsim_native/`。若启用 Browser 同步，最近的 GUI Video/Plot 对应 DDPG 运行。策略文件作为 `ddpg_policy_used.txt` 单独存档。V14/V15 策略与当前 V16 增量式 LTV-MPC 不兼容，必须重新训练。
 
 上述命令需要正常可用的 CarSim Solver 许可证。`mpc.dt_s` 必须是 VS API 返回的求解步长的整数倍；当前 Simfile 的 `EXT_MODEL_STEP` 是 0.0005 s，而生成的 `Run_all.par` 写有 `tstep 0.001` s，不能将这两个字段混为一谈。程序以 VS API 返回值检查步长；项目默认 `dt_s` 为 0.05 s。
 

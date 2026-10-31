@@ -1,5 +1,5 @@
 param(
-    [string]$OutputRoot = 'results/absolute_v15_five_seeds',
+    [string]$OutputRoot = 'results/incremental_ltv_v16_five_seeds',
     [int[]]$Seeds = @(101, 102, 103, 104, 105),
     [string]$FrozenSimfile = ''
 )

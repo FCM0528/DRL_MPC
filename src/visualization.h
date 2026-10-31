@@ -15,6 +15,7 @@ struct SimulationRecord {
     double heading_error = 0.0;       // psi - psiref [rad]
     double steer = 0.0;               // front-wheel steering [rad]
     double yaw_rate_ref = 0.0;        // [rad/s]
+    double road_grip = 0.0;           // road-map estimate at CG station, not a tire measurement
     int qp_iterations = 0;
     double qp_primal_residual = 0.0;
     double qp_dual_residual = 0.0;
@@ -24,7 +25,6 @@ struct SimulationRecord {
     bool is_command = true;           // final sample is for plotting only
     bool fallback_control = false;     // MPC failed; steering returned toward zero at rate limit
     int prediction_horizon = 0;         // actual Np used for this command
-    double dynamic_model_weight = 0.0;  // 0 kinematic, 1 dynamic
     double q_y = 100.0;
     double q_psi = 350.0;
     double q_vy = 0.4;
@@ -37,11 +37,13 @@ struct RunOutcome {
     double requested_distance_m = 0.0;
     std::string plant_name = "carsim";
     std::string controller_mode = "fixed";
+    std::string rl_algorithm = "ddpg";
     std::filesystem::path policy_file;
     std::string reference_source = "CarSim LTARG_TABLE (straight east road)";
     CarSimRunInfo carsim_info;
     double model_front_stiffness_n_per_rad = 0.0;
     double model_rear_stiffness_n_per_rad = 0.0;
+    bool variable_road_grip = false;
     std::string browser_result_status;
     std::filesystem::path browser_result_file;
     bool completed = true;
@@ -82,3 +84,8 @@ SimulationMetrics exportResults(
 void exportComparisonVisuals(const std::filesystem::path& output,
     const std::vector<SimulationRecord>& fixed,
     const std::vector<SimulationRecord>& adaptive);
+
+void exportThreeComparisonVisuals(const std::filesystem::path& output,
+    const std::vector<SimulationRecord>& fixed,
+    const std::vector<SimulationRecord>& ddpg,
+    const std::vector<SimulationRecord>& td3);

@@ -11,6 +11,7 @@ public:
 
     double corneringStiffness(double normal_load_n) const;
     double peakLateralForce(double normal_load_n) const;
+    double lateralForce(double slip_rad, double normal_load_n) const;
     double minLoad() const { return loads_.front(); }
     double maxLoad() const { return loads_.back(); }
 
@@ -42,8 +43,7 @@ struct VehicleState {
     double r = 0.0;             // yaw rate [rad/s]
 };
 
-// Paper's six states, reordered to CarSim coordinates: [vy,vx,psi,r,Y,X].
-// The three dynamic DOF are body lateral, body longitudinal and yaw motion.
+// Three-DOF dynamic model in CarSim coordinates: [vy,vx,psi,r,Y,X].
 using State6 = std::array<double, 6>;
 using Matrix6 = std::array<std::array<double, 6>, 6>;
 
@@ -59,18 +59,8 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
                                         const TireTable& tires,
                                         const VehicleState& operating_point,
                                         double steering_angle,
-                                        double longitudinal_accel, double dt);
-// Geometry-based low-speed predictor with measured CarSim sideslip/yaw residuals.
-// The blend is 0 below 32 km/h, 1 above 40 km/h, centered at 36 km/h.
-double dynamicPredictionWeight(double speed_mps);
-DiscreteErrorModel discretizeKinematicModel(const VehicleParameters& p,
-                                             const VehicleState& operating_point,
-                                             double steering_angle,
-                                             double longitudinal_accel, double dt);
-DiscreteErrorModel discretizePredictionModel(const VehicleParameters& p,
-                                              const TireTable& tires,
-                                              const VehicleState& operating_point,
-                                              double steering_angle,
-                                              double longitudinal_accel, double dt);
+                                        double longitudinal_accel, double dt,
+                                        bool nonlinear_tire = false,
+                                        double tire_slope_floor = 0.15);
 State6 matrixTimesState(const Matrix6& a, const State6& x);
 double angleDifference(double a, double b);

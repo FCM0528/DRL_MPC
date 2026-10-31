@@ -35,6 +35,13 @@ struct CarSimRunInfo {
 };
 
 struct CarSimMpcModel {
+    struct RoadGrip {
+        std::vector<std::pair<double, double>> table;
+        double constant = 0.0, gain = 1.0, offset = 0.0, lateral = 0.0;
+        double station_start = 0.0, station_scale = 1.0;
+        double at(double station) const;
+        bool variable() const { return !table.empty(); }
+    } road_grip;
     VehicleParameters vehicle;
     std::filesystem::path tire_csv;
     double front_stiffness_n_per_rad = 0.0;
@@ -52,6 +59,9 @@ CarSimRunInfo readCarSimRunInfo(const std::filesystem::path& parsfile);
 // under this experiment's output directory. The original CarSim files stay put.
 std::filesystem::path stageCarSimSimfile(const std::filesystem::path& source,
                                          const std::filesystem::path& output_dir);
+
+// Extend only the staged private station limit for the CG-distance criterion.
+void extendCarSimStationStop(const std::filesystem::path& staged_parsfile, double distance_m);
 
 // Mirror a finished, archived SDK run into the source Run Control's LastRun
 // cache so the CarSim Browser can enable its Video/Plot buttons. Existing

@@ -145,8 +145,8 @@ def aggregate(root: Path, expected_seeds: list[int]) -> None:
         run = candidates[0].parent
         runs[seed] = run
         policy = run / "ddpg_policy.txt"
-        if not policy.is_file() or not policy.read_text(encoding="utf-8").startswith("DDPG_MPC_V15_ABSOLUTE "):
-            raise ValueError(f"Missing V15 absolute-action policy for seed {seed}")
+        if not policy.is_file() or not policy.read_text(encoding="utf-8").startswith("DDPG_MPC_V16_INCREMENTAL_LTV "):
+            raise ValueError(f"Missing V16 incremental LTV policy for seed {seed}")
         rewards = rows_from(run / "training_rewards.csv")
         if len(rewards) != 200 or int(rewards[-1]["episode"]) != 200:
             raise ValueError(f"Seed {seed} did not complete 200 episodes")
@@ -167,7 +167,7 @@ def aggregate(root: Path, expected_seeds: list[int]) -> None:
             if int(row["seed"]) != seed or row["controller"] not in {"fixed", "ddpg"}:
                 raise ValueError(f"Invalid selected row for seed {seed}: {row}")
         heldout_paths = [path for path in
-                         (root / f"v15_{seed}").glob("*/heldout_validation.csv")
+                         (root / f"v16_{seed}").glob("*/heldout_validation.csv")
                          if len(rows_from(path)) == 48]
         if len(heldout_paths) != 1:
             raise ValueError(f"Expected one complete independent evaluation for seed {seed}")
@@ -293,7 +293,7 @@ def aggregate(root: Path, expected_seeds: list[int]) -> None:
     (root / "checkpoint_convergence_mean.svg").write_text(checkpoint_chart, encoding="utf-8")
 
     body = ["<!doctype html><html lang='zh-CN'><meta charset='utf-8'>",
-            "<title>五随机种子 CarSim V15 绝对权重 DDPG 对比</title>",
+            "<title>五随机种子 CarSim V16 增量式 LTV-MPC 与 DDPG 对比</title>",
             "<style>body{font:16px 'Microsoft YaHei',sans-serif;max-width:1120px;"
             "margin:28px auto;padding:0 20px;color:#20384d;background:#f3f7fb}"
             "h1,h2{color:#12375d}p{line-height:1.7}table{border-collapse:collapse;"
@@ -301,7 +301,7 @@ def aggregate(root: Path, expected_seeds: list[int]) -> None:
             "padding:8px;text-align:right}td:first-child,th:first-child{text-align:left}"
             "svg{display:block;width:100%;height:auto;background:white;margin:18px 0}"
             "a{color:#175a9e}</style>",
-            "<h1>五组随机种子：CarSim V15 双模型 DDPG 自适应 Np/Q/R</h1>",
+            "<h1>五组随机种子：CarSim V16 增量式 LTV-MPC 与 DDPG 自适应 Np/Q/R</h1>",
             "<p>每个随机种子独立训练 200 回合，并在相同的 CarSim 车辆、道路、"
             "参考轨迹和未用于检查点选择的独立工况上评估选中策略。"
             "表中的 DDPG 数值是五个策略性能的算术均值；"
@@ -309,12 +309,10 @@ def aggregate(root: Path, expected_seeds: list[int]) -> None:
             "所有速度是 CarSim 目标设定值，实际速度可能略有差异。"
             "独立评估仍使用同一车辆和参考轨迹，只改变速度和路面附着；"
             "不能据此推断其他道路的性能。</p>",
-            "<p>V15 在所有车速均执行 DDPG 输出的 Np/Q/R 绝对值；速度决定 MPC 预测模型，"
-            "并平滑收紧低速动作幅度，但动作幅度始终大于零。"
-            "CarSim 实测车速低于 32 km/h 用实测侧偏补偿的运动学模型，"
-            "高于 40 km/h 用六状态三自由度动力学模型，32–40 km/h 平滑融合，"
-            "36 km/h 为融合中心。论文使用 BiLSTM 预测侧偏角和 TD3；"
-            "本项目使用 CarSim 的实时 vx/vy 计算侧偏角，并保持 DDPG。"
+            "<p>V16 在所有车速均执行 DDPG 输出的 Np/Q/R 绝对值；"
+            "MPC 仅使用六状态三自由度动力学模型，沿预测轨迹逐步线性化，"
+            "以转角增量为优化变量，并作 Tustin 离散化。参考论文使用二维动力学和 TD3；"
+            "本项目保留 CarSim 三自由度模型和 DDPG。"
             "表中参数变化决策数指 Np 不同于 RL 中性值，或至少一项 Q/R 绝对值偏离独立范围中心的归一化量超过 10⁻⁶ 的决策次数；"
             "逐种子 CSV 还记录全部策略调用次数和 Np 取值范围。"
             "均值不能保证单次训练的性能；"
@@ -376,7 +374,7 @@ def aggregate(root: Path, expected_seeds: list[int]) -> None:
         report = (runs[seed] / "rl_report.html").relative_to(root).as_posix()
         policy = (runs[seed] / "ddpg_policy.txt").relative_to(root).as_posix()
         heldout_file = next(path for path in
-                            (root / f"v15_{seed}").glob("*/heldout_validation.csv")
+                            (root / f"v16_{seed}").glob("*/heldout_validation.csv")
                             if len(rows_from(path)) == 48)
         heldout_link = heldout_file.relative_to(root).as_posix()
         body.append(f"<tr><td>{seed}</td><td>{checkpoints[seed]}</td>"

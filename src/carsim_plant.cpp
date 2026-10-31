@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <stdexcept>
@@ -57,6 +58,43 @@ bool sameFileContents(const std::filesystem::path& left,
 }
 }  // namespace
 
+void extendCarSimStationStop(const std::filesystem::path& parsfile, double distance_m) {
+    if (!std::isfinite(distance_m) || distance_m <= 0.0)
+        throw std::invalid_argument("Invalid requested CarSim distance");
+    std::ifstream input(parsfile, std::ios::binary);
+    if (!input) throw std::runtime_error("Cannot read staged CarSim stop settings");
+    std::vector<std::string> lines;
+    int opt_count=0, stop_count=0, opt=0;
+    std::size_t stop_line=0;
+    double stop=0.0;
+    std::string line;
+    while (std::getline(input,line)) {
+        std::istringstream fields(line); std::string keyword; fields >> keyword;
+        if(keyword=="OPT_STOP") {
+            if (!(fields >> opt)) throw std::runtime_error("Invalid CarSim OPT_STOP");
+            ++opt_count;
+        } else if(keyword=="SSTOP") {
+            ++stop_count; stop_line=lines.size();
+            if (!(fields >> stop)) stop=std::numeric_limits<double>::quiet_NaN();
+        }
+        lines.push_back(line);
+    }
+    input.close();
+    if (opt_count==0) return;
+    if (opt_count!=1) throw std::runtime_error("Multiple CarSim OPT_STOP entries are unsupported");
+    if (opt==0) return;
+    if (opt!=1 || stop_count!=1 || !std::isfinite(stop))
+        throw std::runtime_error("Unsupported CarSim station-stop configuration; numeric SSTOP required");
+    const double minimum=distance_m+10.0;
+    if (stop>=minimum) return;
+    std::ostringstream replacement; replacement << std::setprecision(17) << "SSTOP " << minimum;
+    lines[stop_line]=replacement.str();
+    std::ofstream output(parsfile,std::ios::binary|std::ios::trunc);
+    if(!output) throw std::runtime_error("Cannot update staged CarSim station limit");
+    for(const auto& item:lines) output << item << '\n';
+    if(!output) throw std::runtime_error("Cannot finish staged CarSim station limit");
+}
+
 CarSimRunInfo readCarSimRunInfo(const std::filesystem::path& parsfile) {
     std::ifstream input(parsfile);
     if (!input) throw std::runtime_error("Cannot read CarSim run snapshot: " + parsfile.string());
@@ -99,6 +137,20 @@ CarSimRunInfo readCarSimRunInfo(const std::filesystem::path& parsfile) {
     return info;
 }
 
+double CarSimMpcModel::RoadGrip::at(double station) const {
+    double base = constant;
+    if (!table.empty()) {
+        const double s = (station - station_start) / station_scale;
+        auto next = std::upper_bound(table.begin(), table.end(), s,
+            [](double value, const auto& point) { return value < point.first; });
+        base = next == table.begin() ? table.front().second : std::prev(next)->second;
+    }
+    const double grip = base * gain + offset + lateral;
+    if (!std::isfinite(grip) || grip <= 0.0)
+        throw std::runtime_error("Invalid effective CarSim road grip");
+    return grip;
+}
+
 CarSimMpcModel readCarSimMpcModel(const std::filesystem::path& native_dir) {
     std::ifstream in(native_dir / "LastRun_echo.par");
     if (!in) throw std::runtime_error("Current CarSim solver echo is unavailable");
@@ -108,10 +160,23 @@ CarSimMpcModel readCarSimMpcModel(const std::filesystem::path& native_dir) {
     std::map<std::string, int> tire_modifiers_seen;
     std::array<std::vector<std::vector<double>>, 4> carpets;
     int active = -1;
+    bool road_table_active = false;
+    std::vector<std::pair<double, double>> road_table;
     std::string line;
     while (std::getline(in, line)) {
         auto body = trimSimfileValue(line);
         if (body.empty()) continue;
+        if (road_table_active) {
+            if (body == "ENDTABLE") { road_table_active = false; continue; }
+            std::istringstream fields(body);
+            double station, mu; char comma;
+            if (!(fields >> station >> comma >> mu) || comma != ',' ||
+                !std::isfinite(station) || !std::isfinite(mu) ||
+                (!road_table.empty() && station <= road_table.back().first))
+                throw std::runtime_error("Invalid CarSim MU_ROAD_TABLE row: " + body);
+            road_table.emplace_back(station, mu);
+            continue;
+        }
         if (active >= 0) {
             if (body == "ENDTABLE") { active = -1; continue; }
             std::vector<double> row;
@@ -133,8 +198,13 @@ CarSimMpcModel readCarSimMpcModel(const std::filesystem::path& native_dir) {
         std::string key, raw;
         fields >> key >> raw;
         if (key.empty() || raw.empty()) continue;
-        if (key.rfind("MU_ROAD_TABLE", 0) == 0 ||
-            key.rfind("MU_ROAD_CARPET", 0) == 0 ||
+        if (key == "MU_ROAD_TABLE(1)") {
+            if (raw != "STEP" || !road_table.empty())
+                throw std::runtime_error("Only one CarSim MU_ROAD_TABLE STEP is supported");
+            road_table_active = true;
+            continue;
+        }
+        if (key.rfind("MU_ROAD_TABLE", 0) == 0 || key.rfind("MU_ROAD_CARPET", 0) == 0 ||
             key.rfind("MU_ROAD_L_TABLE", 0) == 0 ||
             key == "MU_ROAD_CONSTANT(2)")
             throw std::runtime_error("Variable or multiple CarSim road friction surfaces require a dynamic MPC model");
@@ -169,7 +239,8 @@ CarSimMpcModel readCarSimMpcModel(const std::filesystem::path& native_dir) {
         }
         for (const char* wanted : {"M_TL", "IZZ_TL", "LX_CG_TL", "LX_AXLE(1)",
              "LX_AXLE(2)", "MU_ROAD_CONSTANT(1)", "MU_ROAD_GAIN(1)",
-             "MU_ROAD_OFFSET(1)", "MU_ROAD_L_CONSTANT(1)"})
+             "MU_ROAD_OFFSET(1)", "MU_ROAD_L_CONSTANT(1)", "SSTART_MU_ROAD(1)",
+             "SSCALE_MU_ROAD(1)", "ROAD_PATH_ID(1)", "PATH_ID_DM"})
             if (key == wanted) values[key] = std::stod(raw);
     }
     const auto get = [&](const char* key) {
@@ -197,9 +268,22 @@ CarSimMpcModel readCarSimMpcModel(const std::filesystem::path& native_dir) {
     model.vehicle.iz = get("IZZ_TL");
     model.vehicle.a = (get("LX_CG_TL") - get("LX_AXLE(1)")) / 1000.0;
     model.vehicle.b = (get("LX_AXLE(2)") - get("LX_CG_TL")) / 1000.0;
-    model.vehicle.road_grip_scale = get("MU_ROAD_CONSTANT(1)") *
-        get("MU_ROAD_GAIN(1)") + get("MU_ROAD_OFFSET(1)") +
-        get("MU_ROAD_L_CONSTANT(1)");
+    if (road_table_active) throw std::runtime_error("Unterminated CarSim MU_ROAD_TABLE");
+    model.road_grip.table = std::move(road_table);
+    model.road_grip.gain = get("MU_ROAD_GAIN(1)");
+    model.road_grip.offset = get("MU_ROAD_OFFSET(1)");
+    model.road_grip.lateral = get("MU_ROAD_L_CONSTANT(1)");
+    if (model.road_grip.variable()) {
+        if (get("ROAD_PATH_ID(1)") != get("PATH_ID_DM"))
+            throw std::runtime_error("Road friction station uses a different reference path than the driver");
+        model.road_grip.station_start = get("SSTART_MU_ROAD(1)");
+        model.road_grip.station_scale = get("SSCALE_MU_ROAD(1)");
+        if (!(model.road_grip.station_scale > 0.0))
+            throw std::runtime_error("Invalid SSCALE_MU_ROAD(1)");
+        for (const auto& point : model.road_grip.table)
+            (void)model.road_grip.at(point.first * model.road_grip.station_scale + model.road_grip.station_start);
+    } else model.road_grip.constant = get("MU_ROAD_CONSTANT(1)");
+    model.vehicle.road_grip_scale = model.road_grip.at(0.0);
     if (!(model.vehicle.mass > 0 && model.vehicle.iz > 0 &&
           model.vehicle.a > 0 && model.vehicle.b > 0 &&
           model.vehicle.road_grip_scale > 0))

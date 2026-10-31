@@ -5,6 +5,8 @@
 /.playwright-mcp/
 /results/
 /tmp/
+/.vscode/
+/policies/
 /tools/__pycache__/
 *.pyc
 *.pdf

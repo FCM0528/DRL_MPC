@@ -1,0 +1,3 @@
+seed,checkpoint_episode,controller,speed_kmh,mu,completed,rmse_y_m,max_abs_y_m,mean_step_reward,grip_limited_steps,rmse_heading_deg
+842,-1,fixed,80,0.9,1,0.242405,1.01953,-17.544,0,1.90744
+842,-1,td3,80,0.9,1,0.21292,0.983652,-13.1768,0,1.67984

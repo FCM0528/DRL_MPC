@@ -1,0 +1,26 @@
+SIMFILE
+
+SET_MACRO $(ROOT_FILE_NAME)$ Run_6cb07365-85a3-4a3b-95f9-c5c844687601
+SET_MACRO $(OUTPUT_PATH)$ Results
+SET_MACRO $(WORK_DIR)$ .\
+SET_MACRO $(OUTPUT_FILE_PREFIX)$ Results\Run_6cb07365-85a3-4a3b-95f9-c5c844687601\LastRun
+
+FILEBASE $(OUTPUT_FILE_PREFIX)$
+INPUT C:\Users\fengchengmin\Desktop\C++\myfcm\MPC_DoubleLaneChange_Tunable_VisualStudio\MPC_DoubleLaneChange_Tunable\policies\fixed_speed\v60\source\Run_all.par
+INPUTARCHIVE $(OUTPUT_FILE_PREFIX)$_all.par
+ECHO $(OUTPUT_FILE_PREFIX)$_echo.par
+FINAL $(OUTPUT_FILE_PREFIX)$_end.par
+LOGFILE $(OUTPUT_FILE_PREFIX)$_log.txt
+ERDFILE $(OUTPUT_FILE_PREFIX)$.vs
+PROGDIR D:\Program Files (x86)\CarSim2024.1_Prog\
+DATADIR D:\Program Files (x86)\CarSim2024_Date\
+GUI_REFRESH_V CarSim_RefreshEvent_16008
+PRODUCT_ID CarSim
+PRODUCT_VER 2024.1
+VEHICLE_CODE i_i
+EXT_MODEL_STEP 0.00050000
+PORTS_IMP 1,2
+PORTS_EXP 0
+
+DLLFILE D:\Program Files (x86)\CarSim2024.1_Prog\Programs\solvers\carsim_64.dll
+END

@@ -1,5 +1,5 @@
 param(
-    [string]$OutputRoot = 'results/absolute_v15_five_seeds',
+    [string]$OutputRoot = 'results/incremental_ltv_v16_five_seeds',
     [int[]]$Seeds = @(101, 102, 103, 104, 105)
 )
 
@@ -23,7 +23,7 @@ foreach ($seed in $Seeds) {
         ForEach-Object { Join-Path $_.FullName 'ddpg_policy.txt' } |
         Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
     if ($policies.Count -ne 1) { throw "Expected one trained policy for seed $seed" }
-    $evalRoot = Join-Path $root "v15_$seed"
+    $evalRoot = Join-Path $root "v16_$seed"
     New-Item -ItemType Directory -Path $evalRoot -Force | Out-Null
     $log = Join-Path $evalRoot 'evaluation_console.log'
     Write-Output "Starting independent evaluation for seed $seed"

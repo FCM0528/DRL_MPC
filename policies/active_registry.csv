@@ -1,0 +1,3 @@
+"algorithm","policy_file","mu_min","mu_max","speed_min_kmh","speed_max_kmh","evaluation_dir","status","sha256"
+"ddpg","policies\archive\ddpg_mu03_09_20261026_ep100\ddpg_policy.txt","0.3","0.9","30","120","policies\evaluations\ddpg_original\ddpg_adaptive_carsim_Np13_Nc7_20261028-091251","historical_baseline","94DF5FD2CE370A2268B44D333F211027085ED90E4D9C2FBE4E0484AC96FE8590"
+"td3","policies\archive\td3_mu03_09_20261026_ep200\td3_policy.txt","0.3","0.9","30","120","policies\evaluations\td3_original\ddpg_adaptive_carsim_Np13_Nc7_20261028-091444","historical_baseline","0990C079B4C15834CBA357DD985C7149055F00261826148C9A23DC02458FCDEF"

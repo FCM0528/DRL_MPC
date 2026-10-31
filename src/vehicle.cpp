@@ -128,6 +128,12 @@ double TireTable::corneringStiffness(double normal_load_n) const {
     return positiveForce(slip_deg_[1], normal_load_n) / first_slip_rad;
 }
 
+double TireTable::lateralForce(double slip_rad, double normal_load_n) const {
+    if (!std::isfinite(slip_rad)) throw std::invalid_argument("Nonfinite tire slip");
+    if (slip_rad == 0.0) return 0.0;
+    return std::copysign(positiveForce(std::abs(slip_rad) * rad2deg, normal_load_n), slip_rad);
+}
+
 double TireTable::peakLateralForce(double normal_load_n) const {
     double peak = 0.0;
     for (const double slip : slip_deg_)
@@ -158,9 +164,10 @@ std::pair<double, double> staticWheelLoads(const VehicleParameters& p) {
 DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
                                         const TireTable& tires,
                                         const VehicleState& op,
-                                        double steer, double ax, double dt) {
-    // Paper (3): x=[vy,vx,psi,r,Y,X], delta_f is the steering input.
-    // Cf/Cr below are axle sums of the paper's two per-wheel cornering forces.
+                                        double steer, double ax, double dt, bool nonlinear_tire,
+                                        double tire_slope_floor) {
+    // CarSim-coordinate three-DOF state: [vy,vx,psi,r,Y,X].
+    // Cf/Cr are axle sums of the two per-wheel cornering forces.
     // The unobserved longitudinal tire/driver force is held at the value that
     // reproduces the measured CarSim body longitudinal acceleration at op.
     const double u = op.vx, v = op.vy, yaw = op.psi, r = op.r;
@@ -168,12 +175,21 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
           std::isfinite(yaw) && std::isfinite(r) &&
           std::isfinite(steer) && std::isfinite(ax) &&
           std::isfinite(dt) && dt > 0.0))
-        throw std::invalid_argument("Invalid paper three-DOF operating point");
+        throw std::invalid_argument("Invalid three-DOF operating point");
     const auto [front_load, rear_load] = staticWheelLoads(p);
-    const double cf = 2.0 * p.road_grip_scale * tires.corneringStiffness(front_load);
-    const double cr = 2.0 * p.road_grip_scale * tires.corneringStiffness(rear_load);
-    const double fyf = cf * (steer - (v + p.a*r) / u);
-    const double fyr = cr * ((p.b*r - v) / u);
+    const double alpha_f = steer - (v + p.a*r) / u;
+    const double alpha_r = (p.b*r - v) / u;
+    const auto slope = [&](double alpha, double load) {
+        constexpr double h = 1e-5;
+        const double local = (tires.lateralForce(alpha + h, load) - tires.lateralForce(alpha - h, load)) / (2*h);
+        // Preserve control direction when a saturated or extrapolated table has
+        // a zero/negative local slope. The force at the operating point remains exact.
+        return std::max(local, tire_slope_floor * tires.corneringStiffness(load));
+    };
+    const double cf = 2.0 * p.road_grip_scale * (nonlinear_tire ? slope(alpha_f, front_load) : tires.corneringStiffness(front_load));
+    const double cr = 2.0 * p.road_grip_scale * (nonlinear_tire ? slope(alpha_r, rear_load) : tires.corneringStiffness(rear_load));
+    const double fyf = nonlinear_tire ? 2.0 * p.road_grip_scale * tires.lateralForce(alpha_f, front_load) : cf * alpha_f;
+    const double fyr = nonlinear_tire ? 2.0 * p.road_grip_scale * tires.lateralForce(alpha_r, rear_load) : cr * alpha_r;
     const double fyf_u = cf * (v + p.a*r) / (u*u);
     const double fyf_v = -cf / u;
     const double fyf_r = -p.a*cf / u;
@@ -189,7 +205,7 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
     jac[1][1] = -fyf_u*steer/p.mass;
     jac[1][3] = v - fyf_r*steer/p.mass;
     input[1] = -(cf*steer + fyf)/p.mass;
-    // Lateral and yaw equations from paper's small-angle tire model.
+    // Lateral and yaw equations use small-angle linearized tire forces.
     jac[0][0] = (fyf_v + fyr_v)/p.mass;
     jac[0][1] = -r + (fyf_u + fyr_u)/p.mass;
     jac[0][3] = -u + (fyf_r + fyr_r)/p.mass;
@@ -199,8 +215,7 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
     jac[3][1] = (p.a*fyf_u - p.b*fyr_u)/p.iz;
     jac[3][3] = (p.a*fyf_r - p.b*fyr_r)/p.iz;
     input[3] = p.a*cf/p.iz;
-    // CarSim uses global X forward and Y left. The paper labels its global
-    // position components in the opposite order; retain its physical rotation.
+    // CarSim uses global X forward and Y left; preserve this rotation.
     jac[4][0] = cpsi;
     jac[4][1] = spsi;
     jac[4][2] = u*cpsi - v*spsi;
@@ -214,89 +229,40 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
                     u*spsi+v*cpsi, u*cpsi-v*spsi};
     const auto linear_part = matrixTimesState(jac,x0);
     DiscreteErrorModel result;
-    // Forward Euler follows the paper's A_k=I+T*A, B_k=T*B.
-    for (int i=0;i<6;++i) {
-        for (int j=0;j<6;++j)
-            result.a[i][j]=(i==j ? 1.0 : 0.0)+dt*jac[i][j];
-        result.b[i]=dt*input[i];
-        result.c[i]=dt*(f0[i]-linear_part[i]-input[i]*steer);
-    }
-    return result;
-}
-
-double dynamicPredictionWeight(double speed_mps) {
-    if (!std::isfinite(speed_mps) || speed_mps < 0.0)
-        throw std::invalid_argument("Invalid measured CarSim speed for model blend");
-    const double t = std::clamp((3.6 * speed_mps - 32.0) / 8.0, 0.0, 1.0);
-    return t * t * (3.0 - 2.0 * t);
-}
-
-DiscreteErrorModel discretizeKinematicModel(const VehicleParameters& p,
-                                             const VehicleState& op,
-                                             double steer, double ax, double dt) {
-    const double u = op.vx;
-    if (!(std::isfinite(u) && u >= 1.0 && std::isfinite(op.vy) &&
-          std::isfinite(op.psi) && std::isfinite(op.r) &&
-          std::isfinite(steer) && std::isfinite(ax) &&
-          std::isfinite(dt) && dt > 0.0 && p.a > 0.0 && p.b > 0.0))
-        throw std::invalid_argument("Invalid low-speed kinematic operating point");
-    const double wheelbase = p.a + p.b;
-    // Peng et al. compensate the kinematic pose with sideslip. CarSim already
-    // measures vx/vy, so hold the observed sideslip over the short horizon;
-    // do not invent an instantaneous steer-to-sideslip response.
-    const double beta = std::atan2(op.vy, u);
-    const double lateral = u * std::tan(beta);
-    const double lateral_u = std::tan(beta);
-    const double yaw_residual = op.r - u * std::tan(steer) / wheelbase;
-    const double yaw_rate = u * std::tan(steer) / wheelbase + yaw_residual;
-    const double yaw_u = std::tan(steer) / wheelbase;
-    const double yaw_steer = u /
-        (wheelbase * std::cos(steer) * std::cos(steer));
-    const double sine = std::sin(op.psi), cosine = std::cos(op.psi);
-    const State6 x0{op.vy, u, op.psi, op.r, op.y, op.x};
-    const State6 next{lateral, u + dt * ax, op.psi + dt * yaw_rate,
-                      yaw_rate,
-                      op.y + dt * (u * sine + lateral * cosine),
-                      op.x + dt * (u * cosine - lateral * sine)};
-    DiscreteErrorModel result;
-    result.a[0][1] = lateral_u;
-    result.a[1][1] = 1.0;
-    result.a[2][1] = dt * yaw_u;
-    result.a[2][2] = 1.0;
-    result.b[2] = dt * yaw_steer;
-    result.a[3][1] = yaw_u;
-    result.b[3] = yaw_steer;
-    result.a[4][1] = dt * (sine + lateral_u * cosine);
-    result.a[4][2] = dt * (u * cosine - lateral * sine);
-    result.a[4][4] = 1.0;
-    result.a[5][1] = dt * (cosine - lateral_u * sine);
-    result.a[5][2] = -dt * (u * sine + lateral * cosine);
-    result.a[5][5] = 1.0;
-    const auto linear_part = matrixTimesState(result.a, x0);
-    for (int i = 0; i < 6; ++i)
-        result.c[i] = next[i] - linear_part[i] - result.b[i] * steer;
-    return result;
-}
-
-DiscreteErrorModel discretizePredictionModel(const VehicleParameters& p,
-                                              const TireTable& tires,
-                                              const VehicleState& op,
-                                              double steer, double ax, double dt) {
-    const double dynamic_weight = dynamicPredictionWeight(op.vx);
-    if (dynamic_weight >= 1.0)
-        return discretizeErrorModel(p, tires, op, steer, ax, dt);
-    const auto kinematic = discretizeKinematicModel(p, op, steer, ax, dt);
-    if (dynamic_weight <= 0.0) return kinematic;
-    const auto dynamic = discretizeErrorModel(p, tires, op, steer, ax, dt);
-    DiscreteErrorModel blended;
+    // Bilinear (Tustin) discretization. Solve all eight right-hand sides in
+    // one pivoted elimination: (I-T*A/2)^-1 [I+T*A/2, T*B, T*c].
+    std::array<std::array<double, 14>, 6> augmented{};
     for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < 6; ++j)
-            blended.a[i][j] = (1.0 - dynamic_weight) * kinematic.a[i][j] +
-                               dynamic_weight * dynamic.a[i][j];
-        blended.b[i] = (1.0 - dynamic_weight) * kinematic.b[i] +
-                        dynamic_weight * dynamic.b[i];
-        blended.c[i] = (1.0 - dynamic_weight) * kinematic.c[i] +
-                        dynamic_weight * dynamic.c[i];
+        for (int j = 0; j < 6; ++j) {
+            const double identity = i == j ? 1.0 : 0.0;
+            augmented[i][j] = identity - 0.5 * dt * jac[i][j];
+            augmented[i][6 + j] = identity + 0.5 * dt * jac[i][j];
+        }
+        augmented[i][12] = dt * input[i];
+        augmented[i][13] = dt * (f0[i] - linear_part[i] - input[i] * steer);
     }
-    return blended;
+    for (int col = 0; col < 6; ++col) {
+        int pivot = col;
+        for (int row = col + 1; row < 6; ++row)
+            if (std::abs(augmented[row][col]) > std::abs(augmented[pivot][col]))
+                pivot = row;
+        if (!std::isfinite(augmented[pivot][col]) ||
+            std::abs(augmented[pivot][col]) < 1e-12)
+            throw std::runtime_error("Three-DOF Tustin discretization is singular");
+        if (pivot != col) std::swap(augmented[pivot], augmented[col]);
+        const double diagonal = augmented[col][col];
+        for (int j = col; j < 14; ++j) augmented[col][j] /= diagonal;
+        for (int row = 0; row < 6; ++row) {
+            if (row == col) continue;
+            const double factor = augmented[row][col];
+            for (int j = col; j < 14; ++j)
+                augmented[row][j] -= factor * augmented[col][j];
+        }
+    }
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) result.a[i][j] = augmented[i][6 + j];
+        result.b[i] = augmented[i][12];
+        result.c[i] = augmented[i][13];
+    }
+    return result;
 }

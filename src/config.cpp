@@ -3,6 +3,7 @@
 #include <cctype>
 #include <cmath>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <set>
 #include <sstream>
@@ -97,6 +98,15 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "mpc.np") c.mpc.np = readInt(value, key);
     else if (key == "mpc.nc") c.mpc.nc = readInt(value, key);
     else if (key == "mpc.dt_s") c.mpc.dt = readDouble(value, key);
+    else if (key == "mpc.speed_rate_enabled") c.mpc.speed_rate_enabled = readBool(value, key);
+    else if (key == "mpc.speed_rate_start_kmh") c.mpc.speed_rate_start = readDouble(value, key) / kmh_per_mps;
+    else if (key == "mpc.speed_rate_end_kmh") c.mpc.speed_rate_end = readDouble(value, key) / kmh_per_mps;
+    else if (key == "mpc.speed_rate_end_deg_s") c.mpc.speed_rate_end_limit = readDouble(value, key) * deg2rad;
+    else if (key == "mpc.grip_switch_enabled") c.mpc.grip_switch_enabled = readBool(value, key);
+    else if (key == "mpc.grip_state_only") c.mpc.grip_state_only = readBool(value, key);
+    else if (key == "mpc.grip_preview_s") c.mpc.grip_preview_s = readDouble(value, key);
+    else if (key == "mpc.nonlinear_tire") c.mpc.nonlinear_tire = readBool(value, key);
+    else if (key == "mpc.tire_slope_floor") c.mpc.tire_slope_floor = readDouble(value, key);
 
     else if (key == "weights.q_y") c.mpc.q_y = readDouble(value, key);
     else if (key == "weights.q_psi") c.mpc.q_psi = readDouble(value, key);
@@ -115,10 +125,15 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "solver.dual_tol") c.mpc.admm_dual_tol = readDouble(value, key);
     else if (key == "rl.mode") c.rl.mode = lower(value);
     else if (key == "rl.algorithm") c.rl.algorithm = lower(value);
+    else if (key == "rl.action_profile") c.rl.action_profile = lower(value);
     else if (key == "rl.min_np") c.rl.min_np = readInt(value, key);
     else if (key == "rl.max_np") c.rl.max_np = readInt(value, key);
     else if (key == "rl.nominal_np") c.rl.nominal_np = readInt(value, key);
     else if (key == "rl.decision_steps") c.rl.decision_steps = readInt(value, key);
+    else if (key == "rl.discount_gamma") c.rl.discount_gamma = readDouble(value, key);
+    else if (key == "rl.actor_learning_rate") c.rl.actor_learning_rate = readDouble(value, key);
+    else if (key == "rl.grip_demand_clip") c.rl.grip_demand_clip = readDouble(value, key);
+    else if (key == "rl.np_exploration_scale") c.rl.np_exploration_scale = readDouble(value, key);
     else if (key == "rl.q_y_min") c.rl.weight_min[0] = readDouble(value, key);
     else if (key == "rl.q_y_max") c.rl.weight_max[0] = readDouble(value, key);
     else if (key == "rl.q_psi_min") c.rl.weight_min[1] = readDouble(value, key);
@@ -135,6 +150,22 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "rl.curvature_preview_s") c.rl.curvature_preview_s = readDouble(value, key);
     else if (key == "rl.episodes") c.rl.episodes = readInt(value, key);
     else if (key == "rl.seed") c.rl.seed = readInt(value, key);
+    else if (key == "rl.curriculum") c.rl.curriculum = readBool(value, key);
+    else if (key == "rl.focus_target_speeds") c.rl.focus_target_speeds = readBool(value, key);
+    else if (key == "rl.vary_road_transition") c.rl.vary_road_transition = readBool(value, key);
+    else if (key == "rl.preserve_source_road") c.rl.preserve_source_road = readBool(value, key);
+    else if (key == "rl.relative_advantage") c.rl.relative_advantage = readBool(value, key);
+    else if (key == "rl.align_integer_np") c.rl.align_integer_np = readBool(value, key);
+    else if (key == "rl.direct_block_reward") c.rl.direct_block_reward = readBool(value, key);
+    else if (key == "rl.augmented_observation") c.rl.augmented_observation = readBool(value, key);
+    else if (key == "rl.penalize_qp_failure") c.rl.penalize_qp_failure = readBool(value, key);
+    else if (key == "rl.strict_tracking_selection") c.rl.strict_tracking_selection = readBool(value, key);
+    else if (key == "rl.low_speed_blend") c.rl.low_speed_blend = readBool(value, key);
+    else if (key == "rl.blend_start_kmh") c.rl.blend_start_kmh = readDouble(value, key);
+    else if (key == "rl.blend_end_kmh") c.rl.blend_end_kmh = readDouble(value, key);
+    else if (key == "rl.high_speed_blend") c.rl.high_speed_blend = readBool(value, key);
+    else if (key == "rl.high_blend_start_kmh") c.rl.high_blend_start_kmh = readDouble(value, key);
+    else if (key == "rl.high_blend_end_kmh") c.rl.high_blend_end_kmh = readDouble(value, key);
     else if (key == "rl.train_speed_min_kmh")
         c.rl.train_speed_min = readDouble(value, key) / kmh_per_mps;
     else if (key == "rl.train_speed_max_kmh")
@@ -144,6 +175,9 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "rl.train_mu_min") c.rl.train_mu_min = readDouble(value, key);
     else if (key == "rl.train_mu_max") c.rl.train_mu_max = readDouble(value, key);
     else if (key == "rl.model_file") c.rl.model_file = value;
+    else if (key == "rl.warm_start_file") c.rl.warm_start_file = value;
+    else if (key == "rl.resume_state_file") c.rl.resume_state_file = value;
+    else if (key == "rl.resume_actor_fallback") c.rl.resume_actor_fallback = readBool(value, key);
     else if (key == "rl_reward.reward_scale") c.rl.reward.reward_scale = readDouble(value, key);
     else if (key == "rl_reward.ey_scale_m") c.rl.reward.ey_scale_m = readDouble(value, key);
     else if (key == "rl_reward.epsi_scale_rad") c.rl.reward.epsi_scale_rad = readDouble(value, key);
@@ -167,13 +201,19 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
 }
 
 AppConfig loadConfig(const std::filesystem::path& filename) {
-    std::ifstream in(filename, std::ios::binary);
-    if (!in) throw std::runtime_error("Cannot open config file: " + filename.string());
     AppConfig result;
     result.source_config_file = std::filesystem::absolute(filename);
+    std::set<std::filesystem::path> active_files;
+    std::function<void(const std::filesystem::path&)> read_file;
+    read_file = [&](const std::filesystem::path& requested) {
+    const auto file = std::filesystem::absolute(requested).lexically_normal();
+    if (!active_files.insert(file).second) throw std::runtime_error("Circular config inheritance: " + file.string());
+    std::ifstream in(file, std::ios::binary);
+    if (!in) throw std::runtime_error("Cannot open config file: " + file.string());
     std::string line, section;
     std::set<std::string> keys;
     int line_number = 0;
+    bool any_setting = false;
     while (std::getline(in, line)) {
         ++line_number;
         if (line_number == 1 && line.size() >= 3 &&
@@ -196,12 +236,25 @@ AppConfig loadConfig(const std::filesystem::path& filename) {
             const std::string value = trim(line.substr(eq + 1));
             if (!keys.insert(canonicalConfigKey(key)).second)
                 throw std::invalid_argument("Duplicate key: " + key);
+            if (key == "inherit.base") {
+                if (any_setting) throw std::invalid_argument("[inherit] base must precede all settings");
+                const auto base = (file.parent_path() / value).lexically_normal();
+                if (base.parent_path() != file.parent_path())
+                    throw std::invalid_argument("Inherited config must be in the same directory");
+                read_file(base);
+                any_setting = true;
+                continue;
+            }
             overrideConfig(result, key, value);
+            any_setting = true;
         } catch (const std::exception& ex) {
-            throw std::runtime_error(filename.string() + ":" +
+            throw std::runtime_error(file.string() + ":" +
                                      std::to_string(line_number) + ": " + ex.what());
         }
     }
+    active_files.erase(file);
+    };
+    read_file(filename);
     if (!result.tire_data_file.empty() && result.tire_data_file.is_relative())
         result.tire_data_file = std::filesystem::absolute(filename).parent_path() /
                                 result.tire_data_file;
@@ -211,8 +264,14 @@ AppConfig loadConfig(const std::filesystem::path& filename) {
     if (!result.carsim.solver_dll.empty() && result.carsim.solver_dll.is_relative())
         result.carsim.solver_dll = std::filesystem::absolute(filename).parent_path() /
                                    result.carsim.solver_dll;
-    if ((result.rl.mode == "eval" || result.rl.mode == "compare" ||
-         result.rl.mode == "eval_grid") &&
+    if (!result.rl.warm_start_file.empty() && result.rl.warm_start_file.is_relative())
+        result.rl.warm_start_file = std::filesystem::absolute(filename).parent_path() /
+                                    result.rl.warm_start_file;
+    if (!result.rl.resume_state_file.empty() && result.rl.resume_state_file.is_relative())
+        result.rl.resume_state_file = std::filesystem::absolute(filename).parent_path() /
+                                      result.rl.resume_state_file;
+    if ((result.rl.mode == "eval" || result.rl.mode == "compare" || result.rl.mode == "compare_three" ||
+         result.rl.mode == "eval_grid" || result.rl.mode == "eval_general" || result.rl.mode == "eval_focus") &&
         result.rl.model_file.is_relative())
         result.rl.model_file = std::filesystem::absolute(filename).parent_path() /
                                result.rl.model_file;
@@ -249,6 +308,11 @@ void validateConfig(const AppConfig& c) {
     if (p.np < 2 || p.np > 150 || p.nc < 1 || p.nc > p.np)
         throw std::invalid_argument("MPC horizons must satisfy 1 <= Nc <= Np <= 150 and Np >= 2");
     positive(p.dt, "mpc.dt_s");
+    nonnegative(p.speed_rate_start, "mpc.speed_rate_start_kmh");
+    positive(p.speed_rate_end, "mpc.speed_rate_end_kmh");
+    positive(p.speed_rate_end_limit, "mpc.speed_rate_end_deg_s");
+    if (p.speed_rate_end <= p.speed_rate_start)
+        throw std::invalid_argument("mpc.speed_rate_end_kmh must exceed speed_rate_start_kmh");
     if (p.dt < 0.005 || p.dt > 0.15)
         throw std::invalid_argument("mpc.dt_s must be between 0.005 and 0.15");
     nonnegative(p.q_y, "q_y"); nonnegative(p.q_psi, "q_psi");
@@ -264,17 +328,29 @@ void validateConfig(const AppConfig& c) {
     if (p.admm_max_iterations < 10 || p.admm_max_iterations > 100000)
         throw std::invalid_argument("solver.max_iterations must be 10..100000");
     const auto& rl = c.rl;
+    nonnegative(rl.blend_start_kmh, "rl.blend_start_kmh");
+    positive(rl.blend_end_kmh, "rl.blend_end_kmh");
+    if (rl.blend_end_kmh <= rl.blend_start_kmh)
+        throw std::invalid_argument("rl.blend_end_kmh must exceed blend_start_kmh");
+    nonnegative(rl.high_blend_start_kmh, "rl.high_blend_start_kmh");
+    positive(rl.high_blend_end_kmh, "rl.high_blend_end_kmh");
+    if (rl.high_blend_end_kmh <= rl.high_blend_start_kmh)
+        throw std::invalid_argument("rl.high_blend_end_kmh must exceed high_blend_start_kmh");
     if (rl.mode != "fixed" && rl.mode != "train" && rl.mode != "eval" &&
-        rl.mode != "compare" && rl.mode != "eval_grid")
-        throw std::invalid_argument("rl.mode must be fixed, train, eval, compare, or eval_grid");
+        rl.mode != "compare" && rl.mode != "compare_three" && rl.mode != "eval_grid" && rl.mode != "eval_general" && rl.mode != "eval_focus" && rl.mode != "export_state")
+        throw std::invalid_argument("Invalid RL mode");
     for (std::size_t k = 0; k < rl.weight_min.size(); ++k)
         if (!(std::isfinite(rl.weight_min[k]) && std::isfinite(rl.weight_max[k]) &&
               rl.weight_min[k] > 0.0 && rl.weight_max[k] > rl.weight_min[k] &&
               rl.weight_max[k] / rl.weight_min[k] <= 100.0))
             throw std::invalid_argument("RL absolute Q/R bounds must be positive, increasing, and have ratio <= 100");
     positive(rl.terminal_scale, "rl.terminal_scale");
-    if (rl.algorithm != "ddpg")
-        throw std::invalid_argument("Only rl.algorithm=ddpg is implemented");
+    if (rl.algorithm != "ddpg" && rl.algorithm != "td3")
+        throw std::invalid_argument("rl.algorithm must be ddpg or td3");
+    if (rl.action_profile != "full" && rl.action_profile != "compact" && rl.action_profile != "np_only")
+        throw std::invalid_argument("rl.action_profile must be full, compact or np_only");
+    if (rl.augmented_observation && rl.action_profile != "compact")
+        throw std::invalid_argument("augmented observation requires compact action profile");
     if (rl.min_np < 2 || (rl.mode != "fixed" && rl.min_np < p.nc) ||
         rl.max_np > 150 || rl.max_np <= rl.min_np)
         throw std::invalid_argument("RL horizons require Nc <= min_np < max_np <= 150");
@@ -282,14 +358,25 @@ void validateConfig(const AppConfig& c) {
         throw std::invalid_argument("rl.nominal_np must lie strictly inside RL min_np..max_np");
     if (rl.decision_steps < 1 || rl.decision_steps > 100 || rl.episodes < 1 || rl.episodes > 10000)
         throw std::invalid_argument("Invalid RL decision_steps or episodes");
+    if (!(rl.discount_gamma > 0.0 && rl.discount_gamma <= 1.0))
+        throw std::invalid_argument("rl.discount_gamma must be in (0, 1]");
+    positive(rl.np_exploration_scale, "rl.np_exploration_scale");
+    positive(rl.actor_learning_rate, "rl.actor_learning_rate");
+    positive(rl.grip_demand_clip, "rl.grip_demand_clip");
+    if (rl.grip_demand_clip != 3.0 && rl.grip_demand_clip != 4.0)
+        throw std::invalid_argument("rl.grip_demand_clip must be 3 or 4");
+    if (rl.grip_demand_clip != 3.0 && (rl.action_profile != "compact" || rl.augmented_observation))
+        throw std::invalid_argument("non-default grip demand observation requires non-augmented compact policy");
     if (rl.seed < 0 || rl.train_speed_min < 1.0 ||
         rl.train_speed_max < rl.train_speed_min || rl.train_speed_max > 100.0)
         throw std::invalid_argument("Invalid RL seed or training speed range");
     if (!std::isfinite(rl.train_mu_min) || !std::isfinite(rl.train_mu_max) ||
         rl.train_mu_min < 0.1 || rl.train_mu_max > 1.5 ||
-        rl.train_mu_min >= rl.train_mu_max)
-        throw std::invalid_argument("RL training road friction range must satisfy 0.1 <= min < max <= 1.5");
+        rl.train_mu_min > rl.train_mu_max)
+        throw std::invalid_argument("RL training road friction range must satisfy 0.1 <= min <= max <= 1.5");
     if (rl.model_file.empty()) throw std::invalid_argument("rl.model_file cannot be empty");
+    if (!rl.warm_start_file.empty() && !rl.resume_state_file.empty())
+        throw std::invalid_argument("Choose only one of rl.warm_start_file and rl.resume_state_file");
     positive(rl.curvature_preview_s, "rl.curvature_preview_s");
     if (rl.curvature_preview_s > 10.0)
         throw std::invalid_argument("rl.curvature_preview_s must be <= 10 s");
@@ -356,7 +443,16 @@ std::string configToIni(const AppConfig& c) {
         << "\nroad_grip_scale = " << c.vehicle.road_grip_scale << "\n\n"
         << "[mpc]\nnp = " << c.mpc.np
         << "\nnc = " << c.mpc.nc
-        << "\ndt_s = " << c.mpc.dt << "\n\n"
+        << "\ndt_s = " << c.mpc.dt
+        << "\nspeed_rate_enabled = " << c.mpc.speed_rate_enabled
+        << "\nspeed_rate_start_kmh = " << c.mpc.speed_rate_start * kmh_per_mps
+        << "\nspeed_rate_end_kmh = " << c.mpc.speed_rate_end * kmh_per_mps
+        << "\nspeed_rate_end_deg_s = " << c.mpc.speed_rate_end_limit / deg2rad
+        << "\ngrip_switch_enabled = " << c.mpc.grip_switch_enabled
+        << "\ngrip_state_only = " << c.mpc.grip_state_only
+        << "\ngrip_preview_s = " << c.mpc.grip_preview_s
+        << "\nnonlinear_tire = " << c.mpc.nonlinear_tire
+        << "\ntire_slope_floor = " << c.mpc.tire_slope_floor << "\n\n"
         << "[weights]\nq_y = " << c.mpc.q_y
         << "\nq_psi = " << c.mpc.q_psi
         << "\nq_vy = " << c.mpc.q_vy
@@ -372,10 +468,13 @@ std::string configToIni(const AppConfig& c) {
         << "\ndual_tol = " << c.mpc.admm_dual_tol << '\n';
     out << "\n[rl]\nmode = " << c.rl.mode
         << "\nalgorithm = " << c.rl.algorithm
+        << "\naction_profile = " << c.rl.action_profile
         << "\nmin_np = " << c.rl.min_np
         << "\nmax_np = " << c.rl.max_np
         << "\nnominal_np = " << c.rl.nominal_np
         << "\ndecision_steps = " << c.rl.decision_steps
+        << "\ndiscount_gamma = " << c.rl.discount_gamma
+        << "\nnp_exploration_scale = " << c.rl.np_exploration_scale
         << "\nq_y_min = " << c.rl.weight_min[0]
         << "\nq_y_max = " << c.rl.weight_max[0]
         << "\nq_psi_min = " << c.rl.weight_min[1]
@@ -392,13 +491,34 @@ std::string configToIni(const AppConfig& c) {
         << "\ncurvature_preview_s = " << c.rl.curvature_preview_s
         << "\nepisodes = " << c.rl.episodes
         << "\nseed = " << c.rl.seed
+        << "\ncurriculum = " << c.rl.curriculum
+        << "\nfocus_target_speeds = " << c.rl.focus_target_speeds
+        << "\nvary_road_transition = " << c.rl.vary_road_transition
+        << "\npreserve_source_road = " << c.rl.preserve_source_road
+        << "\nrelative_advantage = " << c.rl.relative_advantage
+        << "\nactor_learning_rate = " << c.rl.actor_learning_rate
+        << "\ngrip_demand_clip = " << c.rl.grip_demand_clip
+        << "\nalign_integer_np = " << c.rl.align_integer_np
+        << "\ndirect_block_reward = " << c.rl.direct_block_reward
+        << "\naugmented_observation = " << c.rl.augmented_observation
+        << "\npenalize_qp_failure = " << c.rl.penalize_qp_failure
+        << "\nstrict_tracking_selection = " << c.rl.strict_tracking_selection
+        << "\nlow_speed_blend = " << c.rl.low_speed_blend
+        << "\nblend_start_kmh = " << c.rl.blend_start_kmh
+        << "\nblend_end_kmh = " << c.rl.blend_end_kmh
+        << "\nhigh_speed_blend = " << c.rl.high_speed_blend
+        << "\nhigh_blend_start_kmh = " << c.rl.high_blend_start_kmh
+        << "\nhigh_blend_end_kmh = " << c.rl.high_blend_end_kmh
         << std::setprecision(15)
         << "\ntrain_speed_min_kmh = " << c.rl.train_speed_min * kmh_per_mps
         << "\ntrain_speed_max_kmh = " << c.rl.train_speed_max * kmh_per_mps
         << "\ntrain_mu_min = " << c.rl.train_mu_min
         << "\ntrain_mu_max = " << c.rl.train_mu_max
         << std::setprecision(17)
-        << "\nmodel_file = " << c.rl.model_file.generic_string() << "\n\n"
+        << "\nmodel_file = " << c.rl.model_file.generic_string()
+        << "\nwarm_start_file = " << c.rl.warm_start_file.generic_string()
+        << "\nresume_state_file = " << c.rl.resume_state_file.generic_string()
+        << "\nresume_actor_fallback = " << c.rl.resume_actor_fallback << "\n\n"
         << "[rl_reward]\nreward_scale = " << c.rl.reward.reward_scale
         << "\ney_scale_m = " << c.rl.reward.ey_scale_m
         << "\nepsi_scale_rad = " << c.rl.reward.epsi_scale_rad
