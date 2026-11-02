@@ -14,6 +14,7 @@ struct SimulationRecord {
     double lateral_error = 0.0;       // global Y - Yref [m]
     double heading_error = 0.0;       // psi - psiref [rad]
     double steer = 0.0;               // front-wheel steering [rad]
+    double reward = 0.0;              // C++ per-control-step reward
     double yaw_rate_ref = 0.0;        // [rad/s]
     double road_grip = 0.0;           // road-map estimate at CG station, not a tire measurement
     int qp_iterations = 0;
@@ -35,10 +36,8 @@ struct SimulationRecord {
 
 struct RunOutcome {
     double requested_distance_m = 0.0;
+    bool adaptive = false;
     std::string plant_name = "carsim";
-    std::string controller_mode = "fixed";
-    std::string rl_algorithm = "ddpg";
-    std::filesystem::path policy_file;
     std::string reference_source = "CarSim LTARG_TABLE (straight east road)";
     CarSimRunInfo carsim_info;
     double model_front_stiffness_n_per_rad = 0.0;
@@ -79,13 +78,3 @@ SimulationMetrics exportResults(
     const MpcParameters& mp,
     const std::string& experiment_name,
     const RunOutcome& outcome);
-
-// Overlay the two controllers on the original eight vehicle-control charts.
-void exportComparisonVisuals(const std::filesystem::path& output,
-    const std::vector<SimulationRecord>& fixed,
-    const std::vector<SimulationRecord>& adaptive);
-
-void exportThreeComparisonVisuals(const std::filesystem::path& output,
-    const std::vector<SimulationRecord>& fixed,
-    const std::vector<SimulationRecord>& ddpg,
-    const std::vector<SimulationRecord>& td3);

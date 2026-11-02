@@ -14,3 +14,5 @@
 /TireFy_*.csv
 /docs/reference_figure_from_user.png
 ~$*
+/runs/
+**/__pycache__/

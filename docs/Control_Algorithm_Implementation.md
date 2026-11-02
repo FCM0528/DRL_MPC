@@ -140,12 +140,12 @@ S_{Y,k,j}-Y'_{\rm ref}(\bar X_k)S_{X,k,j}.
 
 因此角度约束的矩阵块是下三角全 1 矩阵，速率约束块是单位矩阵。ADMM 分裂 \(v=GU\) 后交替求解二次子问题、投影到约束区间并更新对偶变量。收敛后只执行第一项 \(u_t=u_{t-1}+\Delta u_0\)，下一周期重新读取 CarSim 状态并滚动求解。
 
-## 5. DDPG 与安全分支
+## 5. Python 调参与安全分支
 
-DDPG 或可选 TD3 每 `decision_steps` 周期输出整数 \(N_p\) 及六个绝对 Q/R 数值；\(N_c,T_s\)、转角幅值、速率约束和求解器设置继续由共享 MPC 配置给出。旧低速运动学模型已删除，所以策略动作不再按旧模型融合速度门控。DDPG 策略文件标记为 `DDPG_MPC_V16_INCREMENTAL_LTV`，TD3 标记为 `TD3_MPC_V17_INCREMENTAL_LTV`；旧 V14/V15 网络针对不同控制问题训练，被加载器拒绝。
+Python 的 DDPG、TD3 或 TQC 每 `decision_steps` 个控制周期输出四个归一化动作。C++ 桥接程序把它们映射为整数 \(N_p\) 和三个绝对权重 Qy、Qψ、RΔ；其余 Q/R 权重使用中性值。\(N_c,T_s\)、转角幅值、速率约束和求解器设置仍由 MPC 配置给出。
 
 若当前参考曲率超出估计附着能力、跟踪偏差与侧向速度同时较大、名义预测失效或 QP 未收敛，则暂用受附着和转角约束的前视跟踪控制。车速低于 1 m/s 时三自由度小侧偏线性模型不再适用，也走此分支；该分支是应急控制，不是第二套 MPC 预测模型。CarSim 车辆动力学从未被替换。
 
-实验配置选择按实测误差和侧滑触发保护，而不是仅凭参考曲率触发；仍保留求解异常时的保护分支。由于预测模型与保护逻辑改变，旧 DDPG/TD3 策略仅可作为再训练的 Actor 初始值，不能将旧工况验证结论直接转用于实验模型。
+实验配置选择按实测误差和侧滑触发保护，求解异常时仍有保护分支。Python 模型须在目标 CarSim 工况下独立验证。
 
-主要实现：`src/vehicle.cpp::discretizeErrorModel()`、`src/mpc.cpp::LateralMpc::precompute()` / `control()`、`src/rl.cpp::DdpgPolicy`、`src/main.cpp::runConfiguredSimulation()`。
+主要实现：`src/vehicle.cpp::discretizeErrorModel()`、`src/mpc.cpp::LateralMpc::precompute()` / `control()`、`src/rl_bridge_main.cpp` 和 `python/envs/carsim_mpc_env.py`。

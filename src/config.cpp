@@ -336,9 +336,8 @@ void validateConfig(const AppConfig& c) {
     positive(rl.high_blend_end_kmh, "rl.high_blend_end_kmh");
     if (rl.high_blend_end_kmh <= rl.high_blend_start_kmh)
         throw std::invalid_argument("rl.high_blend_end_kmh must exceed high_blend_start_kmh");
-    if (rl.mode != "fixed" && rl.mode != "train" && rl.mode != "eval" &&
-        rl.mode != "compare" && rl.mode != "compare_three" && rl.mode != "eval_grid" && rl.mode != "eval_general" && rl.mode != "eval_focus" && rl.mode != "export_state")
-        throw std::invalid_argument("Invalid RL mode");
+    if (rl.mode != "fixed")
+        throw std::invalid_argument("C++ policy modes are retired; use the Python bridge for DRL");
     for (std::size_t k = 0; k < rl.weight_min.size(); ++k)
         if (!(std::isfinite(rl.weight_min[k]) && std::isfinite(rl.weight_max[k]) &&
               rl.weight_min[k] > 0.0 && rl.weight_max[k] > rl.weight_min[k] &&

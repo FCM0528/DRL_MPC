@@ -210,55 +210,6 @@ Trace makeTrace(const std::vector<SimulationRecord>& samples,
     for (const auto& row : samples) out.xy.emplace_back(getx(row), gety(row));
     return out;
 }
-void comparisonChart(const std::filesystem::path& file,
-                     const std::string& title,
-                     const std::string& xlabel,
-                     const std::string& ylabel,
-                     std::vector<Trace> traces,
-                     bool integer_y = false) {
-    for (auto& tr : traces) {
-        if (tr.name == "Reference" || tr.name == "Zero") {
-            tr.color = "#0f766e";
-            tr.dash_pattern = "2,6";
-            tr.stroke_width = 2.5;
-        } else if (tr.name == "Fixed target") {
-            tr.color = "#64748b";
-            tr.dash_pattern = "8,5,2,5";
-            tr.stroke_width = 2.2;
-        } else if (tr.name == "DDPG target") {
-            tr.color = "#d97706";
-            tr.dash_pattern = "2,5,2,5,9,5";
-            tr.stroke_width = 2.2;
-        } else if (tr.name == "TD3 target") {
-            tr.color = "#a78bfa";
-            tr.dash_pattern = "2,6";
-            tr.stroke_width = 2.2;
-        } else if (tr.name.rfind("Fixed", 0) == 0) {
-            tr.color = tr.name.find("ground") != std::string::npos ? "#60a5fa" : "#1d4ed8";
-            tr.dash_pattern = tr.name.find("ground") != std::string::npos ? "8,5,2,5" : "15,8";
-            tr.stroke_width = 3.3;
-        } else if (tr.name.rfind("DDPG", 0) == 0) {
-            tr.color = tr.name.find("ground") != std::string::npos ? "#ea580c" : "#be123c";
-            tr.dash_pattern = tr.name.find("ground") != std::string::npos
-                ? "4,4,2,4,2,4" : "10,5,2,5";
-            tr.stroke_width = 3.2;
-        } else if (tr.name.rfind("TD3", 0) == 0) {
-            tr.color = tr.name.find("ground") != std::string::npos ? "#a78bfa" : "#6d28d9";
-            tr.dash_pattern = tr.name.find("ground") != std::string::npos ? "3,4" : "5,4";
-            tr.stroke_width = 3.2;
-        }
-    }
-    // Draw the dashed fixed trajectory last so both controllers remain visible
-    // where their measured trajectories coincide.
-    const auto rank = [](const Trace& tr) {
-        if (tr.name == "Reference" || tr.name == "Zero" ||
-            tr.name.find("target") != std::string::npos) return 0;
-        return tr.name.rfind("Fixed", 0) == 0 ? 2 : 1;
-    };
-    std::stable_sort(traces.begin(), traces.end(),
-        [&](const Trace& a, const Trace& b) { return rank(a) < rank(b); });
-    svgChart(file, title, xlabel, ylabel, traces, integer_y);
-}
 std::string fmt(double value, int precision = 4) {
     std::ostringstream out;
     out << std::fixed << std::setprecision(precision) << value;
@@ -345,7 +296,7 @@ SimulationMetrics exportResults(
                    "yaw_rate_ref_degps,qp_iterations,qp_primal_residual,qp_dual_residual,"
                    "qp_solve_ms,qp_converged,is_command,fallback_control,np,"
                    "grip_limited_control,q_y_applied,q_psi_applied,q_vy_applied,"
-                   "q_r_applied,r_steer_applied,r_delta_applied,road_grip_estimate\n";
+                   "q_r_applied,r_steer_applied,r_delta_applied,road_grip_estimate,reward\n";
         out << std::fixed << std::setprecision(9);
         for (const auto& p : rows) {
                 out << p.time << ',' << 3.6 * p.s.vx << ',' << 3.6 * std::hypot(p.s.vx, p.s.vy)
@@ -362,7 +313,7 @@ SimulationMetrics exportResults(
                     << (p.grip_limited_control ? 1 : 0);
                 out << ',' << p.q_y << ',' << p.q_psi << ','
                     << p.q_vy << ',' << p.q_r << ','
-                    << p.r_steer << ',' << p.r_delta << ',' << p.road_grip << '\n';
+                    << p.r_steer << ',' << p.r_delta << ',' << p.road_grip << ',' << p.reward << '\n';
         }
     }
 
@@ -438,11 +389,8 @@ SimulationMetrics exportResults(
             << "========================================================\n"
             << "C++ experiment label: " << experiment_name << '\n'
             << "Reference source: " << outcome.reference_source << '\n'
-            << "Controller mode: " << (outcome.controller_mode == "eval"
-                ? (outcome.rl_algorithm == "td3" ? "TD3" : "DDPG") : "fixed")
-            << (outcome.controller_mode == "eval" ? " adaptive prediction horizon and Q/R weights" : " prediction horizon and Q/R weights") << '\n'
-            << (outcome.controller_mode == "eval"
-                ? (outcome.rl_algorithm == "td3" ? "TD3" : "DDPG") + std::string(" policy file: ") + outcome.policy_file.string() + "\n" : "")
+            << (outcome.adaptive ? "Controller mode: Python RL adaptive Np and Q/R\n"
+                                 : "Controller mode: fixed prediction horizon and Q/R weights\n")
             << "Run status: " << (outcome.completed ? "completed" : "incomplete") << '\n'
             << "Requested distance (m): " << fmt(outcome.requested_distance_m, 3) << '\n'
             << "Stop reason: " << (outcome.completed ? "none" : outcome.stop_reason) << '\n'
@@ -507,10 +455,10 @@ SimulationMetrics exportResults(
                     "MPC approximation: static axle loads; nonlinear tire table at each operating point with a slope floor; CarSim plant remains nonlinear\n" :
                     "MPC approximation: static axle loads and small-slip linearization; CarSim plant remains nonlinear\n");
         out
-            << "Configured fixed-mode Q diag: " << fmt(mp.q_y) << ", " << fmt(mp.q_psi)
+            << "Configured base Q diag: " << fmt(mp.q_y) << ", " << fmt(mp.q_psi)
             << ", " << fmt(mp.q_vy) << ", " << fmt(mp.q_r) << '\n'
-            << "Configured fixed-mode R steering feedforward deviation via increments: " << fmt(mp.r_steer) << '\n'
-            << "Configured fixed-mode R_delta increment penalty: " << fmt(mp.r_delta) << '\n'
+            << "Configured base R steering feedforward deviation via increments: " << fmt(mp.r_steer) << '\n'
+            << "Configured base R_delta increment penalty: " << fmt(mp.r_delta) << '\n'
             << "Terminal multiplier: " << fmt(mp.terminal_scale) << '\n'
             << "Steering limit (deg): " << fmt(mp.max_steer * rad2deg) << '\n'
             << "Steering slew limit (deg/s): " << fmt(mp.max_steer_rate * rad2deg) << '\n'
@@ -563,9 +511,8 @@ SimulationMetrics exportResults(
             << "@media(max-width:550px){.grid{grid-template-columns:1fr}header h1{font-size:22px}}"
             << "</style></head><body><header><h1>"
             << "CarSim 车辆动力学"
-            << (outcome.controller_mode == "eval"
-                ? (outcome.rl_algorithm == "td3" ? " · TD3 自适应预测时域与 Q/R 权重 MPC 双移线轨迹跟踪</h1>" : " · DDPG 自适应预测时域与 Q/R 权重 MPC 双移线轨迹跟踪</h1>")
-                : " · 固定预测时域 MPC 双移线轨迹跟踪</h1>")
+            << (outcome.adaptive ? " · Python 强化学习自适应 MPC 双移线轨迹跟踪</h1>"
+                                 : " · 中性 MPC 双移线轨迹跟踪</h1>")
             << "<p>C++ 实验标签：" << xmlEscape(experiment_name)
             << " · 参考轨迹：" << xmlEscape(outcome.reference_source)
             << " · CarSim VS Solver / C++17 · MPC 闭环仿真</p>"
@@ -672,151 +619,8 @@ SimulationMetrics exportResults(
             << " ｜ <a href=\"effective_config.ini\">本次生效参数</a>"
             << " ｜ <a href=\"tire_data.csv\">"
             << "C++ 预测模型轮胎数据</a><br>"
-            << "车辆状态来自 CarSim；转角曲线是 C++ 控制指令，实际轮角尚未映射。MPC 使用三自由度动力学增量式 LTV 预测，沿预测轨迹逐步线性化并作 Tustin 离散化；质量、质心、偏航惯量、轮胎表和路面摩擦系数取自本次 CarSim Solver 回显。纵向轮胎滑移与刚度当前未映射，纵向加速度由相邻 CarSim 状态估计。DDPG 在所有车速均调节 Np/Q/R。"
+            << "车辆状态来自 CarSim；转角曲线是 C++ 控制指令，实际轮角尚未映射。MPC 使用三自由度动力学增量式 LTV 预测，沿预测轨迹逐步线性化并作 Tustin 离散化；质量、质心、偏航惯量、轮胎表和路面摩擦系数取自本次 CarSim Solver 回显。纵向轮胎滑移与刚度当前未映射，纵向加速度由相邻 CarSim 状态估计。"
             << "</footer></body></html>";
     }
     return metrics;
-}
-
-void exportComparisonVisuals(const std::filesystem::path& output,
-    const std::vector<SimulationRecord>& fixed,
-    const std::vector<SimulationRecord>& adaptive) {
-    if (fixed.empty() || adaptive.empty())
-        throw std::invalid_argument("Controller comparison requires both trajectories");
-    std::filesystem::create_directories(output);
-    const auto x = [](const auto& v) { return v.s.x; };
-    const auto t = [](const auto& v) { return v.time; };
-    const auto zero = [](const auto&) { return 0.0; };
-    const std::string fixed_color = "#2563eb";
-    const std::string adaptive_color = "#dc2626";
-    const std::string reference_color = "#e96932";
-    comparisonChart(output / "01_lateral_tracking.svg", "Double lane change: fixed Np vs DDPG",
-        "Longitudinal position X (m)", "Lateral position Y (m)", {
-        makeTrace(fixed, "Reference", reference_color, x,
-            [](const auto& v) { return v.reference.y; }, true),
-        makeTrace(fixed, "Fixed Np", fixed_color, x,
-            [](const auto& v) { return v.s.y; }),
-        makeTrace(adaptive, "DDPG Np", adaptive_color, x,
-            [](const auto& v) { return v.s.y; })});
-    comparisonChart(output / "02_heading_tracking.svg", "Heading angle: fixed Np vs DDPG",
-        "Longitudinal position X (m)", "Heading angle (deg)", {
-        makeTrace(fixed, "Reference", reference_color, x,
-            [](const auto& v) { return v.reference.psi * rad2deg; }, true),
-        makeTrace(fixed, "Fixed Np", fixed_color, x,
-            [](const auto& v) { return v.s.psi * rad2deg; }),
-        makeTrace(adaptive, "DDPG Np", adaptive_color, x,
-            [](const auto& v) { return v.s.psi * rad2deg; })});
-    comparisonChart(output / "03_lateral_error.svg", "Lateral error: fixed Np vs DDPG",
-        "Longitudinal position X (m)", "Y - Yref (m)", {
-        makeTrace(fixed, "Zero", "#a4b0bf", x, zero, true),
-        makeTrace(fixed, "Fixed Np", fixed_color, x,
-            [](const auto& v) { return v.lateral_error; }),
-        makeTrace(adaptive, "DDPG Np", adaptive_color, x,
-            [](const auto& v) { return v.lateral_error; })});
-    comparisonChart(output / "04_heading_error.svg", "Heading error: fixed Np vs DDPG",
-        "Longitudinal position X (m)", "Psi - Psiref (deg)", {
-        makeTrace(fixed, "Zero", "#a4b0bf", x, zero, true),
-        makeTrace(fixed, "Fixed Np", fixed_color, x,
-            [](const auto& v) { return v.heading_error * rad2deg; }),
-        makeTrace(adaptive, "DDPG Np", adaptive_color, x,
-            [](const auto& v) { return v.heading_error * rad2deg; })});
-    comparisonChart(output / "05_steering.svg", "Steering: fixed Np vs DDPG",
-        "Time (s)", "Front steering angle (deg)", {
-        makeTrace(fixed, "Fixed Np", fixed_color, t,
-            [](const auto& v) { return v.steer * rad2deg; }),
-        makeTrace(adaptive, "DDPG Np", adaptive_color, t,
-            [](const auto& v) { return v.steer * rad2deg; })});
-    comparisonChart(output / "06_yaw_rate.svg", "Yaw rate: fixed Np vs DDPG",
-        "Longitudinal position X (m)", "Yaw rate (deg/s)", {
-        makeTrace(fixed, "Fixed target", reference_color, x,
-            [](const auto& v) { return v.yaw_rate_ref * rad2deg; }, true),
-        makeTrace(adaptive, "DDPG target", "#f59e0b", x,
-            [](const auto& v) { return v.yaw_rate_ref * rad2deg; }, true),
-        makeTrace(fixed, "Fixed Np", fixed_color, x,
-            [](const auto& v) { return v.s.r * rad2deg; }),
-        makeTrace(adaptive, "DDPG Np", adaptive_color, x,
-            [](const auto& v) { return v.s.r * rad2deg; })});
-    comparisonChart(output / "07_speed.svg", "Vehicle speed: fixed Np vs DDPG",
-        "Time (s)", "Speed (km/h)", {
-        makeTrace(fixed, "Fixed vx", fixed_color, t,
-            [](const auto& v) { return 3.6 * v.s.vx; }),
-        makeTrace(adaptive, "DDPG vx", adaptive_color, t,
-            [](const auto& v) { return 3.6 * v.s.vx; }),
-        makeTrace(fixed, "Fixed ground", "#60a5fa", t,
-            [](const auto& v) { return 3.6 * std::hypot(v.s.vx, v.s.vy); }, true),
-        makeTrace(adaptive, "DDPG ground", "#f87171", t,
-            [](const auto& v) { return 3.6 * std::hypot(v.s.vx, v.s.vy); }, true)});
-    comparisonChart(output / "08_prediction_horizon.svg", "Prediction horizon: fixed Np vs DDPG",
-        "Longitudinal position X (m)", "Np (steps)", {
-        makeTrace(fixed, "Fixed Np", fixed_color, x,
-            [](const auto& v) { return static_cast<double>(v.prediction_horizon); }),
-        makeTrace(adaptive, "DDPG Np", adaptive_color, x,
-            [](const auto& v) { return static_cast<double>(v.prediction_horizon); })}, true);
-}
-
-void exportThreeComparisonVisuals(const std::filesystem::path& output,
-    const std::vector<SimulationRecord>& fixed,
-    const std::vector<SimulationRecord>& ddpg,
-    const std::vector<SimulationRecord>& td3) {
-    if (fixed.empty() || ddpg.empty() || td3.empty())
-        throw std::invalid_argument("Three-controller comparison requires all trajectories");
-    std::filesystem::create_directories(output);
-    const auto x = [](const auto& v) { return v.s.x; };
-    const auto t = [](const auto& v) { return v.time; };
-    const auto zero = [](const auto&) { return 0.0; };
-    const auto trace = [&](const auto& rows, const char* name,
-                           const auto& getx, const auto& gety) {
-        return makeTrace(rows, name, "#2563eb", getx, gety);
-    };
-    const auto draw = [&](const char* file, const char* title,
-                          const char* xlabel, const char* ylabel,
-                          const auto& getx, const auto& gety,
-                          std::vector<Trace> extra, bool integer_y = false) {
-        extra.push_back(trace(fixed, "Fixed MPC", getx, gety));
-        extra.push_back(trace(ddpg, "DDPG", getx, gety));
-        extra.push_back(trace(td3, "TD3", getx, gety));
-        comparisonChart(output / file, title, xlabel, ylabel, std::move(extra), integer_y);
-    };
-    const char* xpos = "Longitudinal position X (m)";
-    draw("01_lateral_tracking.svg", "Lateral path tracking", xpos, "Lateral position Y (m)", x,
-        [](const auto& v) { return v.s.y; },
-        {makeTrace(fixed, "Reference", "#0f766e", x, [](const auto& v) { return v.reference.y; }, true)});
-    draw("02_heading_tracking.svg", "Heading angle tracking", xpos, "Heading angle (deg)", x,
-        [](const auto& v) { return v.s.psi * rad2deg; },
-        {makeTrace(fixed, "Reference", "#0f766e", x, [](const auto& v) { return v.reference.psi * rad2deg; }, true)});
-    draw("03_lateral_error.svg", "Lateral tracking error", xpos, "Y - Yref (m)", x,
-        [](const auto& v) { return v.lateral_error; },
-        {makeTrace(fixed, "Zero", "#0f766e", x, zero, true)});
-    draw("04_heading_error.svg", "Heading tracking error", xpos, "Psi - Psiref (deg)", x,
-        [](const auto& v) { return v.heading_error * rad2deg; },
-        {makeTrace(fixed, "Zero", "#0f766e", x, zero, true)});
-    draw("05_steering.svg", "Front-wheel steering command", "Time (s)", "Steering angle (deg)", t,
-        [](const auto& v) { return v.steer * rad2deg; }, {});
-    draw("06_yaw_rate.svg", "Yaw rate", xpos, "Yaw rate (deg/s)", x,
-        [](const auto& v) { return v.s.r * rad2deg; },
-        {makeTrace(fixed, "Fixed target", "#64748b", x, [](const auto& v) { return v.yaw_rate_ref * rad2deg; }, true),
-         makeTrace(ddpg, "DDPG target", "#d97706", x, [](const auto& v) { return v.yaw_rate_ref * rad2deg; }, true),
-         makeTrace(td3, "TD3 target", "#a78bfa", x, [](const auto& v) { return v.yaw_rate_ref * rad2deg; }, true)});
-    comparisonChart(output / "07_speed.svg", "Vehicle speed", "Time (s)", "Speed (km/h)", {
-        trace(fixed, "Fixed vx", t, [](const auto& v) { return 3.6 * v.s.vx; }),
-        trace(ddpg, "DDPG vx", t, [](const auto& v) { return 3.6 * v.s.vx; }),
-        trace(td3, "TD3 vx", t, [](const auto& v) { return 3.6 * v.s.vx; }),
-        trace(fixed, "Fixed ground", t, [](const auto& v) { return 3.6 * std::hypot(v.s.vx, v.s.vy); }),
-        trace(ddpg, "DDPG ground", t, [](const auto& v) { return 3.6 * std::hypot(v.s.vx, v.s.vy); }),
-        trace(td3, "TD3 ground", t, [](const auto& v) { return 3.6 * std::hypot(v.s.vx, v.s.vy); })});
-    draw("08_prediction_horizon.svg", "Prediction horizon", xpos, "Np (steps)", x,
-        [](const auto& v) { return static_cast<double>(v.prediction_horizon); }, {}, true);
-    draw("11_road_grip.svg", "Road grip from CarSim map at CG station", xpos, "Road grip mu", x,
-        [](const auto& v) { return v.road_grip; }, {});
-    struct WeightChart { const char* file; const char* title; double SimulationRecord::*field; };
-    const std::array<WeightChart, 6> weights{{
-        {"09_q_y_value.svg", "Lateral-error weight Qy", &SimulationRecord::q_y},
-        {"09_q_psi_value.svg", "Heading-error weight Qpsi", &SimulationRecord::q_psi},
-        {"09_q_vy_value.svg", "Lateral-velocity weight Qvy", &SimulationRecord::q_vy},
-        {"09_q_r_value.svg", "Yaw-rate weight Qr", &SimulationRecord::q_r},
-        {"10_r_steer_value.svg", "Steering weight Rsteer", &SimulationRecord::r_steer},
-        {"10_r_delta_value.svg", "Steering-increment weight Rdelta", &SimulationRecord::r_delta}}};
-    for (const auto& weight : weights)
-        draw(weight.file, weight.title, xpos, "Applied weight", x,
-             [field = weight.field](const auto& v) { return v.*field; }, {});
 }

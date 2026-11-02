@@ -6,7 +6,7 @@ SET_MACRO $(WORK_DIR)$ .\
 SET_MACRO $(OUTPUT_FILE_PREFIX)$ Results\Run_6cb07365-85a3-4a3b-95f9-c5c844687601\LastRun
 
 FILEBASE $(OUTPUT_FILE_PREFIX)$
-INPUT C:\Users\fengchengmin\Desktop\C++\myfcm\MPC_DoubleLaneChange_Tunable_VisualStudio\MPC_DoubleLaneChange_Tunable\policies\fixed_speed\v60\source\Run_all.par
+INPUT C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\policies\fixed_speed\v60\source\Run_all.par
 INPUTARCHIVE $(OUTPUT_FILE_PREFIX)$_all.par
 ECHO $(OUTPUT_FILE_PREFIX)$_echo.par
 FINAL $(OUTPUT_FILE_PREFIX)$_end.par

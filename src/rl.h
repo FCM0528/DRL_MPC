@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "mpc.h"
 #include "vehicle.h"
 #include "reference.h"
@@ -33,7 +33,7 @@ struct RlRewardConfig {
 };
 
 struct RlConfig {
-    std::string mode = "train";       // fixed | train | eval
+    std::string mode = "fixed";       // C++ defaults to MPC control
     std::string algorithm = "ddpg";   // policy factory extension point
     std::string action_profile = "full"; // full | compact | np_only
     int min_np = 10;
@@ -80,7 +80,7 @@ struct RlConfig {
     RlRewardConfig reward;
 };
 
-// Seven bounded actions: Np and each nonzero Q/R diagonal weight.
+// Bridge action: Np, Qy, Qpsi, Rdelta. Other weights stay in [mpc].
 struct MpcTuningAction {
     int np = 15;
     double q_y = 100.0;
@@ -91,41 +91,6 @@ struct MpcTuningAction {
     double r_delta = 350.0;
 };
 
-struct RlTrainingStats {
-    double critic1_loss_sum = 0.0;
-    double critic2_loss_sum = 0.0;
-    double actor_objective_sum = 0.0;
-    int critic_updates = 0;
-    int actor_updates = 0;
-    int transitions = 0;
-    int clipped_rewards = 0;
-};
-
-class RlPolicy {
-public:
-    virtual ~RlPolicy() = default;
-    virtual MpcTuningAction act(const RlObservation& observation,
-                                bool explore) = 0;
-    virtual void observe(const RlObservation& state, const MpcTuningAction& action,
-                         double reward, const RlObservation& next, bool done) = 0;
-    virtual void save(const std::filesystem::path& file) const = 0;
-    virtual void load(const std::filesystem::path& file) = 0;
-    virtual void warmStart(const std::filesystem::path& file) = 0;
-    virtual void saveTrainingState(const std::filesystem::path& file) const = 0;
-    virtual void loadTrainingState(const std::filesystem::path& file) = 0;
-    virtual void setTrainingEpisode(int, int) {}
-    virtual double explorationStdDev() const { return 0.0; }
-    virtual RlTrainingStats takeTrainingStats() { return {}; }
-};
-
-std::unique_ptr<RlPolicy> createRlPolicy(const RlConfig& config);
-double pairedRewardAdvantage(double reward, double baseline, const RlConfig& config);
-double trainingBlockReward(double reward, double baseline, const RlConfig& config);
-double quantizeNormalizedNp(double action, int nominal, int minimum, int maximum);
-double lowSpeedActionBlend(double speed_kmh, const RlConfig& config);
-double policyActionBlend(double speed_kmh, const RlConfig& config);
-bool trackingSafetyAcceptable(double heading_rmse_deg, int grip_steps,
-                              double reference_heading_rmse_deg, int reference_grip_steps);
 MpcTuningAction neutralRlAction(const RlConfig& config);
 RlObservation makeRlObservation(const VehicleState& state,
                                 const DoubleLaneChange& reference,
@@ -147,8 +112,3 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           double vy = 0.0, double yaw_error = 0.0,
                           bool grip_limited = false,
                           std::array<double, 11>* components = nullptr);
-
-struct AppConfig;
-void runRlTraining(const AppConfig& config);
-void runRlHeldoutEvaluation(const AppConfig& config);
-void exportRlTrainingActor(const AppConfig& config);
