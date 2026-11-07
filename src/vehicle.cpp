@@ -62,9 +62,9 @@ TireTable::TireTable(const std::filesystem::path& csv_file) {
     if (header.size() < 3 || header.front() != 0.0)
         throw std::runtime_error("Tire table needs a zero/slip_deg corner and at least two loads");
     loads_.assign(header.begin() + 1, header.end());
-    if (loads_.front() <= 0.0 || !std::is_sorted(loads_.begin(), loads_.end()) ||
+    if (loads_.front() < 0.0 || !std::is_sorted(loads_.begin(), loads_.end()) ||
         std::adjacent_find(loads_.begin(), loads_.end()) != loads_.end())
-        throw std::runtime_error("Tire table loads must be positive and increasing");
+        throw std::runtime_error("Tire table loads must be nonnegative and increasing");
 
     int line_number = 1;
     while (std::getline(in, line)) {
@@ -90,33 +90,25 @@ TireTable::TireTable(const std::filesystem::path& csv_file) {
         slip_deg_.insert(slip_deg_.begin(), 0.0);
         forces_.insert(forces_.begin(), std::vector<double>(loads_.size(), 0.0));
     }
-    // The alternate TireFy export appends a 26-deg row identical to 25 deg.
-    // It is a hold marker, not a measured falling slope: retain 25 deg as the
-    // last data point so the requested 25-to-35-deg extension keeps decreasing.
-    if (slip_deg_.size() >= 3 && slip_deg_.back() == 26.0 &&
-        slip_deg_[slip_deg_.size() - 2] == 25.0 &&
-        forces_.back() == forces_[forces_.size() - 2]) {
-        slip_deg_.pop_back();
-        forces_.pop_back();
-    }
     if (slip_deg_.size() < 2 || slip_deg_.front() != 0.0 ||
         std::any_of(forces_.front().begin(), forces_.front().end(),
                     [](double force) { return force != 0.0; }))
         throw std::runtime_error("Tire table needs a zero-force row at zero slip");
+    if (loads_.front() == 0.0 &&
+        std::any_of(forces_.begin(), forces_.end(),
+                    [](const auto& row) { return row.front() != 0.0; }))
+        throw std::runtime_error("Tire table needs zero force at zero load");
 }
 
 double TireTable::positiveForce(double slip_deg, double normal_load_n) const {
     if (!std::isfinite(normal_load_n) || normal_load_n < minLoad() ||
         normal_load_n > maxLoad())
         throw std::invalid_argument("Per-tire normal load is outside tire table range");
-    // Continue the measured last-segment slope for at most 10 degrees (25 to
-    // 35 degrees for the supplied table). Beyond that, hold the endpoint;
-    // the extension is a model assumption, not another measured CSV row.
-    constexpr double extension_deg = 10.0;
-    const double angle = std::min(slip_deg, slip_deg_.back() + extension_deg);
-    const auto i = lowerIndex(slip_deg_, angle);
+    if (!std::isfinite(slip_deg) || slip_deg < 0.0 || slip_deg > slip_deg_.back())
+        throw std::invalid_argument("Tire slip angle is outside CarSim tire table range");
+    const auto i = lowerIndex(slip_deg_, slip_deg);
     const auto j = lowerIndex(loads_, normal_load_n);
-    const double ta = (angle - slip_deg_[i]) / (slip_deg_[i + 1] - slip_deg_[i]);
+    const double ta = (slip_deg - slip_deg_[i]) / (slip_deg_[i + 1] - slip_deg_[i]);
     const double tf = (normal_load_n - loads_[j]) / (loads_[j + 1] - loads_[j]);
     const double low = forces_[i][j] + tf * (forces_[i][j + 1] - forces_[i][j]);
     const double high = forces_[i + 1][j] + tf * (forces_[i + 1][j + 1] - forces_[i + 1][j]);
@@ -134,6 +126,12 @@ double TireTable::lateralForce(double slip_rad, double normal_load_n) const {
     return std::copysign(positiveForce(std::abs(slip_rad) * rad2deg, normal_load_n), slip_rad);
 }
 
+double TireTable::boundedLateralForce(double slip_rad, double normal_load_n) const {
+    if (!std::isfinite(slip_rad)) throw std::invalid_argument("Nonfinite tire slip");
+    const double slip_deg = std::min(std::abs(slip_rad) * rad2deg, slip_deg_.back());
+    return std::copysign(positiveForce(slip_deg, normal_load_n), slip_rad);
+}
+
 double TireTable::peakLateralForce(double normal_load_n) const {
     double peak = 0.0;
     for (const double slip : slip_deg_)
@@ -141,10 +139,10 @@ double TireTable::peakLateralForce(double normal_load_n) const {
     return peak;
 }
 
-State6 matrixTimesState(const Matrix6& a, const State6& x) {
-    State6 y{};
-    for (int i = 0; i < 6; ++i)
-        for (int j = 0; j < 6; ++j) y[i] += a[i][j] * x[j];
+PredictionState matrixTimesState(const PredictionMatrix& a, const PredictionState& x) {
+    PredictionState y{};
+    for (int i = 0; i < prediction_state_count; ++i)
+        for (int j = 0; j < prediction_state_count; ++j) y[i] += a[i][j] * x[j];
     return y;
 }
 
@@ -164,9 +162,12 @@ std::pair<double, double> staticWheelLoads(const VehicleParameters& p) {
 DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
                                         const TireTable& tires,
                                         const VehicleState& op,
-                                        double steer, double ax, double dt, bool nonlinear_tire,
-                                        double tire_slope_floor) {
-    // CarSim-coordinate three-DOF state: [vy,vx,psi,r,Y,X].
+                                        double steer, double ax, double dt,
+                                        double tire_slope_floor,
+                                        double front_relaxation_m,
+                                        double rear_relaxation_m,
+                                        double front_force_bias,
+                                        double rear_force_bias) {
     // Cf/Cr are axle sums of the two per-wheel cornering forces.
     // The unobserved longitudinal tire/driver force is held at the value that
     // reproduces the measured CarSim body longitudinal acceleration at op.
@@ -177,44 +178,97 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
           std::isfinite(dt) && dt > 0.0))
         throw std::invalid_argument("Invalid three-DOF operating point");
     const auto [front_load, rear_load] = staticWheelLoads(p);
-    const double alpha_f = steer - (v + p.a*r) / u;
-    const double alpha_r = (p.b*r - v) / u;
+    const bool lag_front = front_relaxation_m > 0.0;
+    const bool lag_rear = rear_relaxation_m > 0.0;
+    const bool dynamic_tires = lag_front || lag_rear;
+    const double front_velocity_ratio = (v + p.a*r) / u;
+    const double rear_velocity_ratio = (v - p.b*r) / u;
+    const double instant_f = steer - (dynamic_tires ? std::atan(front_velocity_ratio)
+                                                     : front_velocity_ratio);
+    const double instant_r = -(dynamic_tires ? std::atan(rear_velocity_ratio)
+                                              : rear_velocity_ratio);
+    const double alpha_f = lag_front ? op.alpha_front : instant_f;
+    const double alpha_r = lag_rear ? op.alpha_rear : instant_r;
+    // Preserve the measured initial tire stiffness while scaling peak force
+    // and the slip at which it occurs with road friction.
+    const double slip_scale = dynamic_tires ? p.road_grip_scale : 1.0;
+    const auto force = [&](double alpha, double load) {
+        return tires.boundedLateralForce(alpha / slip_scale, load);
+    };
     const auto slope = [&](double alpha, double load) {
         constexpr double h = 1e-5;
-        const double local = (tires.lateralForce(alpha + h, load) - tires.lateralForce(alpha - h, load)) / (2*h);
-        // Preserve control direction when a saturated or extrapolated table has
-        // a zero/negative local slope. The force at the operating point remains exact.
-        return std::max(local, tire_slope_floor * tires.corneringStiffness(load));
+        const double local = (force(alpha + h, load) - force(alpha - h, load)) / (2*h);
+        // Preserve control direction where the table is flat or post-peak.
+        return std::max(local, tire_slope_floor * tires.corneringStiffness(load) / slip_scale);
     };
-    const double cf = 2.0 * p.road_grip_scale * (nonlinear_tire ? slope(alpha_f, front_load) : tires.corneringStiffness(front_load));
-    const double cr = 2.0 * p.road_grip_scale * (nonlinear_tire ? slope(alpha_r, rear_load) : tires.corneringStiffness(rear_load));
-    const double fyf = nonlinear_tire ? 2.0 * p.road_grip_scale * tires.lateralForce(alpha_f, front_load) : cf * alpha_f;
-    const double fyr = nonlinear_tire ? 2.0 * p.road_grip_scale * tires.lateralForce(alpha_r, rear_load) : cr * alpha_r;
-    const double fyf_u = cf * (v + p.a*r) / (u*u);
-    const double fyf_v = -cf / u;
-    const double fyf_r = -p.a*cf / u;
-    const double fyr_u = cr * (v - p.b*r) / (u*u);
-    const double fyr_v = -cr / u;
-    const double fyr_r = p.b*cr / u;
+    const double cf = 2.0 * p.road_grip_scale * slope(alpha_f, front_load);
+    const double cr = 2.0 * p.road_grip_scale * slope(alpha_r, rear_load);
+    const double fyf = 2.0 * p.road_grip_scale * force(alpha_f, front_load)
+        + front_force_bias;
+    const double fyr = 2.0 * p.road_grip_scale * force(alpha_r, rear_load)
+        + rear_force_bias;
     const double cpsi = std::cos(yaw), spsi = std::sin(yaw);
+    const double lateral_projection = dynamic_tires ? std::cos(steer) : 1.0;
+    const double longitudinal_projection = dynamic_tires ? std::sin(steer) : steer;
 
-    Matrix6 jac{};
-    State6 input{};
-    // Longitudinal equation: m*u_dot=m*v*r+Fx_total-Fyf*delta_f.
-    jac[1][0] = r - fyf_v*steer/p.mass;
-    jac[1][1] = -fyf_u*steer/p.mass;
-    jac[1][3] = v - fyf_r*steer/p.mass;
-    input[1] = -(cf*steer + fyf)/p.mass;
-    // Lateral and yaw equations use small-angle linearized tire forces.
-    jac[0][0] = (fyf_v + fyr_v)/p.mass;
-    jac[0][1] = -r + (fyf_u + fyr_u)/p.mass;
-    jac[0][3] = -u + (fyf_r + fyr_r)/p.mass;
-    input[0] = cf/p.mass;
+    PredictionMatrix jac{};
+    PredictionState input{};
+    PredictionState f0{(fyf*lateral_projection+fyr)/p.mass-u*r, ax, r,
+                       (p.a*fyf*lateral_projection-p.b*fyr)/p.iz,
+                       u*spsi+v*cpsi, u*cpsi-v*spsi};
+    // alpha_dot = vx/L * (alpha_instant - alpha_lagged).
+    const auto force_gradient = [&](int index, double axle_x, double length,
+                                    double instant, double lagged, double stiffness,
+                                    double steer_derivative) {
+        PredictionState gradient{};
+        const double ratio = (v + axle_x*r) / u;
+        const double angle_slope = dynamic_tires ? 1.0 / (1.0 + ratio * ratio) : 1.0;
+        gradient[0] = -angle_slope / u;
+        gradient[1] = angle_slope * ratio / u;
+        gradient[3] = -angle_slope * axle_x / u;
+        if (length > 0.0) {
+            // Relaxation is strongest near zero slip and drops in saturation.
+            // Freeze the slip-dependent length during each LTV linearization.
+            constexpr double slip_scale_rad = 2.0 / rad2deg;
+            const double slip_ratio = lagged / slip_scale_rad;
+            const double effective_length = length / (1.0 + slip_ratio * slip_ratio);
+            // Keep the discrete relaxation pole nonnegative for fast tires.
+            const double rate = std::min(u / effective_length, 2.0 / dt);
+            f0[index] = rate * (instant - lagged);
+            for (int j = 0; j < prediction_state_count; ++j)
+                jac[index][j] = rate * gradient[j];
+            if (rate < 2.0 / dt)
+                jac[index][1] += (instant - lagged) / effective_length;
+            jac[index][index] = -rate;
+            input[index] = rate * steer_derivative;
+            gradient = {};
+            gradient[index] = stiffness;
+        } else {
+            for (double& term : gradient) term *= stiffness;
+        }
+        return gradient;
+    };
+    const auto front_gradient = force_gradient(6, p.a, front_relaxation_m,
+                                                instant_f, alpha_f, cf, 1.0);
+    const auto rear_gradient = force_gradient(7, -p.b, rear_relaxation_m,
+                                               instant_r, alpha_r, cr, 0.0);
+    for (int j = 0; j < prediction_state_count; ++j) {
+        const double front_lateral = front_gradient[j] * lateral_projection;
+        jac[0][j] = (front_lateral + rear_gradient[j]) / p.mass;
+        jac[1][j] = -front_gradient[j] * longitudinal_projection / p.mass;
+        jac[3][j] = (p.a * front_lateral - p.b * rear_gradient[j]) / p.iz;
+    }
+    jac[0][1] -= r;
+    jac[0][3] -= u;
+    jac[1][0] += r;
+    jac[1][3] += v;
+    const double force_steer = lag_front ? 0.0 : cf;
+    const double lateral_steer = force_steer * lateral_projection -
+        (dynamic_tires ? fyf * longitudinal_projection : 0.0);
+    input[0] = lateral_steer / p.mass;
+    input[1] = -(force_steer * longitudinal_projection + fyf * lateral_projection) / p.mass;
+    input[3] = p.a * lateral_steer / p.iz;
     jac[2][3] = 1.0;
-    jac[3][0] = (p.a*fyf_v - p.b*fyr_v)/p.iz;
-    jac[3][1] = (p.a*fyf_u - p.b*fyr_u)/p.iz;
-    jac[3][3] = (p.a*fyf_r - p.b*fyr_r)/p.iz;
-    input[3] = p.a*cf/p.iz;
     // CarSim uses global X forward and Y left; preserve this rotation.
     jac[4][0] = cpsi;
     jac[4][1] = spsi;
@@ -223,27 +277,26 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
     jac[5][1] = cpsi;
     jac[5][2] = -u*spsi - v*cpsi;
 
-    const State6 x0{v,u,yaw,r,op.y,op.x};
-    const State6 f0{(fyf+fyr)/p.mass-u*r, ax, r,
-                    (p.a*fyf-p.b*fyr)/p.iz,
-                    u*spsi+v*cpsi, u*cpsi-v*spsi};
+    const PredictionState x0{v,u,yaw,r,op.y,op.x,op.alpha_front,op.alpha_rear};
     const auto linear_part = matrixTimesState(jac,x0);
     DiscreteErrorModel result;
-    // Bilinear (Tustin) discretization. Solve all eight right-hand sides in
+    // Bilinear (Tustin) discretization. Solve all right-hand sides in
     // one pivoted elimination: (I-T*A/2)^-1 [I+T*A/2, T*B, T*c].
-    std::array<std::array<double, 14>, 6> augmented{};
-    for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < 6; ++j) {
+    constexpr int n = prediction_state_count;
+    constexpr int cols = 2 * n + 2;
+    std::array<std::array<double, cols>, n> augmented{};
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) {
             const double identity = i == j ? 1.0 : 0.0;
             augmented[i][j] = identity - 0.5 * dt * jac[i][j];
-            augmented[i][6 + j] = identity + 0.5 * dt * jac[i][j];
+            augmented[i][n + j] = identity + 0.5 * dt * jac[i][j];
         }
-        augmented[i][12] = dt * input[i];
-        augmented[i][13] = dt * (f0[i] - linear_part[i] - input[i] * steer);
+        augmented[i][2 * n] = dt * input[i];
+        augmented[i][2 * n + 1] = dt * (f0[i] - linear_part[i] - input[i] * steer);
     }
-    for (int col = 0; col < 6; ++col) {
+    for (int col = 0; col < n; ++col) {
         int pivot = col;
-        for (int row = col + 1; row < 6; ++row)
+        for (int row = col + 1; row < n; ++row)
             if (std::abs(augmented[row][col]) > std::abs(augmented[pivot][col]))
                 pivot = row;
         if (!std::isfinite(augmented[pivot][col]) ||
@@ -251,18 +304,18 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
             throw std::runtime_error("Three-DOF Tustin discretization is singular");
         if (pivot != col) std::swap(augmented[pivot], augmented[col]);
         const double diagonal = augmented[col][col];
-        for (int j = col; j < 14; ++j) augmented[col][j] /= diagonal;
-        for (int row = 0; row < 6; ++row) {
+        for (int j = col; j < cols; ++j) augmented[col][j] /= diagonal;
+        for (int row = 0; row < n; ++row) {
             if (row == col) continue;
             const double factor = augmented[row][col];
-            for (int j = col; j < 14; ++j)
+            for (int j = col; j < cols; ++j)
                 augmented[row][j] -= factor * augmented[col][j];
         }
     }
-    for (int i = 0; i < 6; ++i) {
-        for (int j = 0; j < 6; ++j) result.a[i][j] = augmented[i][6 + j];
-        result.b[i] = augmented[i][12];
-        result.c[i] = augmented[i][13];
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < n; ++j) result.a[i][j] = augmented[i][n + j];
+        result.b[i] = augmented[i][2 * n];
+        result.c[i] = augmented[i][2 * n + 1];
     }
     return result;
 }

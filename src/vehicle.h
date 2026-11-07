@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <array>
 #include <filesystem>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -12,6 +13,7 @@ public:
     double corneringStiffness(double normal_load_n) const;
     double peakLateralForce(double normal_load_n) const;
     double lateralForce(double slip_rad, double normal_load_n) const;
+    double boundedLateralForce(double slip_rad, double normal_load_n) const;
     double minLoad() const { return loads_.front(); }
     double maxLoad() const { return loads_.back(); }
 
@@ -41,18 +43,25 @@ struct VehicleState {
     double ax = 0.0;            // measured body-vx rate from consecutive CarSim states [m/s^2]
     double vy = 0.0;            // body-fixed lateral velocity [m/s]
     double r = 0.0;             // yaw rate [rad/s]
+    double alpha_front = 0.0;   // measured axle-average lagged lateral slip [rad], positive Fy
+    double alpha_rear = 0.0;
+    double fy_front = std::numeric_limits<double>::quiet_NaN(); // observed axle tire force [N]
+    double fy_rear = std::numeric_limits<double>::quiet_NaN();
+    double steer_front_left = std::numeric_limits<double>::quiet_NaN();  // rad
+    double steer_front_right = std::numeric_limits<double>::quiet_NaN(); // rad
 };
 
-// Three-DOF dynamic model in CarSim coordinates: [vy,vx,psi,r,Y,X].
-using State6 = std::array<double, 6>;
-using Matrix6 = std::array<std::array<double, 6>, 6>;
+// Three-DOF vehicle with optional tire relaxation: [vy,vx,psi,r,Y,X,alpha_f,alpha_r].
+constexpr int prediction_state_count = 8;
+using PredictionState = std::array<double, prediction_state_count>;
+using PredictionMatrix = std::array<PredictionState, prediction_state_count>;
 
 std::pair<double, double> staticWheelLoads(const VehicleParameters& p);
 
 struct DiscreteErrorModel {
-    Matrix6 a{};
-    State6 b{};   // front-wheel steering angle
-    State6 c{};   // affine term around the measured CarSim operating point
+    PredictionMatrix a{};
+    PredictionState b{};   // front-wheel steering angle
+    PredictionState c{};   // affine term around the measured CarSim operating point
 };
 
 DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
@@ -60,7 +69,10 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
                                         const VehicleState& operating_point,
                                         double steering_angle,
                                         double longitudinal_accel, double dt,
-                                        bool nonlinear_tire = false,
-                                        double tire_slope_floor = 0.15);
-State6 matrixTimesState(const Matrix6& a, const State6& x);
+                                        double tire_slope_floor = 0.15,
+                                        double front_relaxation_m = 0.0,
+                                        double rear_relaxation_m = 0.0,
+                                        double front_force_bias = 0.0,
+                                        double rear_force_bias = 0.0);
+PredictionState matrixTimesState(const PredictionMatrix& a, const PredictionState& x);
 double angleDifference(double a, double b);

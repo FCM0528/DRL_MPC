@@ -1,4 +1,5 @@
 #include "visualization.h"
+#include "rl.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -21,6 +22,8 @@ struct Trace {
     bool dashed = false;
     double stroke_width = 3.1;
     std::string dash_pattern;
+    double reference_min = std::numeric_limits<double>::quiet_NaN();
+    double reference_max = std::numeric_limits<double>::quiet_NaN();
 };
 
 std::ofstream openFile(const std::filesystem::path& path) {
@@ -106,8 +109,15 @@ void svgChart(const std::filesystem::path& file,
     const double ystep = integer_y
         ? std::max(1.0, niceNumber((ymax - ymin) / 6.0, true))
         : niceNumber((ymax - ymin) / 6.0, true);
-    const double xaxismin = std::floor(xmin / xstep) * xstep;
-    const double xaxismax = std::ceil(xmax / xstep) * xstep;
+    const bool spatial = xlabel == "Longitudinal position X (m)";
+    const bool has_reference_range = spatial && !traces.empty() &&
+        std::isfinite(traces.front().reference_min) &&
+        std::isfinite(traces.front().reference_max) &&
+        traces.front().reference_max > traces.front().reference_min;
+    const double xaxismin = has_reference_range ? traces.front().reference_min
+                                                : std::floor(xmin / xstep) * xstep;
+    const double xaxismax = has_reference_range ? traces.front().reference_max
+                                                : std::ceil(xmax / xstep) * xstep;
     const double yaxismin = std::floor(ymin / ystep) * ystep;
     const double yaxismax = std::ceil(ymax / ystep) * ystep;
     const auto px = [&](double x) {
@@ -137,6 +147,13 @@ void svgChart(const std::filesystem::path& file,
             << "<text x=\"" << px(x) << "\" y=\"" << top + chart_height + 26
             << "\" text-anchor=\"middle\" font-family=\"Segoe UI,Arial\" font-size=\"15\" "
             << "fill=\"#52657c\">" << tickText(x, xstep) << "</text>\n";
+    }
+    if (has_reference_range &&
+        std::abs((xaxismax - xaxismin) / xstep -
+                 std::round((xaxismax - xaxismin) / xstep)) > 1e-6) {
+        out << "<text x=\"" << px(xaxismax) << "\" y=\"" << top + chart_height + 26
+            << "\" text-anchor=\"middle\" font-family=\"Segoe UI,Arial\" font-size=\"15\" "
+            << "fill=\"#52657c\">" << tickText(xaxismax, xstep) << "</text>\n";
     }
     for (int k = 0; k <= 30; ++k) {
         const double y = yaxismin + k * ystep;
@@ -207,7 +224,16 @@ Trace makeTrace(const std::vector<SimulationRecord>& samples,
     out.color = color;
     out.dashed = dashed;
     out.xy.reserve(samples.size());
-    for (const auto& row : samples) out.xy.emplace_back(getx(row), gety(row));
+    if (!samples.empty()) {
+        out.reference_min = samples.front().reference.x_min;
+        out.reference_max = samples.front().reference.x_max;
+    }
+    const bool has_range = std::isfinite(out.reference_min) &&
+        std::isfinite(out.reference_max) && out.reference_max > out.reference_min;
+    for (const auto& row : samples) {
+        if (!has_range || (row.s.x >= out.reference_min && row.s.x <= out.reference_max))
+            out.xy.emplace_back(getx(row), gety(row));
+    }
     return out;
 }
 std::string fmt(double value, int precision = 4) {
@@ -216,6 +242,38 @@ std::string fmt(double value, int precision = 4) {
     return out.str();
 }
 } // namespace
+
+SimulationRecord recordSample(const VehicleState& state, const DoubleLaneChange& reference,
+                              double time, const MpcResult& command, double solve_ms,
+                              bool command_sample, bool fallback_control,
+                              const MpcTuningAction& action, double road_grip,
+                              double curvature_sigma_m) {
+    SimulationRecord row;
+    row.time = time;
+    row.s = state;
+    row.reference = reference.at(state.x);
+    row.lateral_error = state.y - row.reference.y;
+    row.heading_error = angleDifference(state.psi, row.reference.psi);
+    row.steer = command.steer;
+    row.yaw_rate_ref = state.vx * row.reference.curvature;
+    row.feedforward_curvature = reference.controlCurvature(state.x, curvature_sigma_m);
+    row.road_grip = road_grip;
+    row.qp_iterations = command.iterations;
+    row.qp_primal_residual = command.primal_residual;
+    row.qp_dual_residual = command.dual_residual;
+    row.qp_solve_ms = solve_ms;
+    row.qp_converged = command.converged;
+    row.is_command = command_sample;
+    row.fallback_control = fallback_control;
+    row.prediction_horizon = action.np;
+    row.q_y = action.q_y;
+    row.q_psi = action.q_psi;
+    row.q_vy = action.q_vy;
+    row.q_r = action.q_r;
+    row.r_steer = action.r_steer;
+    row.r_delta = action.r_delta;
+    return row;
+}
 
 SimulationMetrics exportResults(
     const std::filesystem::path& output,
@@ -231,7 +289,9 @@ SimulationMetrics exportResults(
     metrics.max_speed_mps = rows.front().s.vx;
     metrics.min_ground_speed_mps = std::hypot(rows.front().s.vx, rows.front().s.vy);
     metrics.max_ground_speed_mps = metrics.min_ground_speed_mps;
-    double sum_y2 = 0.0, sum_heading2 = 0.0, sum_iters = 0.0;
+    double sum_abs_y = 0.0, sum_y2 = 0.0, sum_heading2 = 0.0, sum_iters = 0.0;
+    double sum_abs_yaw_rate = 0.0, sum_abs_front_wheel = 0.0;
+    std::size_t front_wheel_samples = 0;
     double sum_solve_ms = 0.0;
     int solver_samples = 0;
     int min_np = rows.front().prediction_horizon;
@@ -256,11 +316,22 @@ SimulationMetrics exportResults(
         const double ground_speed = std::hypot(p.s.vx, p.s.vy);
         metrics.min_ground_speed_mps = std::min(metrics.min_ground_speed_mps, ground_speed);
         metrics.max_ground_speed_mps = std::max(metrics.max_ground_speed_mps, ground_speed);
+        sum_abs_y += std::abs(p.lateral_error);
         sum_y2 += p.lateral_error * p.lateral_error;
         sum_heading2 += p.heading_error * p.heading_error;
         metrics.max_abs_y = std::max(metrics.max_abs_y, std::abs(p.lateral_error));
         metrics.max_abs_heading_deg = std::max(metrics.max_abs_heading_deg,
                                                std::abs(p.heading_error * rad2deg));
+        const double abs_yaw_rate = std::abs(p.s.r) * rad2deg;
+        sum_abs_yaw_rate += abs_yaw_rate;
+        metrics.max_abs_yaw_rate_deg_s = std::max(metrics.max_abs_yaw_rate_deg_s, abs_yaw_rate);
+        if (std::isfinite(p.s.steer_front_left) && std::isfinite(p.s.steer_front_right)) {
+            const double left = std::abs(p.s.steer_front_left) * rad2deg;
+            const double right = std::abs(p.s.steer_front_right) * rad2deg;
+            sum_abs_front_wheel += left + right;
+            metrics.max_abs_front_wheel_deg = std::max({metrics.max_abs_front_wheel_deg, left, right});
+            ++front_wheel_samples;
+        }
         metrics.max_abs_steering_deg = std::max(metrics.max_abs_steering_deg,
                                                 std::abs(p.steer * rad2deg));
         metrics.max_steering_rate_deg_s = std::max(metrics.max_steering_rate_deg_s,
@@ -270,9 +341,7 @@ SimulationMetrics exportResults(
             sum_iters += p.qp_iterations;
             sum_solve_ms += p.qp_solve_ms;
             metrics.max_qp_time_ms = std::max(metrics.max_qp_time_ms, p.qp_solve_ms);
-            metrics.qp_nonconverged_steps +=
-                (p.fallback_control || (p.qp_iterations > 0 && !p.qp_converged)) ? 1 : 0;
-            metrics.grip_limited_steps += p.grip_limited_control ? 1 : 0;
+            metrics.qp_nonconverged_steps += !p.qp_converged ? 1 : 0;
             metrics.fallback_control_steps += p.fallback_control ? 1 : 0;
             metrics.peak_qp_primal_residual = std::max(metrics.peak_qp_primal_residual,
                                                       p.qp_primal_residual);
@@ -281,8 +350,13 @@ SimulationMetrics exportResults(
         }
         prev_delta = p.steer;
     }
+    metrics.mae_y = sum_abs_y / rows.size();
     metrics.rmse_y = std::sqrt(sum_y2 / rows.size());
     metrics.rmse_heading_deg = rad2deg * std::sqrt(sum_heading2 / rows.size());
+    metrics.mean_abs_yaw_rate_deg_s = sum_abs_yaw_rate / rows.size();
+    metrics.has_front_wheel_angles = front_wheel_samples == rows.size();
+    if (metrics.has_front_wheel_angles)
+        metrics.mean_abs_front_wheel_deg = sum_abs_front_wheel / (2.0 * front_wheel_samples);
     if (solver_samples > 0) {
         metrics.mean_qp_iterations = sum_iters / solver_samples;
         metrics.mean_qp_time_ms = sum_solve_ms / solver_samples;
@@ -295,8 +369,10 @@ SimulationMetrics exportResults(
                    "front_steer_command_deg,vy_carsim_kmh,yaw_rate_carsim_degps,"
                    "yaw_rate_ref_degps,qp_iterations,qp_primal_residual,qp_dual_residual,"
                    "qp_solve_ms,qp_converged,is_command,fallback_control,np,"
-                   "grip_limited_control,q_y_applied,q_psi_applied,q_vy_applied,"
-                   "q_r_applied,r_steer_applied,r_delta_applied,road_grip_estimate,reward\n";
+                   "q_y_applied,q_psi_applied,q_vy_applied,"
+                   "q_r_applied,r_steer_applied,r_delta_applied,road_grip_estimate,reward,"
+                   "reference_curvature_inv_m,front_lagged_slip_rad,rear_lagged_slip_rad,"
+                   "front_left_wheel_steer_deg,front_right_wheel_steer_deg,feedforward_curvature_inv_m\n";
         out << std::fixed << std::setprecision(9);
         for (const auto& p : rows) {
                 out << p.time << ',' << 3.6 * p.s.vx << ',' << 3.6 * std::hypot(p.s.vx, p.s.vy)
@@ -309,30 +385,44 @@ SimulationMetrics exportResults(
                     << p.qp_dual_residual << ',' << p.qp_solve_ms << ','
                     << (p.qp_converged ? 1 : 0) << ',' << (p.is_command ? 1 : 0)
                     << ',' << (p.fallback_control ? 1 : 0) << ','
-                    << p.prediction_horizon << ','
-                    << (p.grip_limited_control ? 1 : 0);
+                    << p.prediction_horizon;
                 out << ',' << p.q_y << ',' << p.q_psi << ','
                     << p.q_vy << ',' << p.q_r << ','
-                    << p.r_steer << ',' << p.r_delta << ',' << p.road_grip << ',' << p.reward << '\n';
+                    << p.r_steer << ',' << p.r_delta << ',' << p.road_grip << ',' << p.reward
+                    << ',' << p.reference.curvature << ',' << p.s.alpha_front
+                    << ',' << p.s.alpha_rear << ',';
+                if (std::isfinite(p.s.steer_front_left)) out << p.s.steer_front_left * rad2deg;
+                out << ',';
+                if (std::isfinite(p.s.steer_front_right)) out << p.s.steer_front_right * rad2deg;
+                out << ',' << p.feedforward_curvature << '\n';
         }
     }
 
     auto xcoord = [](const SimulationRecord& v) { return v.s.x; };
-    auto time = [](const SimulationRecord& v) { return v.time; };
     auto constant0 = [](const SimulationRecord&) { return 0.0; };
     const std::string blue = "#147bd1", orange = "#e96932", red = "#c83e58";
-    svgChart(output / "01_lateral_tracking.svg", "Double lane change: lateral tracking",
+    svgChart(output / "01_lateral_tracking.svg", "CarSim reference: lateral tracking",
              "Longitudinal position X (m)", "Lateral position Y (m)", {
              makeTrace(rows, "MPC actual", blue, xcoord,
                        [](const auto& v) {return v.s.y;}),
              makeTrace(rows, "Reference", orange, xcoord,
                        [](const auto& v) {return v.reference.y;}, true)});
-    svgChart(output / "02_heading_tracking.svg", "Heading angle tracking",
+    svgChart(output / "02_sideslip.svg", "Vehicle side-slip angle",
+             "Longitudinal position X (m)", "Side-slip angle (deg)", {
+             makeTrace(rows, "CarSim actual", blue, xcoord,
+                       [](const auto& v) {return std::atan2(v.s.vy, v.s.vx) * rad2deg;})});
+    svgChart(output / "02_lateral_velocity.svg", "Vehicle lateral velocity",
+             "Longitudinal position X (m)", "Lateral velocity (m/s)", {
+             makeTrace(rows, "CarSim actual", blue, xcoord,
+                       [](const auto& v) {return v.s.vy;})});
+    svgChart(output / "02_heading.svg", "Vehicle heading angle",
              "Longitudinal position X (m)", "Heading angle (deg)", {
-             makeTrace(rows, "MPC actual", blue, xcoord,
-                       [](const auto& v) {return v.s.psi * rad2deg;}),
-             makeTrace(rows, "Reference", orange, xcoord,
-                       [](const auto& v) {return v.reference.psi * rad2deg;}, true)});
+             makeTrace(rows, "CarSim actual", blue, xcoord,
+                       [](const auto& v) {return v.s.psi * rad2deg;})});
+    svgChart(output / "02_yaw_rate.svg", "Vehicle yaw rate",
+             "Longitudinal position X (m)", "Yaw rate (deg/s)", {
+             makeTrace(rows, "CarSim actual", blue, xcoord,
+                       [](const auto& v) {return v.s.r * rad2deg;})});
     svgChart(output / "03_lateral_error.svg", "Lateral tracking error",
              "Longitudinal position X (m)", "Y - Yref (m)", {
              makeTrace(rows, "Zero", "#a4b0bf", xcoord, constant0, true),
@@ -343,22 +433,30 @@ SimulationMetrics exportResults(
              makeTrace(rows, "Zero", "#a4b0bf", xcoord, constant0, true),
              makeTrace(rows, "Heading error", red, xcoord,
                        [](const auto& v) {return v.heading_error * rad2deg;})});
-    svgChart(output / "05_steering.svg", "MPC front-wheel steering command",
-             "Time (s)", "Front steering angle (deg)", {
-             makeTrace(rows, "MPC steering", blue, time,
-                       [](const auto& v) {return v.steer * rad2deg;})});
-    svgChart(output / "06_yaw_rate.svg", "Yaw rate tracking",
-             "Longitudinal position X (m)", "Yaw rate (deg/s)", {
-             makeTrace(rows, "MPC actual", blue, xcoord,
-                       [](const auto& v) {return v.s.r * rad2deg;}),
-             makeTrace(rows, "Reference", orange, xcoord,
-                       [](const auto& v) {return v.yaw_rate_ref * rad2deg;}, true)});
-    std::vector<Trace> speed_traces{
-        makeTrace(rows, "CarSim body Vx", blue, time,
-                  [](const auto& v) {return 3.6 * v.s.vx;}),
-        makeTrace(rows, "CarSim ground speed", "#5a8f50", time,
-                  [](const auto& v) {return 3.6 * std::hypot(v.s.vx, v.s.vy);})};
-    svgChart(output / "07_speed.svg", "Vehicle speed", "Time (s)", "Speed (km/h)", speed_traces);
+    const bool filtered_curvature = mp.steer_feedforward && mp.r_steer > 0.0 &&
+                                    mp.reference_curvature_sigma_m > 0.0;
+    svgChart(output / "06_reference_curvature.svg",
+             filtered_curvature ? "MPC steering feedforward curvature" : "CarSim reference curvature",
+             "Longitudinal position X (m)", "Curvature (1/m)", {
+             makeTrace(rows, filtered_curvature ? "Spatial estimate" : "Reference", orange, xcoord,
+                       [filtered_curvature](const auto& v) {
+                           return filtered_curvature ? v.feedforward_curvature : v.reference.curvature;
+                       })});
+    if (filtered_curvature)
+        svgChart(output / "06_native_reference_curvature.svg", "CarSim native reference curvature",
+                 "Longitudinal position X (m)", "Curvature (1/m)", {
+                 makeTrace(rows, "Native geometry", orange, xcoord,
+                           [](const auto& v) {return v.reference.curvature;})});
+    std::vector<Trace> steering_traces{
+        makeTrace(rows, "MPC command", blue, xcoord, [](const auto& v) {return v.steer * rad2deg;})};
+    if (metrics.has_front_wheel_angles) {
+        steering_traces.push_back(makeTrace(rows, "CarSim front left", orange, xcoord,
+            [](const auto& v) {return v.s.steer_front_left * rad2deg;}));
+        steering_traces.push_back(makeTrace(rows, "CarSim front right", red, xcoord,
+            [](const auto& v) {return v.s.steer_front_right * rad2deg;}));
+    }
+    svgChart(output / "05_steering.svg", "Front-wheel steering",
+             "Longitudinal position X (m)", "Front steering angle (deg)", steering_traces);
     svgChart(output / "08_prediction_horizon.svg", "Prediction horizon selected by controller",
              "Longitudinal position X (m)", "Np (steps)", {
              makeTrace(rows, "Applied Np", blue, xcoord,
@@ -369,15 +467,6 @@ SimulationMetrics exportResults(
     svgChart(output / "09_q_psi_value.svg", "Applied MPC Qpsi",
              "Longitudinal position X (m)", "Qpsi absolute value", {
              makeTrace(rows, "Qpsi", blue, xcoord, [](const auto& v){return v.q_psi;})});
-    svgChart(output / "09_q_vy_value.svg", "Applied MPC Qvy",
-             "Longitudinal position X (m)", "Qvy absolute value", {
-             makeTrace(rows, "Qvy", blue, xcoord, [](const auto& v){return v.q_vy;})});
-    svgChart(output / "09_q_r_value.svg", "Applied MPC Qr",
-             "Longitudinal position X (m)", "Qr absolute value", {
-             makeTrace(rows, "Qr", blue, xcoord, [](const auto& v){return v.q_r;})});
-    svgChart(output / "10_r_steer_value.svg", "Applied MPC Rsteer",
-             "Longitudinal position X (m)", "Rsteer absolute value", {
-             makeTrace(rows, "Rsteer", blue, xcoord, [](const auto& v){return v.r_steer;})});
     svgChart(output / "10_r_delta_value.svg", "Applied MPC Rdelta",
              "Longitudinal position X (m)", "Rdelta absolute value", {
              makeTrace(rows, "Rdelta", blue, xcoord, [](const auto& v){return v.r_delta;})});
@@ -394,8 +483,8 @@ SimulationMetrics exportResults(
             << "Run status: " << (outcome.completed ? "completed" : "incomplete") << '\n'
             << "Requested distance (m): " << fmt(outcome.requested_distance_m, 3) << '\n'
             << "Stop reason: " << (outcome.completed ? "none" : outcome.stop_reason) << '\n'
-            << "First MPC fallback reason: "
-            << (outcome.first_fallback_reason.empty() ? "none" : outcome.first_fallback_reason)
+            << "First MPC solve issue: "
+            << (outcome.first_solve_issue.empty() ? "none" : outcome.first_solve_issue)
             << '\n';
         {
             const auto& source = outcome.carsim_info;
@@ -407,7 +496,7 @@ SimulationMetrics exportResults(
             if (std::filesystem::exists(output / "carsim_native" / "open_visualizer.cmd"))
                 out << "CarSim Visualizer launcher: carsim_native/open_visualizer.cmd\n";
             out << "CarSim Visualizer entry: carsim_native/visualizer.par\n"
-                   "CarSim Visualizer source: carsim_native/Run_visualizer.par (unmodified generated Parsfile)\n"
+                   "CarSim Visualizer source: carsim_native/Run_visualizer.par\n"
                    "CarSim native result header: carsim_native/LastRun.vs\n"
                    "CarSim native result data: carsim_native/LastRun.vsb\n";
             if (!source.vehicle_dataset.empty()) out << "CarSim vehicle dataset: " << source.vehicle_dataset << '\n';
@@ -436,9 +525,16 @@ SimulationMetrics exportResults(
         for (std::size_t k = 0; k < 6; ++k)
             out << "Applied " << weight_names[k] << " absolute range: "
                 << fmt(min_weights[k], 6) << " / " << fmt(max_weights[k], 6) << '\n';
-        out << "MPC prediction states: [vy,vx,psi,r,Y,X]; three-DOF dynamic model only\n"
+        out << "MPC prediction states: [vy,vx,psi,r,Y,X"
+            << (mp.usesTireRelaxation() ? ",lagged front/rear tire slip]\n" : "]\n");
+        if (mp.usesTireRelaxation())
+            out << "Effective front / rear relaxation lengths at zero slip (m): "
+                << fmt(mp.front_relaxation_m) << " / " << fmt(mp.rear_relaxation_m)
+                << "\nCarSim lagged slip and lateral forces anchor the near-term tire prediction\n";
+        out
                 << "MPC augmentation: previous steering state, optimized steering increments\n"
                 << "MPC discretization: stage-varying CarSim operating points, bilinear Tustin\n"
+                << "MPC road grip preview: CarSim road map sampled at predicted X for each stage\n"
                 << "Longitudinal input: measured consecutive CarSim body-vx rate; longitudinal tire slip/stiffness unavailable\n"
                 << "MPC model source: this run's carsim_native/LastRun_echo.par\n"
                 << "MPC total-laden mass (kg): " << fmt(vp.mass, 6) << '\n'
@@ -451,27 +547,42 @@ SimulationMetrics exportResults(
                 << fmt(outcome.model_front_stiffness_n_per_rad, 3) << " / "
                 << fmt(outcome.model_rear_stiffness_n_per_rad, 3) << '\n'
                 << "MPC tire source: carsim_native/carsim_tire_fy.csv (same four tire carpets)\n"
-                << (mp.nonlinear_tire ?
-                    "MPC approximation: static axle loads; nonlinear tire table at each operating point with a slope floor; CarSim plant remains nonlinear\n" :
-                    "MPC approximation: static axle loads and small-slip linearization; CarSim plant remains nonlinear\n");
+                << "MPC approximation: static axle loads; nonlinear tire table at each operating point with a slope floor; CarSim plant remains nonlinear\n";
         out
             << "Configured base Q diag: " << fmt(mp.q_y) << ", " << fmt(mp.q_psi)
             << ", " << fmt(mp.q_vy) << ", " << fmt(mp.q_r) << '\n'
             << "Configured base R steering feedforward deviation via increments: " << fmt(mp.r_steer) << '\n'
             << "Configured base R_delta increment penalty: " << fmt(mp.r_delta) << '\n'
+            << "Configured R_delta_change penalty: " << fmt(mp.r_delta_change) << '\n'
+            << "Steering feedforward curvature spatial sigma (m): "
+            << fmt(mp.reference_curvature_sigma_m) << '\n'
             << "Terminal multiplier: " << fmt(mp.terminal_scale) << '\n'
+            << "Prediction-step weight lambda: " << fmt(mp.stage_weight_lambda) << '\n'
             << "Steering limit (deg): " << fmt(mp.max_steer * rad2deg) << '\n'
-            << "Steering slew limit (deg/s): " << fmt(mp.max_steer_rate * rad2deg) << '\n'
+            << "Steering limit source: "
+            << (outcome.steer_limit_from_carsim ? "CarSim front RACK_KIN table range" : "explicit configuration") << '\n'
+            << "Steering input: "
+            << (outcome.steering_wheel_input ? "handwheel via CarSim rack map" : "configured direct input") << '\n'
+            << "Steering slew limit (deg/s): "
+            << (std::isfinite(mp.max_steer_rate) ? fmt(mp.max_steer_rate * rad2deg) : "none") << '\n'
             << "Speed-based slew schedule: " << (mp.speed_rate_enabled ? "enabled" : "disabled")
             << "; start/end (km/h): " << fmt(mp.speed_rate_start * 3.6) << " / " << fmt(mp.speed_rate_end * 3.6)
             << "; end limit (deg/s): " << fmt(mp.speed_rate_end_limit * rad2deg) << '\n'
             << "Simulation samples: " << rows.size() << '\n'
             << "Distance reached (m): " << fmt(rows.back().s.x, 3) << '\n'
             << "Reference parameters: CarSim LTARG_TABLE in staged Run_all.par\n"
+            << "MPC angle objective: " << (mp.track_course ? "CG course angle" : "body yaw angle") << '\n'
+            << "MAE lateral (m): " << fmt(metrics.mae_y, 6) << '\n'
             << "RMSE lateral (m): " << fmt(metrics.rmse_y, 6) << '\n'
             << "Max absolute lateral error (m): " << fmt(metrics.max_abs_y, 6) << '\n'
             << "RMSE heading (deg): " << fmt(metrics.rmse_heading_deg, 6) << '\n'
             << "Max absolute heading error (deg): " << fmt(metrics.max_abs_heading_deg, 6) << '\n'
+            << "Max absolute yaw rate (deg/s): " << fmt(metrics.max_abs_yaw_rate_deg_s, 6) << '\n'
+            << "Mean absolute yaw rate (deg/s): " << fmt(metrics.mean_abs_yaw_rate_deg_s, 6) << '\n'
+            << "Max absolute actual front wheel angle (deg): "
+            << (metrics.has_front_wheel_angles ? fmt(metrics.max_abs_front_wheel_deg, 6) : "unavailable") << '\n'
+            << "Mean absolute actual front wheel angle (deg): "
+            << (metrics.has_front_wheel_angles ? fmt(metrics.mean_abs_front_wheel_deg, 6) : "unavailable") << '\n'
             << "Max absolute front steering command (deg): "
             << fmt(metrics.max_abs_steering_deg, 6) << '\n'
             << "Max front steering command slew (deg/s): "
@@ -481,9 +592,8 @@ SimulationMetrics exportResults(
             << "Mean QP solve time (ms): " << fmt(metrics.mean_qp_time_ms, 4) << '\n'
             << "Peak QP solve time (ms): " << fmt(metrics.max_qp_time_ms, 4) << '\n'
             << "Nonconverged QP steps: " << metrics.qp_nonconverged_steps << '\n'
-            << "Note: includes attempted nonconverged QPs and fallback steering; excludes grip tracking without a QP attempt.\n"
-            << "Grip-limited reference tracking steps: " << metrics.grip_limited_steps << '\n'
-            << "Fallback steering steps: " << metrics.fallback_control_steps << '\n';
+            << "Note: includes prediction errors and QP iteration limits.\n"
+            << "Held steering steps: " << metrics.fallback_control_steps << '\n';
         out
             << "Peak QP primal residual: " << fmt(metrics.peak_qp_primal_residual, 8) << '\n'
             << "Peak QP dual residual: " << fmt(metrics.peak_qp_dual_residual, 8) << '\n';
@@ -541,7 +651,7 @@ SimulationMetrics exportResults(
             if (!source.speed_target_constant.empty())
                 out << "CarSim SPEED_TARGET_CONSTANT 原值："
                     << xmlEscape(source.speed_target_constant)
-                    << " km/h（经本次 CarSim Solver 回显确认；实际车速见下图）<br>";
+                    << " km/h（经本次 CarSim Solver 回显确认；逐周期车速见 simulation.csv）<br>";
             if (!source.stop_time.empty())
                 out << "CarSim TSTOP 原值：" << xmlEscape(source.stop_time) << "<br>";
             out << "<a href=\"carsim_native/Run_all.par\">查看本次 CarSim 参数快照</a></div>"
@@ -566,15 +676,20 @@ SimulationMetrics exportResults(
                 << "已到达 X=" << fmt(rows.back().s.x, 2) << " m / 目标 "
                 << fmt(outcome.requested_distance_m, 2) << " m；停止原因："
                 << xmlEscape(outcome.stop_reason) << "</div>";
-        } else if (metrics.fallback_control_steps > 0) {
-            out << "<div class=\"notice\">MPC 曾求解失败，后续启用了受转角速率约束的后备转向。"
-                << "这些区间不代表 MPC 正常跟踪。</div>";
+        } else if (metrics.qp_nonconverged_steps > 0) {
+            out << "<div class=\"notice\">部分周期未得到收敛解。有限的迭代结果按转角约束投影，"
+                << "计算异常时沿用上一周期转角。</div>";
         }
-        if (metrics.grip_limited_steps > 0)
-            out << "<div class=\"notice\">控制器假设的轮胎力上限触发了受限转向控制，共 "
-                << metrics.grip_limited_steps
-                << " 个周期。这是 C++ 控制器模型的判断，不代表 CarSim 实际轮胎达到极限。"
-                << "这些周期未求解 QP，已与求解失败单独统计。</div>";
+        out << "<div class=\"notice\"><strong>本次 MPC 模型与约束</strong><br>"
+            << "控制器：增量式三自由度 LTV-MPC；轮胎预测模型："
+            << "非线性轮胎表局部线性化"
+            << "；转向输入：" << (outcome.steering_wheel_input ? "方向盘角" : "配置的直接输入")
+            << "；前轮转角上限：" << fmt(mp.max_steer * rad2deg, 2) << " °"
+            << (outcome.steer_limit_from_carsim ? "（CarSim 齿条运动学表范围）" : "（显式配置）")
+            << "；转角速率上限："
+            << (std::isfinite(mp.max_steer_rate) ? fmt(mp.max_steer_rate * rad2deg, 2) + " °/s" : "无")
+            << "。<br>"
+            << "<a href=\"effective_config.ini\">查看完整生效配置</a>。</div>";
         out << "<div class=\"notice\"><strong>本次实际应用的 MPC Q/R 数值范围</strong><br>";
         const char* html_weight_names[] = {"Qy", "Qpsi", "Qvy", "Qr", "Rsteer", "Rdelta"};
         for (std::size_t k = 0; k < 6; ++k)
@@ -582,35 +697,50 @@ SimulationMetrics exportResults(
                 << "–" << fmt(max_weights[k], 5) << (k == 5 ? "" : "；");
         out << "<br>逐周期原值见 <a href=\"simulation.csv\">simulation.csv</a>。"
                "</div>";
+        if (filtered_curvature)
+            out << "<p>曲率图显示转向前馈所用的空间估计。CarSim 原始参考曲率和前馈曲率均保存在 simulation.csv。"
+                   "横向误差沿用原生参考位置。</p>"
+                   "<p><a href=\"06_native_reference_curvature.svg\">查看 CarSim 原生几何曲率</a></p>";
         out << "<div class=\"stats\">"
+            << "<div class=\"stat\"><small>最大横向误差绝对值</small><strong>"
+            << fmt(metrics.max_abs_y, 4) << " m</strong></div>"
+            << "<div class=\"stat\"><small>横向误差平均绝对值</small><strong>"
+            << fmt(metrics.mae_y, 4) << " m</strong></div>"
+            << "<div class=\"stat\"><small>最大横摆角速度绝对值</small><strong>"
+            << fmt(metrics.max_abs_yaw_rate_deg_s, 2) << " °/s</strong></div>"
+            << "<div class=\"stat\"><small>横摆角速度平均绝对值</small><strong>"
+            << fmt(metrics.mean_abs_yaw_rate_deg_s, 2) << " °/s</strong></div>"
+            << "<div class=\"stat\"><small>最大实际前轮转角绝对值</small><strong>"
+            << (metrics.has_front_wheel_angles ? fmt(metrics.max_abs_front_wheel_deg, 2) + " °" : "数据不可用")
+            << "</strong></div>"
+            << "<div class=\"stat\"><small>实际前轮转角平均绝对值</small><strong>"
+            << (metrics.has_front_wheel_angles ? fmt(metrics.mean_abs_front_wheel_deg, 2) + " °" : "数据不可用")
+            << "</strong></div>"
             << "<div class=\"stat\"><small>横向跟踪 RMSE</small><strong>"
             << fmt(metrics.rmse_y, 3) << " m</strong></div>"
-            << "<div class=\"stat\"><small>横向误差最大绝对值</small><strong>"
-            << fmt(metrics.max_abs_y, 3) << " m</strong></div>"
             << "<div class=\"stat\"><small>航向角跟踪 RMSE</small><strong>"
             << fmt(metrics.rmse_heading_deg, 3) << "°</strong></div>"
             << "<div class=\"stat\"><small>最大前轮转角指令</small><strong>"
             << fmt(metrics.max_abs_steering_deg, 2) << "°</strong></div>"
+            << "<div class=\"stat\"><small>最大转角指令变化率</small><strong>"
+            << fmt(metrics.max_steering_rate_deg_s, 2) << " °/s</strong></div>"
             << "<div class=\"stat\"><small>CarSim 实测初速 / Np / Nc</small><strong>"
             << fmt(3.6 * rows.front().s.vx, 1) << " km/h / " << min_np;
         if (min_np != max_np) out << "–" << max_np;
         out << " / " << mp.nc << "</strong></div>";
         out << "<div class=\"stat\"><small>MPC 未正常求解步数</small><strong>"
             << metrics.qp_nonconverged_steps << "</strong></div>"
-            << "<div class=\"stat\"><small>C++ 控制器受限模式步数</small><strong>"
-            << metrics.grip_limited_steps << "</strong></div>"
-            << "<div class=\"stat\"><small>后备转向步数</small><strong>"
+            << "<div class=\"stat\"><small>保持上一转角步数</small><strong>"
             << metrics.fallback_control_steps << "</strong></div>";
         out << "<div class=\"stat\"><small>单次优化平均耗时</small><strong>"
             << fmt(metrics.mean_qp_time_ms, 2) << " ms</strong></div></div>"
             << "<div class=\"grid\">";
-        const char* plots[] = {"01_lateral_tracking.svg", "02_heading_tracking.svg",
-                                "03_lateral_error.svg", "04_heading_error.svg",
-                                "05_steering.svg", "06_yaw_rate.svg", "07_speed.svg",
+        const char* plots[] = {"02_sideslip.svg", "05_steering.svg",
+                                "02_lateral_velocity.svg", "02_yaw_rate.svg",
+                                "02_heading.svg", "01_lateral_tracking.svg",
+                                "03_lateral_error.svg", "04_heading_error.svg", "06_reference_curvature.svg",
                                 "08_prediction_horizon.svg", "09_q_y_value.svg",
-                                "09_q_psi_value.svg", "09_q_vy_value.svg",
-                                "09_q_r_value.svg", "10_r_steer_value.svg",
-                                "10_r_delta_value.svg"};
+                                "09_q_psi_value.svg", "10_r_delta_value.svg"};
         for (const char* name : plots)
             out << "<div class=\"plot\"><img loading=\"lazy\" src=\""
                 << name << "\" alt=\"" << name << "\"></div>";

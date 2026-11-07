@@ -40,7 +40,6 @@ def _episode(bridge, config, simfile, output, model=None, seed=42, label="neutra
                     peak_y_m=float(np.max(np.abs(ey))),
                     rmse_heading_deg=float(np.sqrt(np.mean(epsi ** 2)) * 180 / np.pi),
                     qp_failures=sum(int(row["qp_failed"]) for row in rows),
-                    grip_limited_steps=sum(int(row["grip_limited"]) for row in rows),
                     trace=trace)
     finally:
         env.close()

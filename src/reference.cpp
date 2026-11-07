@@ -1,5 +1,6 @@
 ﻿#include "reference.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <sstream>
@@ -72,6 +73,8 @@ DoubleLaneChange DoubleLaneChange::fromCarSimParsfile(
 
 ReferencePoint DoubleLaneChange::at(double x) const {
     ReferencePoint ref;
+    ref.x_min = path_.front().x;
+    ref.x_max = path_.back().x;
     if (x <= path_.front().x || x >= path_.back().x) {
         ref.y = x <= path_.front().x ? path_.front().y : path_.back().y;
         return ref;
@@ -92,4 +95,29 @@ ReferencePoint DoubleLaneChange::at(double x) const {
     ref.curvature = ref.d2ydx2 /
                     std::pow(1.0 + ref.dydx * ref.dydx, 1.5);
     return ref;
+}
+
+double DoubleLaneChange::controlCurvature(double x, double sigma_m) const {
+    if (sigma_m == 0.0) return at(x).curvature;
+    // Symmetric spatial averaging uses path preview without introducing a time lag.
+    // Only the steering feedforward sees this estimate. The tracking target stays native.
+    static constexpr int samples_per_sigma = 12;
+    static constexpr int half_window = 3 * samples_per_sigma;
+    static const auto weights = [] {
+        std::array<double, 2 * half_window + 1> kernel{};
+        double sum = 0.0;
+        for (int i = -half_window; i <= half_window; ++i) {
+            const double offset = static_cast<double>(i) / samples_per_sigma;
+            kernel[i + half_window] = std::exp(-0.5 * offset * offset);
+            sum += kernel[i + half_window];
+        }
+        for (double& weight : kernel) weight /= sum;
+        return kernel;
+    }();
+    double curvature_sum = 0.0;
+    for (int i = -half_window; i <= half_window; ++i) {
+        const double offset = static_cast<double>(i) / samples_per_sigma;
+        curvature_sum += weights[i + half_window] * at(x + sigma_m * offset).curvature;
+    }
+    return curvature_sum;
 }

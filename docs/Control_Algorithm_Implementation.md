@@ -10,22 +10,22 @@
 z=[v_y,v_x,\psi,r,Y,X]^\mathsf T,\qquad u=\delta_f.
 \]
 
-轮胎表按静态单轮轴荷 \(F_{zf}=mgb/[2(a+b)]\)、\(F_{zr}=mga/[2(a+b)]\) 求近零侧偏斜率，再乘双轮和有效路面附着系数得到 \(C_f,C_r\)。当前工作点的线性侧向力为
+轮胎表按静态单轮轴荷 \(F_{zf}=mgb/[2(a+b)]\)、\(F_{zr}=mga/[2(a+b)]\) 计算。当前工作点使用以下近似侧偏角：
 
 \[
-F_{yf}=C_f\left(u-\frac{v_y+ar}{v_x}\right),\qquad
-F_{yr}=C_r\left(\frac{br-v_y}{v_x}\right).
+\alpha_f=u-\frac{v_y+ar}{v_x},\qquad
+\alpha_r=\frac{br-v_y}{v_x}.
 \]
 
-实验配置 `configs/carsim_nonlinear_experimental.ini` 还提供轮胎表局部模型。令上式括号分别为 \(\alpha_f,\alpha_r\)，从 CarSim 回显的同一轮胎表插值得到单轮侧向力 \(f_y(\alpha,F_z)\)，并令
+所有配置均从 CarSim 回显的轮胎表插值得到单轮非线性侧向力 \(f_y(\alpha,F_z)\)，并令
 
 \[
 F_{yf}=2\mu f_y(\alpha_f,F_{zf}),\qquad
 F_{yr}=2\mu f_y(\alpha_r,F_{zr}).
 \]
 
-各预测步在名义侧偏处估算局部斜率。为避免饱和区或表外延伸出现零、负切线导致 QP 利用局部模型反向操纵，实验配置采用
-\(\widetilde C_\alpha=\max(\partial f_y/\partial\alpha,\,0.15C_{\alpha,0})\)。仿射项仍保持该工作点的表格力，故该近似在工作点处匹配力，但下限生效时 **并非真实雅可比**；静态轴荷、相同轮胎和缩放假设仍然存在。该功能是实验选项，不代表真实轮胎饱和或闭环稳定性已得到完整验证。
+各预测步在名义侧偏处估算局部斜率。为避免饱和区或表外延伸出现零、负切线导致 QP 利用局部模型反向操纵，控制器采用
+\(\widetilde C_\alpha=\max(\partial f_y/\partial\alpha,\,0.15C_{\alpha,0})\)。仿射项仍保持该工作点的表格力，故该近似在工作点处匹配力，但下限生效时 **并非真实雅可比**；静态轴荷、相同轮胎和缩放假设仍然存在，该模型不代表真实轮胎饱和或闭环稳定性已得到完整验证。
 
 模型包含车体纵向、侧向和横摆三个动力学自由度：
 
@@ -109,21 +109,21 @@ CarSim 的 `LTARG_TABLE` 在当前支持的 Straight East 道路上给出 \(Y_{\
 e_k=\begin{bmatrix}
 Y_k-Y_{\rm ref}(X_k)\\
 \operatorname{wrap}(\psi_k-\psi_{\rm ref}(X_k))\\
-v_{y,k}\\r_k-v_{x,k}\kappa_k
+\dot e_{y,k}\\\dot e_{\psi,k}
 \end{bmatrix},
 \qquad
 \kappa_k=\operatorname{clip}\left(\kappa_{\rm ref}(\bar X_k),
 \pm\frac{a_{y,\max}}{\max(1,\bar v_{x,k}^{,2})}\right).
 \]
 
-曲率上限由本次轮胎表估计。轨迹误差在名义预测点线性化为 \(e_k(U)\approx\bar e_k+E_k(U-\bar U)\)。例如
+其中 \(\dot X=v_x\cos\psi-v_y\sin\psi\)、\(\dot Y=v_x\sin\psi+v_y\cos\psi\)、\(\dot e_y=\dot Y-Y'_{\rm ref}\dot X\)、\(\dot e_\psi=r-\psi'_{\rm ref}\dot X\)。这与论文的误差状态对应，同时保留三自由度运动学。曲率上限由本次轮胎表估计，仅用于前馈转角；误差状态使用原始参考路径导数，避免截断目标与导数不一致。轨迹误差在名义预测点线性化为 \(e_k(U)\approx\bar e_k+E_k(U-\bar U)\)。例如
 
 \[
 \frac{\partial e_{y,k}}{\partial\Delta u_j}=
 S_{Y,k,j}-Y'_{\rm ref}(\bar X_k)S_{X,k,j}.
 \]
 
-令 \(Q=\operatorname{diag}(q_y,q_\psi,q_{v_y},q_r)\)，\(\gamma_k=1\)（末端步为 `terminal_scale`）。根据名义速度及曲率求受限的前馈转角 \(u_{\rm ff,k}\)。QP 目标为
+令 \(Q=\operatorname{diag}(q_y,q_\psi,q_{v_y},q_r)\)，其中历史键名 `q_vy`、`q_r` 现分别对应两项误差变化率。\(\gamma_k=\exp(\lambda k/N_p)\)，末端步再乘 `terminal_scale`；`stage_weight_lambda` 配置 \(\lambda\)，默认 0。启用 `steer_feedforward` 时根据名义速度及曲率求受限的前馈转角 \(u_{\rm ff,k}\)；关闭时令其为 0。QP 目标为
 
 \[
 \min_U\;\sum_{k=1}^{N_p}\gamma_k e_k(U)^\mathsf TQe_k(U)
@@ -140,12 +140,14 @@ S_{Y,k,j}-Y'_{\rm ref}(\bar X_k)S_{X,k,j}.
 
 因此角度约束的矩阵块是下三角全 1 矩阵，速率约束块是单位矩阵。ADMM 分裂 \(v=GU\) 后交替求解二次子问题、投影到约束区间并更新对偶变量。收敛后只执行第一项 \(u_t=u_{t-1}+\Delta u_0\)，下一周期重新读取 CarSim 状态并滚动求解。
 
-## 5. Python 调参与安全分支
+`configs/default.ini` 固定预测时域和各项权重。Q 对横向位置误差、质心运动方向误差、横向误差变化率及横摆角速度误差分别加权。转角和转角增量使用独立代价项。
+
+对变附着工况，MPC 在每个预测步按预测的 X 位置查询 CarSim 路面附着表，并用该步的附着值计算轮胎线性化、曲率限制和前馈转角。横向 MPC 没有纵向减速输出，也没有横向加速度硬约束；参考轨迹若在当前车速下超出轮胎能力，预测附着只能改善提前量，不能消除物理跟踪误差。
+
+若 QP 达到迭代上限，输出其投影后满足角度和速率约束的首项。预测或数值计算失败时保持上一周期的转角，记录失败并在下个周期重新求解。轮胎预测对有限但超出侧偏表范围的输入采用表端侧向力。
+
+## 5. Python 调参
 
 Python 的 DDPG、TD3 或 TQC 每 `decision_steps` 个控制周期输出四个归一化动作。C++ 桥接程序把它们映射为整数 \(N_p\) 和三个绝对权重 Qy、Qψ、RΔ；其余 Q/R 权重使用中性值。\(N_c,T_s\)、转角幅值、速率约束和求解器设置仍由 MPC 配置给出。
-
-若当前参考曲率超出估计附着能力、跟踪偏差与侧向速度同时较大、名义预测失效或 QP 未收敛，则暂用受附着和转角约束的前视跟踪控制。车速低于 1 m/s 时三自由度小侧偏线性模型不再适用，也走此分支；该分支是应急控制，不是第二套 MPC 预测模型。CarSim 车辆动力学从未被替换。
-
-实验配置选择按实测误差和侧滑触发保护，求解异常时仍有保护分支。Python 模型须在目标 CarSim 工况下独立验证。
 
 主要实现：`src/vehicle.cpp::discretizeErrorModel()`、`src/mpc.cpp::LateralMpc::precompute()` / `control()`、`src/rl_bridge_main.cpp` 和 `python/envs/carsim_mpc_env.py`。

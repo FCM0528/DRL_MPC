@@ -16,15 +16,15 @@ struct SimulationRecord {
     double steer = 0.0;               // front-wheel steering [rad]
     double reward = 0.0;              // C++ per-control-step reward
     double yaw_rate_ref = 0.0;        // [rad/s]
+    double feedforward_curvature = 0.0; // [1/m], before friction limit
     double road_grip = 0.0;           // road-map estimate at CG station, not a tire measurement
     int qp_iterations = 0;
     double qp_primal_residual = 0.0;
     double qp_dual_residual = 0.0;
     double qp_solve_ms = 0.0;
     bool qp_converged = false;
-    bool grip_limited_control = false; // reference tracker selected for insufficient tire force
     bool is_command = true;           // final sample is for plotting only
-    bool fallback_control = false;     // MPC failed; steering returned toward zero at rate limit
+    bool fallback_control = false;     // Prediction failed and the applied steering was held
     int prediction_horizon = 0;         // actual Np used for this command
     double q_y = 100.0;
     double q_psi = 350.0;
@@ -33,6 +33,13 @@ struct SimulationRecord {
     double r_steer = 10.0;
     double r_delta = 350.0;
 };
+
+struct MpcTuningAction;
+SimulationRecord recordSample(const VehicleState& state, const DoubleLaneChange& reference,
+                              double time, const MpcResult& command, double solve_ms,
+                              bool command_sample, bool fallback_control,
+                              const MpcTuningAction& action, double road_grip,
+                              double curvature_sigma_m);
 
 struct RunOutcome {
     double requested_distance_m = 0.0;
@@ -43,11 +50,13 @@ struct RunOutcome {
     double model_front_stiffness_n_per_rad = 0.0;
     double model_rear_stiffness_n_per_rad = 0.0;
     bool variable_road_grip = false;
+    bool steer_limit_from_carsim = false;
+    bool steering_wheel_input = false;
     std::string browser_result_status;
     std::filesystem::path browser_result_file;
     bool completed = true;
     std::string stop_reason;
-    std::string first_fallback_reason;
+    std::string first_solve_issue;
 };
 
 struct SimulationMetrics {
@@ -55,10 +64,16 @@ struct SimulationMetrics {
     double max_speed_mps = 0.0;
     double min_ground_speed_mps = 0.0;
     double max_ground_speed_mps = 0.0;
+    double mae_y = 0.0;
     double rmse_y = 0.0;
     double max_abs_y = 0.0;
     double rmse_heading_deg = 0.0;
     double max_abs_heading_deg = 0.0;
+    double max_abs_yaw_rate_deg_s = 0.0;
+    double mean_abs_yaw_rate_deg_s = 0.0;
+    bool has_front_wheel_angles = false;
+    double max_abs_front_wheel_deg = 0.0;
+    double mean_abs_front_wheel_deg = 0.0;
     double max_abs_steering_deg = 0.0;
     double max_steering_rate_deg_s = 0.0;
     double mean_qp_iterations = 0.0;
@@ -67,7 +82,6 @@ struct SimulationMetrics {
     double mean_qp_time_ms = 0.0;
     double max_qp_time_ms = 0.0;
     int qp_nonconverged_steps = 0;
-    int grip_limited_steps = 0;
     int fallback_control_steps = 0;
 };
 

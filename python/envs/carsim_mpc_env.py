@@ -82,7 +82,6 @@ class CarSimMPCEnv(gym.Env):
             "epsi_rad": float(data[22]),
             "steer_rad": float(data[23]),
             "qp_failures": int(data[24]),
-            "grip_limited_steps": int(data[25]),
             "mpc_steps": int(data[26]),
             "failed": bool(int(data[27])),
             "np": int(data[28]),

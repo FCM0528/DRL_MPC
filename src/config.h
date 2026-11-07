@@ -15,9 +15,11 @@ struct AppConfig {
     CarSimConfig carsim;
     std::filesystem::path tire_data_file;
     MpcParameters mpc;
+    bool steer_limit_from_carsim = false;
     RlConfig rl;
     std::string experiment = "baseline";
     double distance_m = 200.0;
+    bool stop_at_reference_end = false;
     std::filesystem::path output = "results/baseline";
     bool open_report = true;
 };
@@ -26,5 +28,6 @@ AppConfig loadConfig(const std::filesystem::path& filename);
 void overrideConfig(AppConfig& config, const std::string& qualified_key,
                     const std::string& value);
 void validateConfig(const AppConfig& config);
+void resolveReferenceEnd(AppConfig& config, const DoubleLaneChange& reference);
 std::string configToIni(const AppConfig& config);
 std::filesystem::path locateDefaultConfig(const std::filesystem::path& executable);

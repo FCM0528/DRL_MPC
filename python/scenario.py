@@ -5,6 +5,31 @@ import math
 from pathlib import Path
 
 
+def reference_bounds(parsfile):
+    """Read the station limits of the staged CarSim LTARG_TABLE."""
+    entries = []
+    inside = False
+    found = False
+    for line in Path(parsfile).read_text(encoding='utf-8-sig', errors='replace').splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        if parts[0] == 'LTARG_TABLE':
+            if found or len(parts) < 2 or parts[1] != 'SPLINE_FLAT':
+                raise ValueError('Expected one SPLINE_FLAT LTARG_TABLE')
+            inside = found = True
+        elif inside and parts[0] == 'ENDTABLE':
+            inside = False
+        elif inside and not parts[0].startswith(('#', '!')):
+            x = float(line.split(',', 1)[0])
+            if not math.isfinite(x) or (entries and x <= entries[-1]):
+                raise ValueError('Invalid CarSim LTARG_TABLE station')
+            entries.append(x)
+    if inside or len(entries) < 3:
+        raise ValueError('Missing or incomplete CarSim LTARG_TABLE')
+    return entries[0], entries[-1]
+
+
 def read_scenario(simfile):
     simfile = Path(simfile).resolve()
     macros = {}

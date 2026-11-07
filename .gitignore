@@ -7,7 +7,7 @@
 /tmp/
 /.vscode/
 /policies/
-/tools/__pycache__/
+/.pytest_cache/
 *.pyc
 *.pdf
 *.xlsm

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <functional>
 #include <iomanip>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -25,11 +26,6 @@ std::string lower(std::string s) {
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return s;
 }
-std::string canonicalConfigKey(std::string key) {
-    if (key == "rl.train_speed_min_mps") return "rl.train_speed_min_kmh";
-    if (key == "rl.train_speed_max_mps") return "rl.train_speed_max_kmh";
-    return key;
-}
 double readDouble(const std::string& value, const std::string& key) {
     std::size_t used = 0;
     double v;
@@ -38,6 +34,16 @@ double readDouble(const std::string& value, const std::string& key) {
     if (used != value.size() || !std::isfinite(v))
         throw std::invalid_argument("Invalid finite number for " + key + ": " + value);
     return v;
+}
+std::vector<double> readWeightChoices(const std::string& value, const std::string& key) {
+    std::vector<double> choices;
+    std::size_t start = 0;
+    for (;;) {
+        const auto comma = value.find(',', start);
+        choices.push_back(readDouble(trim(value.substr(start, comma - start)), key));
+        if (comma == std::string::npos) return choices;
+        start = comma + 1;
+    }
 }
 int readInt(const std::string& value, const std::string& key) {
     std::size_t used = 0;
@@ -68,18 +74,50 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
                     const std::string& raw_value) {
     const std::string key = lower(trim(qualified_key));
     const std::string value = trim(raw_value);
+    if (key == "rl_reward.squared_lateral_reward") {
+        c.rl.reward.squared_lateral_reward = readBool(value, key);
+        return;
+    }
+    // Read archived INIs without restoring retired options.
+    static const std::set<std::string> retired_rl_keys{
+        "rl.algorithm", "rl.actor_learning_rate", "rl.np_exploration_scale",
+        "rl.terminal_scale", "rl.episodes", "rl.seed",
+        "rl.curriculum", "rl.focus_target_speeds", "rl.vary_road_transition",
+        "rl.preserve_source_road", "rl.relative_advantage", "rl.align_integer_np",
+        "rl.direct_block_reward", "rl.strict_tracking_selection", "rl.low_speed_blend",
+        "rl.blend_start_kmh", "rl.blend_end_kmh", "rl.high_speed_blend",
+        "rl.high_blend_start_kmh", "rl.high_blend_end_kmh", "rl.model_file",
+        "rl.warm_start_file", "rl.resume_state_file", "rl.resume_actor_fallback",
+        "rl.train_speed_min_kmh", "rl.train_speed_min_mps", "rl.train_speed_max_kmh",
+        "rl.train_speed_max_mps",
+        "rl.tuning_ay_start_mps2", "rl.tuning_ay_full_mps2",
+    };
+    if (retired_rl_keys.find(key) != retired_rl_keys.end()) return;
     if (key == "experiment.name") c.experiment = value;
-    else if (key == "simulation.distance_m") c.distance_m = readDouble(value, key);
+    else if (key == "simulation.distance_m") {
+        c.stop_at_reference_end = lower(value) == "reference_end";
+        if (!c.stop_at_reference_end) c.distance_m = readDouble(value, key);
+    }
     else if (key == "simulation.output") c.output = value;
     else if (key == "simulation.open_report") c.open_report = readBool(value, key);
     else if (key == "simulation.plant") c.plant = lower(value);
 
     else if (key == "carsim.simfile") c.carsim.simfile = value;
     else if (key == "carsim.solver_dll") c.carsim.solver_dll = value;
+    else if (key == "carsim.reference_table_csv") {
+        if (!value.empty())
+            throw std::invalid_argument("Reference CSV overrides were removed; use the CarSim LTARG_TABLE");
+    }
     else if (key == "carsim.sync_browser_result") c.carsim.sync_browser_result = readBool(value, key);
     else if (key == "carsim.steering_left_index") c.carsim.steering_left_index = readInt(value, key);
     else if (key == "carsim.steering_right_index") c.carsim.steering_right_index = readInt(value, key);
     else if (key == "carsim.steering_gain") c.carsim.steering_gain = readDouble(value, key);
+    else if (key == "carsim.steering_input") {
+        const auto input = lower(value);
+        if (input != "road_wheels" && input != "steering_wheel")
+            throw std::invalid_argument("carsim.steering_input must be road_wheels or steering_wheel");
+        c.carsim.steering_wheel_input = input == "steering_wheel";
+    }
     else if (key == "carsim.x_keyword") c.carsim.state_keywords[0] = value;
     else if (key == "carsim.y_keyword") c.carsim.state_keywords[1] = value;
     else if (key == "carsim.yaw_keyword") c.carsim.state_keywords[2] = value;
@@ -98,42 +136,58 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "mpc.np") c.mpc.np = readInt(value, key);
     else if (key == "mpc.nc") c.mpc.nc = readInt(value, key);
     else if (key == "mpc.dt_s") c.mpc.dt = readDouble(value, key);
+    else if (key == "mpc.reference_curvature_sigma_m") c.mpc.reference_curvature_sigma_m = readDouble(value, key);
     else if (key == "mpc.speed_rate_enabled") c.mpc.speed_rate_enabled = readBool(value, key);
     else if (key == "mpc.speed_rate_start_kmh") c.mpc.speed_rate_start = readDouble(value, key) / kmh_per_mps;
     else if (key == "mpc.speed_rate_end_kmh") c.mpc.speed_rate_end = readDouble(value, key) / kmh_per_mps;
     else if (key == "mpc.speed_rate_end_deg_s") c.mpc.speed_rate_end_limit = readDouble(value, key) * deg2rad;
-    else if (key == "mpc.grip_switch_enabled") c.mpc.grip_switch_enabled = readBool(value, key);
-    else if (key == "mpc.grip_state_only") c.mpc.grip_state_only = readBool(value, key);
-    else if (key == "mpc.grip_preview_s") c.mpc.grip_preview_s = readDouble(value, key);
-    else if (key == "mpc.nonlinear_tire") c.mpc.nonlinear_tire = readBool(value, key);
+    else if (key == "mpc.grip_switch_enabled" || key == "mpc.grip_state_only" ||
+             key == "mpc.grip_preview_s" || key == "rl_reward.w_grip_limited")
+        return; // Allow archived configurations from before the tracker was removed.
+    else if (key == "mpc.nonlinear_tire") {
+        if (!readBool(value, key))
+            throw std::invalid_argument("mpc.nonlinear_tire=false is no longer supported; the controller requires the nonlinear tire table");
+    }
     else if (key == "mpc.tire_slope_floor") c.mpc.tire_slope_floor = readDouble(value, key);
+    else if (key == "mpc.front_relaxation_m") c.mpc.front_relaxation_m = readDouble(value, key);
+    else if (key == "mpc.rear_relaxation_m") c.mpc.rear_relaxation_m = readDouble(value, key);
 
     else if (key == "weights.q_y") c.mpc.q_y = readDouble(value, key);
     else if (key == "weights.q_psi") c.mpc.q_psi = readDouble(value, key);
     else if (key == "weights.q_vy") c.mpc.q_vy = readDouble(value, key);
     else if (key == "weights.q_r") c.mpc.q_r = readDouble(value, key);
     else if (key == "weights.r_steer") c.mpc.r_steer = readDouble(value, key);
+    else if (key == "weights.track_course") c.mpc.track_course = readBool(value, key);
+    else if (key == "weights.steer_feedforward") c.mpc.steer_feedforward = readBool(value, key);
     else if (key == "weights.r_delta") c.mpc.r_delta = readDouble(value, key);
+    else if (key == "weights.r_delta_change") c.mpc.r_delta_change = readDouble(value, key);
     else if (key == "weights.terminal_scale") c.mpc.terminal_scale = readDouble(value, key);
+    else if (key == "weights.stage_weight_lambda") c.mpc.stage_weight_lambda = readDouble(value, key);
 
-    else if (key == "constraints.max_steer_deg") c.mpc.max_steer = readDouble(value, key) * deg2rad;
-    else if (key == "constraints.max_steer_rate_deg_s") c.mpc.max_steer_rate = readDouble(value, key) * deg2rad;
+    else if (key == "constraints.max_steer_deg") {
+        c.steer_limit_from_carsim = lower(value) == "carsim";
+        if (!c.steer_limit_from_carsim) c.mpc.max_steer = readDouble(value, key) * deg2rad;
+    } else if (key == "constraints.max_steer_rate_deg_s") {
+        c.mpc.max_steer_rate = lower(value) == "none" ? std::numeric_limits<double>::infinity()
+                                                     : readDouble(value, key) * deg2rad;
+    }
 
     else if (key == "solver.rho") c.mpc.admm_rho = readDouble(value, key);
     else if (key == "solver.max_iterations") c.mpc.admm_max_iterations = readInt(value, key);
     else if (key == "solver.primal_tol") c.mpc.admm_primal_tol = readDouble(value, key);
     else if (key == "solver.dual_tol") c.mpc.admm_dual_tol = readDouble(value, key);
     else if (key == "rl.mode") c.rl.mode = lower(value);
-    else if (key == "rl.algorithm") c.rl.algorithm = lower(value);
     else if (key == "rl.action_profile") c.rl.action_profile = lower(value);
     else if (key == "rl.min_np") c.rl.min_np = readInt(value, key);
     else if (key == "rl.max_np") c.rl.max_np = readInt(value, key);
     else if (key == "rl.nominal_np") c.rl.nominal_np = readInt(value, key);
+    else if (key == "rl.np_step") c.rl.np_step = readInt(value, key);
+    else if (key == "rl.max_np_change_per_decision") c.rl.max_np_change_per_decision = readInt(value, key);
+    else if (key == "rl.smooth_tuning") c.rl.smooth_tuning = readBool(value, key);
+    else if (key == "rl.max_weight_ratio_per_decision") c.rl.max_weight_ratio_per_decision = readDouble(value, key);
     else if (key == "rl.decision_steps") c.rl.decision_steps = readInt(value, key);
     else if (key == "rl.discount_gamma") c.rl.discount_gamma = readDouble(value, key);
-    else if (key == "rl.actor_learning_rate") c.rl.actor_learning_rate = readDouble(value, key);
     else if (key == "rl.grip_demand_clip") c.rl.grip_demand_clip = readDouble(value, key);
-    else if (key == "rl.np_exploration_scale") c.rl.np_exploration_scale = readDouble(value, key);
     else if (key == "rl.q_y_min") c.rl.weight_min[0] = readDouble(value, key);
     else if (key == "rl.q_y_max") c.rl.weight_max[0] = readDouble(value, key);
     else if (key == "rl.q_psi_min") c.rl.weight_min[1] = readDouble(value, key);
@@ -146,38 +200,15 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "rl.r_steer_max") c.rl.weight_max[4] = readDouble(value, key);
     else if (key == "rl.r_delta_min") c.rl.weight_min[5] = readDouble(value, key);
     else if (key == "rl.r_delta_max") c.rl.weight_max[5] = readDouble(value, key);
-    else if (key == "rl.terminal_scale") c.rl.terminal_scale = readDouble(value, key);
+    else if (key == "rl.q_y_values") c.rl.weight_choices[0] = readWeightChoices(value, key);
+    else if (key == "rl.q_psi_values") c.rl.weight_choices[1] = readWeightChoices(value, key);
+    else if (key == "rl.r_delta_values") c.rl.weight_choices[5] = readWeightChoices(value, key);
     else if (key == "rl.curvature_preview_s") c.rl.curvature_preview_s = readDouble(value, key);
-    else if (key == "rl.episodes") c.rl.episodes = readInt(value, key);
-    else if (key == "rl.seed") c.rl.seed = readInt(value, key);
-    else if (key == "rl.curriculum") c.rl.curriculum = readBool(value, key);
-    else if (key == "rl.focus_target_speeds") c.rl.focus_target_speeds = readBool(value, key);
-    else if (key == "rl.vary_road_transition") c.rl.vary_road_transition = readBool(value, key);
-    else if (key == "rl.preserve_source_road") c.rl.preserve_source_road = readBool(value, key);
-    else if (key == "rl.relative_advantage") c.rl.relative_advantage = readBool(value, key);
-    else if (key == "rl.align_integer_np") c.rl.align_integer_np = readBool(value, key);
-    else if (key == "rl.direct_block_reward") c.rl.direct_block_reward = readBool(value, key);
     else if (key == "rl.augmented_observation") c.rl.augmented_observation = readBool(value, key);
     else if (key == "rl.penalize_qp_failure") c.rl.penalize_qp_failure = readBool(value, key);
-    else if (key == "rl.strict_tracking_selection") c.rl.strict_tracking_selection = readBool(value, key);
-    else if (key == "rl.low_speed_blend") c.rl.low_speed_blend = readBool(value, key);
-    else if (key == "rl.blend_start_kmh") c.rl.blend_start_kmh = readDouble(value, key);
-    else if (key == "rl.blend_end_kmh") c.rl.blend_end_kmh = readDouble(value, key);
-    else if (key == "rl.high_speed_blend") c.rl.high_speed_blend = readBool(value, key);
-    else if (key == "rl.high_blend_start_kmh") c.rl.high_blend_start_kmh = readDouble(value, key);
-    else if (key == "rl.high_blend_end_kmh") c.rl.high_blend_end_kmh = readDouble(value, key);
-    else if (key == "rl.train_speed_min_kmh")
-        c.rl.train_speed_min = readDouble(value, key) / kmh_per_mps;
-    else if (key == "rl.train_speed_max_kmh")
-        c.rl.train_speed_max = readDouble(value, key) / kmh_per_mps;
-    else if (key == "rl.train_speed_min_mps") c.rl.train_speed_min = readDouble(value, key);
-    else if (key == "rl.train_speed_max_mps") c.rl.train_speed_max = readDouble(value, key);
     else if (key == "rl.train_mu_min") c.rl.train_mu_min = readDouble(value, key);
     else if (key == "rl.train_mu_max") c.rl.train_mu_max = readDouble(value, key);
-    else if (key == "rl.model_file") c.rl.model_file = value;
-    else if (key == "rl.warm_start_file") c.rl.warm_start_file = value;
-    else if (key == "rl.resume_state_file") c.rl.resume_state_file = value;
-    else if (key == "rl.resume_actor_fallback") c.rl.resume_actor_fallback = readBool(value, key);
+    else if (key == "rl_reward.tracking_v2") c.rl.reward.tracking_v2 = readBool(value, key);
     else if (key == "rl_reward.reward_scale") c.rl.reward.reward_scale = readDouble(value, key);
     else if (key == "rl_reward.ey_scale_m") c.rl.reward.ey_scale_m = readDouble(value, key);
     else if (key == "rl_reward.epsi_scale_rad") c.rl.reward.epsi_scale_rad = readDouble(value, key);
@@ -187,14 +218,20 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "rl_reward.w_psi") c.rl.reward.w_psi = readDouble(value, key);
     else if (key == "rl_reward.w_steer") c.rl.reward.w_steer = readDouble(value, key);
     else if (key == "rl_reward.w_steer_rate") c.rl.reward.w_steer_rate = readDouble(value, key);
+    else if (key == "rl_reward.steer_rate_scale_deg_s")
+        c.rl.reward.steer_rate_scale_rad_s = deg2rad * readDouble(value, key);
+    else if (key == "rl_reward.sideslip_threshold_deg")
+        c.rl.reward.sideslip_threshold_rad = deg2rad * readDouble(value, key);
+    else if (key == "rl_reward.w_sideslip") c.rl.reward.w_sideslip = readDouble(value, key);
     else if (key == "rl_reward.w_horizon") c.rl.reward.w_horizon = readDouble(value, key);
     else if (key == "rl_reward.w_np_change") c.rl.reward.w_np_change = readDouble(value, key);
     else if (key == "rl_reward.w_vy") c.rl.reward.w_vy = readDouble(value, key);
     else if (key == "rl_reward.w_yaw_error") c.rl.reward.w_yaw_error = readDouble(value, key);
     else if (key == "rl_reward.w_weight_change") c.rl.reward.w_weight_change = readDouble(value, key);
     else if (key == "rl_reward.w_weight_deviation") c.rl.reward.w_weight_deviation = readDouble(value, key);
-    else if (key == "rl_reward.w_grip_limited") c.rl.reward.w_grip_limited = readDouble(value, key);
     else if (key == "rl_reward.failure_penalty") c.rl.reward.failure_penalty = readDouble(value, key);
+    else if (key == "rl_reward.qp_failure_penalty")
+        c.rl.reward.qp_failure_penalty = readDouble(value, key);
     else if (key == "rl_reward.incomplete_episode_penalty")
         c.rl.reward.incomplete_episode_penalty = readDouble(value, key);
     else throw std::invalid_argument("Unknown configuration key: " + qualified_key);
@@ -234,7 +271,7 @@ AppConfig loadConfig(const std::filesystem::path& filename) {
                 throw std::invalid_argument("Expected [section] followed by key=value");
             const std::string key = section + "." + lower(trim(line.substr(0, eq)));
             const std::string value = trim(line.substr(eq + 1));
-            if (!keys.insert(canonicalConfigKey(key)).second)
+            if (!keys.insert(key).second)
                 throw std::invalid_argument("Duplicate key: " + key);
             if (key == "inherit.base") {
                 if (any_setting) throw std::invalid_argument("[inherit] base must precede all settings");
@@ -264,17 +301,6 @@ AppConfig loadConfig(const std::filesystem::path& filename) {
     if (!result.carsim.solver_dll.empty() && result.carsim.solver_dll.is_relative())
         result.carsim.solver_dll = std::filesystem::absolute(filename).parent_path() /
                                    result.carsim.solver_dll;
-    if (!result.rl.warm_start_file.empty() && result.rl.warm_start_file.is_relative())
-        result.rl.warm_start_file = std::filesystem::absolute(filename).parent_path() /
-                                    result.rl.warm_start_file;
-    if (!result.rl.resume_state_file.empty() && result.rl.resume_state_file.is_relative())
-        result.rl.resume_state_file = std::filesystem::absolute(filename).parent_path() /
-                                      result.rl.resume_state_file;
-    if ((result.rl.mode == "eval" || result.rl.mode == "compare" || result.rl.mode == "compare_three" ||
-         result.rl.mode == "eval_grid" || result.rl.mode == "eval_general" || result.rl.mode == "eval_focus") &&
-        result.rl.model_file.is_relative())
-        result.rl.model_file = std::filesystem::absolute(filename).parent_path() /
-                               result.rl.model_file;
     validateConfig(result);
     return result;
 }
@@ -290,12 +316,16 @@ void validateConfig(const AppConfig& c) {
         if (c.carsim.steering_left_index < 0 || c.carsim.steering_right_index < -1 ||
             c.carsim.steering_left_index == c.carsim.steering_right_index)
             throw std::invalid_argument("Invalid CarSim steering IMPORT indices");
+        if (c.carsim.steering_wheel_input && c.carsim.steering_right_index != -1)
+            throw std::invalid_argument("Steering-wheel input requires steering_right_index=-1");
         positive(c.carsim.steering_gain, "carsim.steering_gain");
         for (const auto& keyword : c.carsim.state_keywords)
             if (keyword.empty()) throw std::invalid_argument("CarSim state keyword cannot be empty");
     }
-    positive(c.distance_m, "simulation.distance_m");
-    if (c.distance_m > 100000.0) throw std::invalid_argument("Distance is too large");
+    if (!c.stop_at_reference_end) {
+        positive(c.distance_m, "simulation.distance_m");
+        if (c.distance_m > 100000.0) throw std::invalid_argument("Distance is too large");
+    }
     const auto& v = c.vehicle;
     positive(v.mass, "mass_kg"); positive(v.iz, "iz_kgm2");
     positive(v.a, "a_m"); positive(v.b, "b_m");
@@ -308,6 +338,8 @@ void validateConfig(const AppConfig& c) {
     if (p.np < 2 || p.np > 150 || p.nc < 1 || p.nc > p.np)
         throw std::invalid_argument("MPC horizons must satisfy 1 <= Nc <= Np <= 150 and Np >= 2");
     positive(p.dt, "mpc.dt_s");
+    nonnegative(p.front_relaxation_m, "mpc.front_relaxation_m");
+    nonnegative(p.rear_relaxation_m, "mpc.rear_relaxation_m");
     nonnegative(p.speed_rate_start, "mpc.speed_rate_start_kmh");
     positive(p.speed_rate_end, "mpc.speed_rate_end_kmh");
     positive(p.speed_rate_end_limit, "mpc.speed_rate_end_deg_s");
@@ -318,24 +350,22 @@ void validateConfig(const AppConfig& c) {
     nonnegative(p.q_y, "q_y"); nonnegative(p.q_psi, "q_psi");
     nonnegative(p.q_vy, "q_vy"); nonnegative(p.q_r, "q_r");
     nonnegative(p.r_steer, "r_steer"); nonnegative(p.r_delta, "r_delta");
+    nonnegative(p.r_delta_change, "r_delta_change");
+    nonnegative(p.reference_curvature_sigma_m, "reference_curvature_sigma_m");
     positive(p.terminal_scale, "terminal_scale");
-    if (p.q_y+p.q_psi+p.q_vy+p.q_r+p.r_steer+p.r_delta <= 0.0)
+    if (!std::isfinite(p.stage_weight_lambda) || std::abs(p.stage_weight_lambda) > 5.0)
+        throw std::invalid_argument("stage_weight_lambda must be finite and within [-5, 5]");
+    if (p.q_y+p.q_psi+p.q_vy+p.q_r+p.r_steer+p.r_delta+p.r_delta_change <= 0.0)
         throw std::invalid_argument("At least one MPC cost weight must be positive");
-    positive(p.max_steer, "max_steer_deg"); positive(p.max_steer_rate, "max_steer_rate_deg_s");
+    if (!c.steer_limit_from_carsim) positive(p.max_steer, "max_steer_deg");
+    if (p.speed_rate_enabled || p.max_steer_rate != std::numeric_limits<double>::infinity())
+        positive(p.max_steer_rate, "max_steer_rate_deg_s");
     positive(p.admm_rho, "solver.rho");
     positive(p.admm_primal_tol, "solver.primal_tol");
     positive(p.admm_dual_tol, "solver.dual_tol");
     if (p.admm_max_iterations < 10 || p.admm_max_iterations > 100000)
         throw std::invalid_argument("solver.max_iterations must be 10..100000");
     const auto& rl = c.rl;
-    nonnegative(rl.blend_start_kmh, "rl.blend_start_kmh");
-    positive(rl.blend_end_kmh, "rl.blend_end_kmh");
-    if (rl.blend_end_kmh <= rl.blend_start_kmh)
-        throw std::invalid_argument("rl.blend_end_kmh must exceed blend_start_kmh");
-    nonnegative(rl.high_blend_start_kmh, "rl.high_blend_start_kmh");
-    positive(rl.high_blend_end_kmh, "rl.high_blend_end_kmh");
-    if (rl.high_blend_end_kmh <= rl.high_blend_start_kmh)
-        throw std::invalid_argument("rl.high_blend_end_kmh must exceed high_blend_start_kmh");
     if (rl.mode != "fixed")
         throw std::invalid_argument("C++ policy modes are retired; use the Python bridge for DRL");
     for (std::size_t k = 0; k < rl.weight_min.size(); ++k)
@@ -343,39 +373,47 @@ void validateConfig(const AppConfig& c) {
               rl.weight_min[k] > 0.0 && rl.weight_max[k] > rl.weight_min[k] &&
               rl.weight_max[k] / rl.weight_min[k] <= 100.0))
             throw std::invalid_argument("RL absolute Q/R bounds must be positive, increasing, and have ratio <= 100");
-    positive(rl.terminal_scale, "rl.terminal_scale");
-    if (rl.algorithm != "ddpg" && rl.algorithm != "td3")
-        throw std::invalid_argument("rl.algorithm must be ddpg or td3");
+    for (const auto& choices : rl.weight_choices) {
+        if (choices.empty()) continue;
+        if (choices.size() < 2 ||
+            std::any_of(choices.begin(), choices.end(), [](double value) {
+                return !std::isfinite(value) || value <= 0.0;
+            }) ||
+            std::adjacent_find(choices.begin(), choices.end(), std::greater_equal<double>()) != choices.end() ||
+            choices.back() / choices.front() > 100.0)
+            throw std::invalid_argument("RL weight arrays must have at least two positive, increasing values with ratio <= 100");
+    }
     if (rl.action_profile != "full" && rl.action_profile != "compact" && rl.action_profile != "np_only")
         throw std::invalid_argument("rl.action_profile must be full, compact or np_only");
     if (rl.augmented_observation && rl.action_profile != "compact")
         throw std::invalid_argument("augmented observation requires compact action profile");
-    if (rl.min_np < 2 || (rl.mode != "fixed" && rl.min_np < p.nc) ||
+    if (rl.min_np < 2 ||
         rl.max_np > 150 || rl.max_np <= rl.min_np)
-        throw std::invalid_argument("RL horizons require Nc <= min_np < max_np <= 150");
+        throw std::invalid_argument("RL horizons require 2 <= min_np < max_np <= 150");
     if (rl.nominal_np <= rl.min_np || rl.nominal_np >= rl.max_np)
         throw std::invalid_argument("rl.nominal_np must lie strictly inside RL min_np..max_np");
-    if (rl.decision_steps < 1 || rl.decision_steps > 100 || rl.episodes < 1 || rl.episodes > 10000)
-        throw std::invalid_argument("Invalid RL decision_steps or episodes");
+    if (rl.np_step < 1 || (rl.max_np - rl.min_np) % rl.np_step != 0 ||
+        (rl.nominal_np - rl.min_np) % rl.np_step != 0)
+        throw std::invalid_argument("RL nominal and maximum Np must align with min_np and np_step");
+    if (rl.max_np_change_per_decision < 0 || rl.max_np_change_per_decision > 150)
+        throw std::invalid_argument("rl.max_np_change_per_decision must be 0..150");
+    if (rl.max_np_change_per_decision > 0 && rl.max_np_change_per_decision < rl.np_step)
+        throw std::invalid_argument("A nonzero RL horizon slew limit must allow at least one np_step");
+    if (!(rl.max_weight_ratio_per_decision > 1.0 && rl.max_weight_ratio_per_decision <= 2.0))
+        throw std::invalid_argument("rl.max_weight_ratio_per_decision must be in (1, 2]");
+    if (rl.decision_steps < 1 || rl.decision_steps > 100)
+        throw std::invalid_argument("Invalid RL decision_steps");
     if (!(rl.discount_gamma > 0.0 && rl.discount_gamma <= 1.0))
         throw std::invalid_argument("rl.discount_gamma must be in (0, 1]");
-    positive(rl.np_exploration_scale, "rl.np_exploration_scale");
-    positive(rl.actor_learning_rate, "rl.actor_learning_rate");
     positive(rl.grip_demand_clip, "rl.grip_demand_clip");
     if (rl.grip_demand_clip != 3.0 && rl.grip_demand_clip != 4.0)
         throw std::invalid_argument("rl.grip_demand_clip must be 3 or 4");
     if (rl.grip_demand_clip != 3.0 && (rl.action_profile != "compact" || rl.augmented_observation))
         throw std::invalid_argument("non-default grip demand observation requires non-augmented compact policy");
-    if (rl.seed < 0 || rl.train_speed_min < 1.0 ||
-        rl.train_speed_max < rl.train_speed_min || rl.train_speed_max > 100.0)
-        throw std::invalid_argument("Invalid RL seed or training speed range");
     if (!std::isfinite(rl.train_mu_min) || !std::isfinite(rl.train_mu_max) ||
         rl.train_mu_min < 0.1 || rl.train_mu_max > 1.5 ||
         rl.train_mu_min > rl.train_mu_max)
         throw std::invalid_argument("RL training road friction range must satisfy 0.1 <= min <= max <= 1.5");
-    if (rl.model_file.empty()) throw std::invalid_argument("rl.model_file cannot be empty");
-    if (!rl.warm_start_file.empty() && !rl.resume_state_file.empty())
-        throw std::invalid_argument("Choose only one of rl.warm_start_file and rl.resume_state_file");
     positive(rl.curvature_preview_s, "rl.curvature_preview_s");
     if (rl.curvature_preview_s > 10.0)
         throw std::invalid_argument("rl.curvature_preview_s must be <= 10 s");
@@ -388,20 +426,31 @@ void validateConfig(const AppConfig& c) {
     nonnegative(rl.reward.w_psi, "rl_reward.w_psi");
     nonnegative(rl.reward.w_steer, "rl_reward.w_steer");
     nonnegative(rl.reward.w_steer_rate, "rl_reward.w_steer_rate");
+    positive(rl.reward.steer_rate_scale_rad_s, "rl_reward.steer_rate_scale_deg_s");
+    positive(rl.reward.sideslip_threshold_rad, "rl_reward.sideslip_threshold_deg");
+    nonnegative(rl.reward.w_sideslip, "rl_reward.w_sideslip");
     nonnegative(rl.reward.w_horizon, "rl_reward.w_horizon");
     nonnegative(rl.reward.w_np_change, "rl_reward.w_np_change");
     nonnegative(rl.reward.w_vy, "rl_reward.w_vy");
     nonnegative(rl.reward.w_yaw_error, "rl_reward.w_yaw_error");
     nonnegative(rl.reward.w_weight_change, "rl_reward.w_weight_change");
     nonnegative(rl.reward.w_weight_deviation, "rl_reward.w_weight_deviation");
-    nonnegative(rl.reward.w_grip_limited, "rl_reward.w_grip_limited");
     positive(rl.reward.failure_penalty, "rl_reward.failure_penalty");
+    nonnegative(rl.reward.qp_failure_penalty, "rl_reward.qp_failure_penalty");
     nonnegative(rl.reward.incomplete_episode_penalty,
                 "rl_reward.incomplete_episode_penalty");
     if (rl.reward.w_y + rl.reward.w_psi + rl.reward.w_steer +
         rl.reward.w_steer_rate + rl.reward.w_horizon +
         rl.reward.w_np_change <= 0.0)
         throw std::invalid_argument("At least one RL reward weight must be positive");
+}
+
+void resolveReferenceEnd(AppConfig& c, const DoubleLaneChange& reference) {
+    if (!c.stop_at_reference_end) return;
+    c.distance_m = reference.at(0.0).x_max;
+    positive(c.distance_m, "Reference end station");
+    if (c.distance_m > 100000.0) throw std::invalid_argument("Reference end station is too large");
+    c.stop_at_reference_end = false;
 }
 
 std::string configToIni(const AppConfig& c) {
@@ -414,8 +463,10 @@ std::string configToIni(const AppConfig& c) {
            "# CarSim road, speed and path source: carsim_native/Run_all.par\n";
     out
         << "[experiment]\nname = " << c.experiment << "\n\n"
-        << "[simulation]\ndistance_m = " << c.distance_m
-        << "\noutput = " << c.output.generic_string()
+        << "[simulation]\ndistance_m = ";
+    if (c.stop_at_reference_end) out << "reference_end";
+    else out << c.distance_m;
+    out << "\noutput = " << c.output.generic_string()
         << "\nopen_report = " << c.open_report
         << "\nplant = " << c.plant << "\n\n"
         << "[carsim]\nsimfile = " << c.carsim.simfile.generic_string()
@@ -424,6 +475,7 @@ std::string configToIni(const AppConfig& c) {
         << "\nsteering_left_index = " << c.carsim.steering_left_index
         << "\nsteering_right_index = " << c.carsim.steering_right_index
         << "\nsteering_gain = " << c.carsim.steering_gain
+        << "\nsteering_input = " << (c.carsim.steering_wheel_input ? "steering_wheel" : "road_wheels")
         << "\nx_keyword = " << c.carsim.state_keywords[0]
         << "\ny_keyword = " << c.carsim.state_keywords[1]
         << "\nyaw_keyword = " << c.carsim.state_keywords[2]
@@ -443,37 +495,48 @@ std::string configToIni(const AppConfig& c) {
         << "[mpc]\nnp = " << c.mpc.np
         << "\nnc = " << c.mpc.nc
         << "\ndt_s = " << c.mpc.dt
+        << "\nreference_curvature_sigma_m = " << c.mpc.reference_curvature_sigma_m
         << "\nspeed_rate_enabled = " << c.mpc.speed_rate_enabled
         << "\nspeed_rate_start_kmh = " << c.mpc.speed_rate_start * kmh_per_mps
         << "\nspeed_rate_end_kmh = " << c.mpc.speed_rate_end * kmh_per_mps
         << "\nspeed_rate_end_deg_s = " << c.mpc.speed_rate_end_limit / deg2rad
-        << "\ngrip_switch_enabled = " << c.mpc.grip_switch_enabled
-        << "\ngrip_state_only = " << c.mpc.grip_state_only
-        << "\ngrip_preview_s = " << c.mpc.grip_preview_s
-        << "\nnonlinear_tire = " << c.mpc.nonlinear_tire
-        << "\ntire_slope_floor = " << c.mpc.tire_slope_floor << "\n\n"
+        << "\nnonlinear_tire = true"
+        << "\ntire_slope_floor = " << c.mpc.tire_slope_floor
+        << "\nfront_relaxation_m = " << c.mpc.front_relaxation_m
+        << "\nrear_relaxation_m = " << c.mpc.rear_relaxation_m << "\n\n"
         << "[weights]\nq_y = " << c.mpc.q_y
         << "\nq_psi = " << c.mpc.q_psi
         << "\nq_vy = " << c.mpc.q_vy
         << "\nq_r = " << c.mpc.q_r
         << "\nr_steer = " << c.mpc.r_steer
+        << "\ntrack_course = " << c.mpc.track_course
+        << "\nsteer_feedforward = " << c.mpc.steer_feedforward
         << "\nr_delta = " << c.mpc.r_delta
-        << "\nterminal_scale = " << c.mpc.terminal_scale << "\n\n"
-        << "[constraints]\nmax_steer_deg = " << c.mpc.max_steer / deg2rad
-        << "\nmax_steer_rate_deg_s = " << c.mpc.max_steer_rate / deg2rad << "\n\n"
+        << "\nr_delta_change = " << c.mpc.r_delta_change
+        << "\nterminal_scale = " << c.mpc.terminal_scale
+        << "\nstage_weight_lambda = " << c.mpc.stage_weight_lambda << "\n\n"
+        << "[constraints]\nmax_steer_deg = ";
+    if (c.steer_limit_from_carsim) out << "carsim";
+    else out << c.mpc.max_steer / deg2rad;
+    out << "\nmax_steer_rate_deg_s = ";
+    if (std::isfinite(c.mpc.max_steer_rate)) out << c.mpc.max_steer_rate / deg2rad;
+    else out << "none";
+    out << "\n\n"
         << "[solver]\nrho = " << c.mpc.admm_rho
         << "\nmax_iterations = " << c.mpc.admm_max_iterations
         << "\nprimal_tol = " << c.mpc.admm_primal_tol
         << "\ndual_tol = " << c.mpc.admm_dual_tol << '\n';
     out << "\n[rl]\nmode = " << c.rl.mode
-        << "\nalgorithm = " << c.rl.algorithm
         << "\naction_profile = " << c.rl.action_profile
         << "\nmin_np = " << c.rl.min_np
         << "\nmax_np = " << c.rl.max_np
         << "\nnominal_np = " << c.rl.nominal_np
+        << "\nnp_step = " << c.rl.np_step
+        << "\nmax_np_change_per_decision = " << c.rl.max_np_change_per_decision
+        << "\nsmooth_tuning = " << c.rl.smooth_tuning
+        << "\nmax_weight_ratio_per_decision = " << c.rl.max_weight_ratio_per_decision
         << "\ndecision_steps = " << c.rl.decision_steps
         << "\ndiscount_gamma = " << c.rl.discount_gamma
-        << "\nnp_exploration_scale = " << c.rl.np_exploration_scale
         << "\nq_y_min = " << c.rl.weight_min[0]
         << "\nq_y_max = " << c.rl.weight_max[0]
         << "\nq_psi_min = " << c.rl.weight_min[1]
@@ -486,39 +549,27 @@ std::string configToIni(const AppConfig& c) {
         << "\nr_steer_max = " << c.rl.weight_max[4]
         << "\nr_delta_min = " << c.rl.weight_min[5]
         << "\nr_delta_max = " << c.rl.weight_max[5]
-        << "\nterminal_scale = " << c.rl.terminal_scale
         << "\ncurvature_preview_s = " << c.rl.curvature_preview_s
-        << "\nepisodes = " << c.rl.episodes
-        << "\nseed = " << c.rl.seed
-        << "\ncurriculum = " << c.rl.curriculum
-        << "\nfocus_target_speeds = " << c.rl.focus_target_speeds
-        << "\nvary_road_transition = " << c.rl.vary_road_transition
-        << "\npreserve_source_road = " << c.rl.preserve_source_road
-        << "\nrelative_advantage = " << c.rl.relative_advantage
-        << "\nactor_learning_rate = " << c.rl.actor_learning_rate
         << "\ngrip_demand_clip = " << c.rl.grip_demand_clip
-        << "\nalign_integer_np = " << c.rl.align_integer_np
-        << "\ndirect_block_reward = " << c.rl.direct_block_reward
         << "\naugmented_observation = " << c.rl.augmented_observation
         << "\npenalize_qp_failure = " << c.rl.penalize_qp_failure
-        << "\nstrict_tracking_selection = " << c.rl.strict_tracking_selection
-        << "\nlow_speed_blend = " << c.rl.low_speed_blend
-        << "\nblend_start_kmh = " << c.rl.blend_start_kmh
-        << "\nblend_end_kmh = " << c.rl.blend_end_kmh
-        << "\nhigh_speed_blend = " << c.rl.high_speed_blend
-        << "\nhigh_blend_start_kmh = " << c.rl.high_blend_start_kmh
-        << "\nhigh_blend_end_kmh = " << c.rl.high_blend_end_kmh
         << std::setprecision(15)
-        << "\ntrain_speed_min_kmh = " << c.rl.train_speed_min * kmh_per_mps
-        << "\ntrain_speed_max_kmh = " << c.rl.train_speed_max * kmh_per_mps
         << "\ntrain_mu_min = " << c.rl.train_mu_min
         << "\ntrain_mu_max = " << c.rl.train_mu_max
-        << std::setprecision(17)
-        << "\nmodel_file = " << c.rl.model_file.generic_string()
-        << "\nwarm_start_file = " << c.rl.warm_start_file.generic_string()
-        << "\nresume_state_file = " << c.rl.resume_state_file.generic_string()
-        << "\nresume_actor_fallback = " << c.rl.resume_actor_fallback << "\n\n"
-        << "[rl_reward]\nreward_scale = " << c.rl.reward.reward_scale
+        << std::setprecision(17) << '\n';
+    const auto write_choices = [&](const char* key, std::size_t k) {
+        const auto& choices = c.rl.weight_choices[k];
+        if (choices.empty()) return;
+        out << key << " = " << choices.front();
+        for (std::size_t i = 1; i < choices.size(); ++i) out << ", " << choices[i];
+        out << '\n';
+    };
+    write_choices("q_y_values", 0);
+    write_choices("q_psi_values", 1);
+    write_choices("r_delta_values", 5);
+    out << "\n[rl_reward]\ntracking_v2 = " << c.rl.reward.tracking_v2
+        << "\nsquared_lateral_reward = " << c.rl.reward.squared_lateral_reward
+        << "\nreward_scale = " << c.rl.reward.reward_scale
         << "\ney_scale_m = " << c.rl.reward.ey_scale_m
         << "\nepsi_scale_rad = " << c.rl.reward.epsi_scale_rad
         << "\nw_y = " << c.rl.reward.w_y
@@ -527,14 +578,17 @@ std::string configToIni(const AppConfig& c) {
         << "\nw_psi = " << c.rl.reward.w_psi
         << "\nw_steer = " << c.rl.reward.w_steer
         << "\nw_steer_rate = " << c.rl.reward.w_steer_rate
+        << "\nsteer_rate_scale_deg_s = " << c.rl.reward.steer_rate_scale_rad_s / deg2rad
+        << "\nsideslip_threshold_deg = " << c.rl.reward.sideslip_threshold_rad / deg2rad
+        << "\nw_sideslip = " << c.rl.reward.w_sideslip
         << "\nw_horizon = " << c.rl.reward.w_horizon
         << "\nw_np_change = " << c.rl.reward.w_np_change
         << "\nw_vy = " << c.rl.reward.w_vy
         << "\nw_yaw_error = " << c.rl.reward.w_yaw_error
         << "\nw_weight_change = " << c.rl.reward.w_weight_change
         << "\nw_weight_deviation = " << c.rl.reward.w_weight_deviation
-        << "\nw_grip_limited = " << c.rl.reward.w_grip_limited
         << "\nfailure_penalty = " << c.rl.reward.failure_penalty
+        << "\nqp_failure_penalty = " << c.rl.reward.qp_failure_penalty
         << "\nincomplete_episode_penalty = "
         << c.rl.reward.incomplete_episode_penalty << '\n';
     return out.str();

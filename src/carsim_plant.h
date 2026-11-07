@@ -2,6 +2,7 @@
 #include "vehicle.h"
 #include <array>
 #include <filesystem>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -12,8 +13,7 @@
 #endif
 
 // Import indices are zero-based and follow the order in the CarSim Run Control.
-// steering_gain maps this project's front-road-wheel radians to CarSim's
-// configured import units (normally degrees for wheel-angle imports).
+// steering_gain converts radians at the selected input to CarSim import units.
 struct CarSimConfig {
     std::filesystem::path simfile;
     std::filesystem::path solver_dll;
@@ -21,6 +21,7 @@ struct CarSimConfig {
     int steering_left_index = 0;
     int steering_right_index = -1;
     double steering_gain = 180.0 / 3.14159265358979323846;
+    bool steering_wheel_input = false;
     std::array<std::string, 6> state_keywords{
         "XCG_TM", "YCG_TM", "YAW", "VX", "VY", "AVZ"};
 };
@@ -53,6 +54,16 @@ struct CarSimMpcModel {
 // vehicle/tire fields are errors; never substitute nominal parameters.
 CarSimMpcModel readCarSimMpcModel(const std::filesystem::path& native_dir);
 
+struct CarSimSteeringModel {
+    double max_front_angle = 0.0;  // rad in the MPC's road-wheel coordinates
+    // Empty for direct road-wheel input. Otherwise, road wheel -> handwheel, both rad.
+    std::vector<std::pair<double, double>> front_to_handwheel;
+    double inputAngle(double front_angle) const;
+};
+
+CarSimSteeringModel readCarSimSteeringModel(const std::filesystem::path& native_dir,
+                                           const CarSimConfig& config);
+
 CarSimRunInfo readCarSimRunInfo(const std::filesystem::path& parsfile);
 
 // Resolve the generated Simfile's relative Parsfile and place solver outputs
@@ -71,16 +82,20 @@ std::filesystem::path syncCarSimBrowserResult(const std::filesystem::path& sourc
 
 class CarSimPlant final {
 public:
-    explicit CarSimPlant(CarSimConfig config);
+    explicit CarSimPlant(CarSimConfig config, bool read_tire_states = false,
+                         bool read_steering_model = false);
     ~CarSimPlant();
     CarSimPlant(const CarSimPlant&) = delete;
     CarSimPlant& operator=(const CarSimPlant&) = delete;
 
     VehicleState initialState() const;
-    void step(VehicleState& state, double delta_front, double dt) const;
+    double step(VehicleState& state, double delta_front, double dt,
+                double stop_x = std::numeric_limits<double>::infinity()) const;
+    const CarSimSteeringModel& steeringModel() const { return steering_; }
 
 private:
     CarSimConfig config_;
+    CarSimSteeringModel steering_;
     void* library_ = nullptr;
     bool initialized_ = false;
     mutable double time_ = 0.0;
@@ -88,12 +103,15 @@ private:
     mutable std::vector<double> imports_;
     mutable std::vector<double> exports_;
     std::array<double*, 6> state_ptrs_{};
+    std::array<double*, 4> lagged_slip_ptrs_{}; // front left/right, rear left/right
+    std::array<double*, 4> tire_force_ptrs_{};
 
     using ReadConfiguration = void(CARSIM_CALL*)(const char*, int*, int*,
                                               double*, double*, double*);
     using Initialize = void(CARSIM_CALL*)(double, void(CARSIM_CALL*)(double, int),
                                           void(CARSIM_CALL*)(int));
     using IntegrateIo = int(CARSIM_CALL*)(double, double*, double*);
+    using CopyExportVars = void(CARSIM_CALL*)(double*);
     using ErrorOccurred = int(CARSIM_CALL*)();
     using ErrorMessage = char*(CARSIM_CALL*)();
     using GetVarPtr = double*(CARSIM_CALL*)(char*);

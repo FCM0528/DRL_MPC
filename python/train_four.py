@@ -18,6 +18,8 @@ def main():
     parser.add_argument("--episodes", type=int)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--eval-frequency", type=int)
+    parser.add_argument("--select-lateral-rmse", action="store_true",
+                        help="Compare models selected by validation lateral RMSE")
     parser.add_argument("--parity-blocks", type=int, default=10)
     parser.add_argument("--config", default="configs/carsim_python_rl.ini")
     parser.add_argument("--train-config", default="configs/rl_training.ini")
@@ -54,6 +56,7 @@ def main():
     if train_config != frozen_train_config:
         shutil.copy2(train_config, frozen_train_config)
     info = {"scenario": scenario, "seed": args.seed, "episodes_per_algorithm": args.episodes,
+            "model_selection": "validation_lateral_rmse" if args.select_lateral_rmse else "final",
             "source_config": str(config), "frozen_config": str(frozen_config),
             "source_training_config": str(train_config), "frozen_training_config": str(frozen_train_config),
             "snapshot_simfile": str(frozen), "status": "training", "models": {}}
@@ -73,6 +76,8 @@ def main():
                        "--controller", str(controller), "--config", str(frozen_config),
                        "--train-config", str(frozen_train_config),
                        "--simfile", str(frozen), "--out", str(output)]
+            if args.select_lateral_rmse:
+                command.append("--select-lateral-rmse")
             print(f"Starting {algorithm.upper()}: {args.episodes} episodes. Log: {output / 'training.log'}", flush=True)
             environment = os.environ.copy()
             environment["PYTHONIOENCODING"] = "utf-8"
@@ -85,7 +90,10 @@ def main():
             runs = [p for p in output.iterdir() if p.is_dir() and (p / "final_model.zip").is_file()]
             if len(runs) != 1:
                 raise RuntimeError(f"Expected exactly one completed {algorithm.upper()} run in {output}")
-            info["models"][algorithm] = str(runs[0] / "final_model.zip")
+            selected = runs[0] / ("best/best_model.zip" if args.select_lateral_rmse else "final_model.zip")
+            if not selected.is_file():
+                raise RuntimeError(f"No eligible validation model for {algorithm.upper()}")
+            info["models"][algorithm] = str(selected)
             save()
             print(f"{algorithm.upper()} complete: {info['models'][algorithm]}", flush=True)
         info["status"] = "evaluating"

@@ -20,6 +20,16 @@ def test_variable_speed_label(tmp_path):
     sim.write_text("INPUT case.par\n")
     assert read_scenario(sim)["speed_token"] == "vVariable"
 
+
+def test_reference_bounds_read_actual_table_and_reject_bad_order(tmp_path):
+    from scenario import reference_bounds
+    pars = tmp_path / 'case.par'
+    pars.write_text('LTARG_TABLE SPLINE_FLAT\n0, 0\n60, 1\n130, -1\nENDTABLE\n', encoding='utf-8')
+    assert reference_bounds(pars) == (0.0, 130.0)
+    pars.write_text('LTARG_TABLE SPLINE_FLAT\n0, 0\n60, 1\n59, -1\nENDTABLE\n', encoding='utf-8')
+    with pytest.raises(ValueError):
+        reference_bounds(pars)
+
 def test_resolve_inherited_config_and_freeze(tmp_path):
     from scenario import resolve_simfile, snapshot_scenario
     (tmp_path / "case.par").write_text("SPEED_TARGET_CONSTANT 80\n", encoding="utf-8")

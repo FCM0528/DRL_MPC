@@ -56,6 +56,7 @@ bool sameFileContents(const std::filesystem::path& left,
     return std::equal(std::istreambuf_iterator<char>(a), std::istreambuf_iterator<char>(),
                       std::istreambuf_iterator<char>(b), std::istreambuf_iterator<char>());
 }
+
 }  // namespace
 
 void extendCarSimStationStop(const std::filesystem::path& parsfile, double distance_m) {
@@ -151,6 +152,177 @@ double CarSimMpcModel::RoadGrip::at(double station) const {
     return grip;
 }
 
+namespace {
+using SteeringTable = std::vector<std::pair<double, double>>;
+
+double interpolateSteering(const SteeringTable& table, double x) {
+    const auto right = std::upper_bound(table.begin(), table.end(), x,
+        [](double value, const auto& point) { return value < point.first; });
+    if (right == table.begin()) return table.front().second;
+    if (right == table.end()) return table.back().second;
+    const auto& left = *std::prev(right);
+    const double fraction = (x - left.first) / (right->first - left.first);
+    return left.second + fraction * (right->second - left.second);
+}
+
+bool monotonicSteering(const SteeringTable& points) {
+    if (points.size() < 2) return false;
+    const bool increasing = points.back().second > points.front().second;
+    return std::adjacent_find(points.begin(), points.end(), [increasing](const auto& a, const auto& b) {
+        return !(increasing ? a.second < b.second : a.second > b.second);
+    }) == points.end();
+}
+} // namespace
+
+double CarSimSteeringModel::inputAngle(double front_angle) const {
+    return front_to_handwheel.empty() ? front_angle
+        : interpolateSteering(front_to_handwheel, front_angle);
+}
+
+CarSimSteeringModel readCarSimSteeringModel(const std::filesystem::path& native_dir,
+                                           const CarSimConfig& config) {
+    constexpr double deg_to_rad = 3.14159265358979323846 / 180.0;
+    std::ifstream echo(native_dir / "LastRun_echo.par");
+    if (!echo) throw std::runtime_error("CarSim steering model requires the current solver echo");
+    std::array<SteeringTable, 3> tables;  // left, right, pinion to rack
+    constexpr const char* keys[3][3] = {
+        {"RACK_KIN_TABLE(1,1)", "RACK_KIN_GAIN(1,1)", "RACK_KIN_OFFSET(1,1)"},
+        {"RACK_KIN_TABLE(1,2)", "RACK_KIN_GAIN(1,2)", "RACK_KIN_OFFSET(1,2)"},
+        {"RACK_TRAVEL_TABLE(1)", "RACK_TRAVEL_GAIN(1)", "RACK_TRAVEL_OFFSET(1)"}};
+    std::array<double, 3> gains{1.0, 1.0, 1.0}, offsets{};
+    double travel_coefficient = 0.0;
+    std::string pinion_units;
+    bool rack_steering = false, wheel_angles = false, angle_control = false, internal_steer = false;
+    bool left_direct = false, right_direct = false, handwheel = false, wheel_import_present = false;
+    int active = -1, import_index = 0;
+    const auto unsupported = [] {
+        return std::runtime_error("Cannot derive CarSim rack steering. Select paired front-wheel "
+            "REPLACE imports in degrees or a single IMP_STEER_SW REPLACE import with internal "
+            "angle-controlled rack steering. The rack and wheel maps must be monotonic.");
+    };
+    for (std::string line; std::getline(echo, line);) {
+        std::istringstream fields(line.substr(0, line.find('!')));
+        if (active >= 0) {
+            fields >> std::ws;
+            if (fields.eof()) continue;
+            if (fields.peek() == 'E') {
+                std::string end;
+                fields >> end;
+                if (end != "ENDTABLE") throw unsupported();
+                active = -1;
+                continue;
+            }
+            double input, output;
+            char comma;
+            auto& points = tables[active];
+            if (!(fields >> input >> comma >> output) || comma != ',' ||
+                !std::isfinite(input) || !std::isfinite(output) ||
+                (!points.empty() && input <= points.back().first))
+                throw unsupported();
+            points.emplace_back(input, output);
+            continue;
+        }
+        std::string key, value;
+        if (!(fields >> key >> value)) continue;
+        if (key == "OPT_RACK(1)") rack_steering = value == "1";
+        if (key == "OPT_STEER_DEF") wheel_angles = value == "1";
+        if (key == "OPT_STR_BY_TRQ") angle_control = value == "0";
+        if (key == "OPT_STEER_EXT(1)") internal_steer = value == "0";
+        if (key == "SET_UNITS_TABLE_ROW" && value == "RACK_TRAVEL_TABLE(1)")
+            fields >> pinion_units;
+        if (key == "RACK_TRAVEL_COEFFICIENT(1)") travel_coefficient = std::stod(value);
+        if (key == "IMPORT") {
+            std::string mode, initial, separator, unit;
+            fields >> mode >> initial >> separator >> unit;
+            wheel_import_present |= value == "IMP_STEER_L1" || value == "IMP_STEER_R1";
+            if (mode == "REPLACE" && separator == ";" && unit == "deg") {
+                left_direct |= import_index == config.steering_left_index && value == "IMP_STEER_L1";
+                right_direct |= import_index == config.steering_right_index && value == "IMP_STEER_R1";
+                handwheel |= import_index == config.steering_left_index && value == "IMP_STEER_SW";
+            }
+            ++import_index;
+        }
+        for (int i = 0; i < 3; ++i) {
+            if (key == keys[i][0]) {
+                if (!tables[i].empty()) throw unsupported();
+                active = i;
+            }
+            if (key == keys[i][1]) gains[i] = std::stod(value);
+            if (key == keys[i][2]) offsets[i] = std::stod(value);
+        }
+    }
+    for (std::size_t i = 0; i < tables.size(); ++i) {
+        for (auto& point : tables[i]) {
+            point.second = gains[i] * point.second + offsets[i];
+            if (!std::isfinite(point.second)) throw unsupported();
+        }
+    }
+    const auto& left = tables[0];
+    const auto& right = tables[1];
+    const bool direct = !config.steering_wheel_input && left_direct && right_direct;
+    handwheel = config.steering_wheel_input && handwheel &&
+                config.steering_right_index == -1 && !wheel_import_present &&
+                angle_control && internal_steer;
+    if (active >= 0 || !rack_steering || !wheel_angles || (!direct && !handwheel) ||
+        std::abs(config.steering_gain * deg_to_rad - 1.0) > 1e-9 ||
+        !monotonicSteering(left) || !monotonicSteering(right))
+        throw unsupported();
+
+    double rack_min = std::max(left.front().first, right.front().first);
+    double rack_max = std::min(left.back().first, right.back().first);
+    auto& travel = tables[2];
+    double pinion_to_rad = 0.0;
+    if (handwheel) {
+        if (pinion_units == "rev") pinion_to_rad = 360.0 * deg_to_rad;
+        else if (pinion_units == "deg") pinion_to_rad = deg_to_rad;
+        else throw unsupported();
+        if (!travel.empty()) {
+            if (!monotonicSteering(travel)) throw unsupported();
+            for (auto& point : travel) std::swap(point.first, point.second);
+            if (travel.front().first > travel.back().first) std::reverse(travel.begin(), travel.end());
+            rack_min = std::max(rack_min, travel.front().first);
+            rack_max = std::min(rack_max, travel.back().first);
+        } else if (!std::isfinite(travel_coefficient * gains[2]) || travel_coefficient * gains[2] == 0.0) {
+            throw unsupported();
+        }
+    }
+    if (!(rack_min < rack_max)) throw unsupported();
+
+    CarSimSteeringModel result;
+    double symmetric_deg;
+    if (direct) {
+        symmetric_deg = 90.0;
+        for (const auto* wheel : {&left, &right}) {
+            const double first = interpolateSteering(*wheel, rack_min);
+            const double last = interpolateSteering(*wheel, rack_max);
+            symmetric_deg = std::min({symmetric_deg, -std::min(first, last), std::max(first, last)});
+        }
+    } else {
+        std::vector<double> stations{rack_min, rack_max};
+        for (const auto* table : std::array<const SteeringTable*, 3>{&left, &right, &travel})
+            for (const auto& point : *table)
+                if (point.first > rack_min && point.first < rack_max) stations.push_back(point.first);
+        std::sort(stations.begin(), stations.end());
+        stations.erase(std::unique(stations.begin(), stations.end()), stations.end());
+        auto& map = result.front_to_handwheel;
+        for (double rack : stations) {
+            const double front_deg = 0.5 *
+                (interpolateSteering(left, rack) + interpolateSteering(right, rack));
+            const double pinion = travel.empty() ? (rack - offsets[2]) / (travel_coefficient * gains[2])
+                                                 : interpolateSteering(travel, rack);
+            map.emplace_back(front_deg * deg_to_rad, pinion * pinion_to_rad);
+        }
+        if (map.front().first > map.back().first) std::reverse(map.begin(), map.end());
+        if (std::adjacent_find(map.begin(), map.end(), [](const auto& a, const auto& b) {
+                return !(a.first < b.first) || !std::isfinite(a.second) || !std::isfinite(b.second);
+            }) != map.end())
+            throw unsupported();
+        symmetric_deg = std::min(-map.front().first, map.back().first) / deg_to_rad;
+    }
+    if (!(symmetric_deg > 0.0 && symmetric_deg < 90.0)) throw unsupported();
+    result.max_front_angle = symmetric_deg * deg_to_rad;
+    return result;
+}
 CarSimMpcModel readCarSimMpcModel(const std::filesystem::path& native_dir) {
     std::ifstream in(native_dir / "LastRun_echo.par");
     if (!in) throw std::runtime_error("Current CarSim solver echo is unavailable");
@@ -297,14 +469,21 @@ CarSimMpcModel readCarSimMpcModel(const std::filesystem::path& native_dir) {
     model.tire_csv = native_dir / "carsim_tire_fy.csv";
     std::ofstream out(model.tire_csv, std::ios::binary);
     if (!out) throw std::runtime_error("Cannot write CarSim tire snapshot");
+    // FY_TIRE_CARPET 2D_FROM_ZERO has a hidden zero-load column in CarSim.
+    // Reconstruct it from the solver echo instead of extrapolating tire force
+    // below the first displayed load column.
+    const bool add_zero_load = table.front()[1] > 0.0;
     out << "slip_deg" << std::setprecision(15);
+    if (add_zero_load) out << ",0";
     for (std::size_t j = 1; j < table.front().size(); ++j) out << ',' << table.front()[j];
     out << '\n';
     for (std::size_t i = 1; i < table.size(); ++i) {
         if (table[i].size() != table.front().size())
             throw std::runtime_error("CarSim tire carpet row width differs");
-        for (std::size_t j = 0; j < table[i].size(); ++j)
-            out << (j ? "," : "") << table[i][j];
+        out << table[i][0];
+        if (add_zero_load) out << ",0";
+        for (std::size_t j = 1; j < table[i].size(); ++j)
+            out << ',' << table[i][j];
         out << '\n';
     }
     out.close();
@@ -368,14 +547,14 @@ std::filesystem::path stageCarSimSimfile(const std::filesystem::path& source,
     // Keep the complete generated run data for VS Visualizer. The solver-only
     // copy below drops unsupported SDK EXPORT channels but retains animation
     // and plot settings.
-    std::filesystem::copy_file(parsfile, dir / "Run_visualizer.par",
+    const auto visualizer_parsfile = dir / "Run_visualizer.par";
+    std::filesystem::copy_file(parsfile, visualizer_parsfile,
                                std::filesystem::copy_options::overwrite_existing);
-    // This adapter obtains state via vs_get_var_ptr, not the EXPORT array.
-    // Some GUI export sets include driver-model names absent in a direct SDK
-    // run; omit those unused channels in this private Parsfile copy.
+    // The SDK run exports only the two actual front-wheel angles. State
+    // variables needed by the controller are read through vs_get_var_ptr.
     const auto staged_parsfile = dir / "Run_all.par";
     {
-        std::ifstream pars_input(parsfile);
+        std::ifstream pars_input(visualizer_parsfile);
         std::ofstream pars_output(staged_parsfile, std::ios::binary);
         if (!pars_input || !pars_output)
             throw std::runtime_error("Cannot stage CarSim Parsfile");
@@ -385,6 +564,8 @@ std::filesystem::path stageCarSimSimfile(const std::filesystem::path& source,
             std::string keyword;
             fields >> keyword;
             if (keyword == "EXPORT" || keyword == "PORTS_EXP") continue;
+            if (keyword == "END")
+                pars_output << "EXPORT Steer_L1\nEXPORT Steer_R1\nPORTS_EXP 1,2\n";
             pars_output << pars_line << '\n';
         }
         if (!pars_output) throw std::runtime_error("Cannot finish staged CarSim Parsfile");
@@ -404,10 +585,8 @@ std::filesystem::path stageCarSimSimfile(const std::filesystem::path& source,
         std::istringstream fields(original);
         std::string keyword;
         fields >> keyword;
-        if (keyword == "PORTS_EXP") {
-            output << "PORTS_EXP 0\n";
-            continue;
-        }
+        if (keyword == "PORTS_EXP") continue;
+        if (keyword == "END") output << "PORTS_EXP 1,2\n";
         const auto found = replacements.find(keyword);
         if (found == replacements.end()) output << original << '\n';
         else output << keyword << ' ' << found->second.string() << '\n';
@@ -513,8 +692,11 @@ std::filesystem::path syncCarSimBrowserResult(const std::filesystem::path& sourc
     return gui_file(".vs");
 }
 
-CarSimPlant::CarSimPlant(CarSimConfig config) : config_(std::move(config)) {
+CarSimPlant::CarSimPlant(CarSimConfig config, bool read_tire_states, bool read_steering_model)
+    : config_(std::move(config)) {
 #ifndef _WIN32
+    (void)read_tire_states;
+    (void)read_steering_model;
     throw std::runtime_error("CarSim VS Solver DLL requires Windows");
 #else
     if (!std::filesystem::is_regular_file(config_.simfile) ||
@@ -548,6 +730,7 @@ CarSimPlant::CarSimPlant(CarSimConfig config) : config_(std::move(config)) {
         read_configuration_ = reinterpret_cast<ReadConfiguration>(required("vs_read_configuration"));
         initialize_ = reinterpret_cast<Initialize>(required("vs_initialize"));
         integrate_io_ = reinterpret_cast<IntegrateIo>(required("vs_integrate_io"));
+        const auto copy_export_vars = reinterpret_cast<CopyExportVars>(required("vs_copy_export_vars"));
         error_occurred_ = reinterpret_cast<ErrorOccurred>(required("vs_error_occurred"));
         error_message_ = reinterpret_cast<ErrorMessage>(required("vs_get_error_message"));
         get_var_ptr_ = reinterpret_cast<GetVarPtr>(required("vs_get_var_ptr"));
@@ -563,20 +746,34 @@ CarSimPlant::CarSimPlant(CarSimConfig config) : config_(std::move(config)) {
         initialize_(time_, nullptr, nullptr);
         initialized_ = true;
         if (error_occurred_()) throw std::runtime_error(solverError());
-        if (!(solver_dt_ > 0.0) || n_import < 1 || n_export < 0 ||
-            n_import > 4096 || n_export > 4096)
+        if (!(solver_dt_ > 0.0) || n_import < 1 || n_import > 4096 || n_export != 2)
             throw std::runtime_error("Invalid CarSim integration step or I/O channel counts");
         if (config_.steering_left_index < 0 ||
             config_.steering_left_index >= n_import ||
             config_.steering_right_index >= n_import)
             throw std::runtime_error("Steering IMPORT index is outside the CarSim channel array");
         imports_.assign(n_import, 0.0);
-        exports_.assign(std::max(1, n_export), 0.0);
+        exports_.assign(n_export, 0.0);
+        copy_export_vars(exports_.data());
+        if (read_steering_model || config_.steering_wheel_input)
+            steering_ = readCarSimSteeringModel(config_.simfile.parent_path(), config_);
         for (std::size_t i = 0; i < state_ptrs_.size(); ++i) {
             std::string keyword = config_.state_keywords[i];
             state_ptrs_[i] = get_var_ptr_(keyword.data());
             if (!state_ptrs_[i])
                 throw std::runtime_error("CarSim state variable unavailable: " + keyword);
+        }
+        if (read_tire_states) {
+            std::array<std::string, 4> keywords{"ALPHL_L1", "ALPHL_R1", "ALPHL_L2", "ALPHL_R2"};
+            std::array<std::string, 4> force_keywords{"FY_L1", "FY_R1", "FY_L2", "FY_R2"};
+            for (std::size_t i = 0; i < keywords.size(); ++i) {
+                lagged_slip_ptrs_[i] = get_var_ptr_(keywords[i].data());
+                if (!lagged_slip_ptrs_[i])
+                    throw std::runtime_error("CarSim lagged tire slip unavailable: " + keywords[i]);
+                tire_force_ptrs_[i] = get_var_ptr_(force_keywords[i].data());
+                if (!tire_force_ptrs_[i])
+                    throw std::runtime_error("CarSim tire force unavailable: " + force_keywords[i]);
+            }
         }
         (void)initialState();
     } catch (...) {
@@ -608,12 +805,25 @@ VehicleState CarSimPlant::initialState() const {
     state.vx = *state_ptrs_[3];
     state.vy = *state_ptrs_[4];
     state.r = *state_ptrs_[5];
-    for (double value : {state.x, state.y, state.psi, state.vx, state.vy, state.r})
+    constexpr double deg_to_rad = 3.14159265358979323846 / 180.0;
+    state.steer_front_left = exports_[0] * deg_to_rad;
+    state.steer_front_right = exports_[1] * deg_to_rad;
+    if (lagged_slip_ptrs_[0]) {
+        // CarSim tire slip has the opposite sign to this model's force convention.
+        state.alpha_front = -0.5 * (*lagged_slip_ptrs_[0] + *lagged_slip_ptrs_[1]);
+        state.alpha_rear = -0.5 * (*lagged_slip_ptrs_[2] + *lagged_slip_ptrs_[3]);
+        state.fy_front = *tire_force_ptrs_[0] + *tire_force_ptrs_[1];
+        state.fy_rear = *tire_force_ptrs_[2] + *tire_force_ptrs_[3];
+        if (!std::isfinite(state.fy_front) || !std::isfinite(state.fy_rear))
+            throw std::runtime_error("CarSim returned a nonfinite tire force");
+    }
+    for (double value : {state.x, state.y, state.psi, state.vx, state.vy, state.r,
+                         state.alpha_front, state.alpha_rear})
         if (!std::isfinite(value)) throw std::runtime_error("CarSim returned a nonfinite state");
     return state;
 }
 
-void CarSimPlant::step(VehicleState& state, double delta_front, double dt) const {
+double CarSimPlant::step(VehicleState& state, double delta_front, double dt, double stop_x) const {
     if (!std::isfinite(delta_front) || !(dt > 0.0))
         throw std::invalid_argument("Invalid CarSim steering command or control step");
     const double ratio = dt / solver_dt_;
@@ -622,16 +832,21 @@ void CarSimPlant::step(VehicleState& state, double delta_front, double dt) const
         throw std::invalid_argument("MPC dt must be an integer multiple of CarSim solver step");
     const double previous_vx = state.vx;
     std::fill(imports_.begin(), imports_.end(), 0.0);
-    const double input = delta_front * config_.steering_gain;
+    const double input = steering_.inputAngle(delta_front) * config_.steering_gain;
     imports_[config_.steering_left_index] = input;
     if (config_.steering_right_index >= 0)
         imports_[config_.steering_right_index] = input;
-    for (int i = 0; i < count; ++i) {
+    int completed_steps = 0;
+    while (completed_steps < count) {
         const int status = integrate_io_(time_, imports_.data(), exports_.data());
         if (error_occurred_()) throw std::runtime_error(solverError());
         if (status) throw std::runtime_error("CarSim ended before the requested control step");
         time_ += solver_dt_;
+        ++completed_steps;
+        if (*state_ptrs_[0] >= stop_x) break;
     }
     state = initialState();
-    state.ax = (state.vx - previous_vx) / dt;
+    const double elapsed = completed_steps * solver_dt_;
+    state.ax = (state.vx - previous_vx) / elapsed;
+    return elapsed;
 }

@@ -11,6 +11,7 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 from envs.carsim_mpc_env import CarSimMPCEnv
+from parity import bridge_params
 
 
 def main():
@@ -24,6 +25,8 @@ def main():
     p.add_argument("--max-blocks", type=int, default=0,
                    help="Stop after this many RL blocks (0 means full episode)")
     args = p.parse_args()
+    if not args.exercise_np:
+        nominal_np = bridge_params(args.exe, args.config, args.simfile, args.output_root)["np"]
     env = CarSimMPCEnv(args.exe, args.config, args.simfile, args.output_root)
     try:
         obs, info = env.reset(seed=42)
@@ -42,7 +45,7 @@ def main():
             if count % 20 == 0 or terminated or truncated:
                 print(f"step={count} x={info['x_m']:.2f} m, "
                       f"ey={info['ey_m']:.4f} m, Np={info['np']}, reward={reward:.4f}, "
-                      f"qp_fails={info['qp_failures']}, grip={info['grip_limited_steps']}")
+                      f"qp_fails={info['qp_failures']}")
             if terminated or truncated:
                 print("EPISODE END", "terminated", terminated, "truncated", truncated,
                       "failed", info["failed"], "blocks", count, "reward", total)
@@ -55,8 +58,8 @@ def main():
                 raise RuntimeError(f"Np adaptivity failed; observed only {sorted(seen_nps)}")
             print(f"NP ADAPTIVITY PASS; observed executed integer horizons: {sorted(seen_nps)}")
         else:
-            if seen_nps != {25}:
-                raise RuntimeError(f"Neutral action expected Np=25, got {sorted(seen_nps)}")
+            if seen_nps != {nominal_np}:
+                raise RuntimeError(f"Neutral action expected Np={nominal_np}, got {sorted(seen_nps)}")
             if not (terminated or truncated) and args.max_blocks == 0:
                 raise RuntimeError("Bridge run stopped before terminal event")
             if terminated or truncated:

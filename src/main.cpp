@@ -84,16 +84,16 @@ void help() {
         << "  --dt SECONDS               Sampling period\n"
         << "  --q-y V                    Q diagonal: lateral error\n"
         << "  --q-psi V                  Q diagonal: heading error\n"
-        << "  --q-vy V                   Q diagonal: lateral velocity\n"
-        << "  --q-r V                    Q diagonal: yaw rate error\n"
+        << "  --q-vy V                   Q diagonal: lateral error rate\n"
+        << "  --q-r V                    Q diagonal: heading error rate\n"
         << "  --r-steer V                R: feedforward steering deviation\n"
         << "  --r-delta V                Steering increment penalty\n"
         << "  --set SECTION.KEY=VALUE    Override ANY INI parameter (repeatable)\n"
         << "  --out FOLDER               Output folder (creates a unique run subfolder)\n"
         << "  --name TEXT                Experiment name\n"
-        << "  --distance METERS          End of simulation X range\n"
-        << "  --steer-limit-deg V        Front-wheel angle bound in degrees\n"
-        << "  --rate-limit-deg-s V       Front-wheel rate bound in degrees/s\n"
+        << "  --distance METERS          End X in meters, or reference_end\n"
+        << "  --steer-limit-deg V        Front-wheel angle bound in degrees, or carsim\n"
+        << "  --rate-limit-deg-s V       Front-wheel rate bound in degrees/s, or none\n"
         << "  --no-open                  Do not open HTML automatically\n"
         << "  --rl-mode fixed            Run fixed MPC\n"
         << "  --open                     Open HTML automatically (Windows)\n"
@@ -157,51 +157,6 @@ AppConfig parseArgs(int argc, char** argv) {
     return c;
 }
 
-SimulationRecord recordSample(const VehicleState& s,
-                              const DoubleLaneChange& reference,
-                              double time,
-                              const MpcResult& command, double solve_ms,
-                              bool command_sample, bool fallback_control = false,
-                              int np = 0, const MpcTuningAction& action = {},
-                              double road_grip = 0.0) {
-    SimulationRecord row;
-    row.time = time;
-    row.road_grip = road_grip;
-    row.s = s;
-    row.reference = reference.at(s.x);
-    row.lateral_error = s.y - row.reference.y;
-    row.heading_error = angleDifference(s.psi, row.reference.psi);
-    row.steer = command.steer;
-    row.yaw_rate_ref = s.vx * row.reference.curvature;
-    row.qp_iterations = command.iterations;
-    row.qp_primal_residual = command.primal_residual;
-    row.qp_dual_residual = command.dual_residual;
-    row.qp_converged = command.converged;
-    row.grip_limited_control = command.grip_limited;
-    row.qp_solve_ms = solve_ms;
-    row.is_command = command_sample;
-    row.fallback_control = fallback_control;
-    row.prediction_horizon = np;
-    row.q_y = action.q_y;
-    row.q_psi = action.q_psi;
-    row.q_vy = action.q_vy;
-    row.q_r = action.q_r;
-    row.r_steer = action.r_steer;
-    row.r_delta = action.r_delta;
-    return row;
-}
-
-MpcResult neutralFallback(double previous_steer, const MpcParameters& mpc, double vx) {
-    // Do not invent an optimized command after a QP failure: return steering
-    // toward zero while respecting both the angle and per-sample rate bounds.
-    MpcResult result;
-    const double max_step = mpc.dt * effectiveSteerRate(mpc, vx);
-    const double lower = std::max(-mpc.max_steer, previous_steer - max_step);
-    const double upper = std::min(mpc.max_steer, previous_steer + max_step);
-    result.steer = std::clamp(0.0, lower, upper);
-    return result;
-}
-
 bool recordableState(const VehicleState& s) {
     // Stop before overflow would corrupt CSV statistics and SVG coordinates.
     constexpr double bound = 1.0e6;
@@ -239,24 +194,32 @@ struct SimulationRun {
     bool variable_road_grip = false;
 };
 
-SimulationRun runConfiguredSimulation(const AppConfig& opts) {
+SimulationRun runConfiguredSimulation(AppConfig opts) {
         VehicleParameters model_vehicle = opts.vehicle;
         CarSimConfig run_config = opts.carsim;
         run_config.simfile = stageCarSimSimfile(opts.carsim.simfile,
-                                                 opts.output / "carsim_native");
-        extendCarSimStationStop(opts.output / "carsim_native" / "Run_all.par", opts.distance_m);
-        DoubleLaneChange ref = DoubleLaneChange::fromCarSimParsfile(
-            opts.output / "carsim_native" / "Run_all.par");
-        auto plant = std::make_unique<CarSimPlant>(std::move(run_config));
+            opts.output / "carsim_native");
+        const auto pars = opts.output / "carsim_native" / "Run_all.par";
+        const auto ref = DoubleLaneChange::fromCarSimParsfile(pars);
+        resolveReferenceEnd(opts, ref);
+        extendCarSimStationStop(pars, opts.distance_m);
+        auto plant = std::make_unique<CarSimPlant>(std::move(run_config),
+            opts.mpc.usesTireRelaxation(), opts.steer_limit_from_carsim);
         const auto carsim_model = readCarSimMpcModel(opts.output / "carsim_native");
+        if (opts.steer_limit_from_carsim)
+            opts.mpc.max_steer = plant->steeringModel().max_front_angle;
+        else if (opts.carsim.steering_wheel_input &&
+                 opts.mpc.max_steer > plant->steeringModel().max_front_angle + 1e-12)
+            throw std::invalid_argument("Configured angle exceeds the CarSim steering map range");
         model_vehicle = carsim_model.vehicle;
         model_vehicle.road_grip_scale = carsim_model.road_grip.at(plant->initialState().x);
         model_vehicle.vx = plant->initialState().vx;
         TireTable tires(carsim_model.tire_csv);
         RunOutcome outcome;
+        outcome.steer_limit_from_carsim = opts.steer_limit_from_carsim;
+        outcome.steering_wheel_input = !plant->steeringModel().front_to_handwheel.empty();
         outcome.plant_name = "carsim";
         outcome.variable_road_grip = carsim_model.road_grip.variable();
-        outcome.reference_source = "CarSim LTARG_TABLE (straight east road)";
         outcome.carsim_info = readCarSimRunInfo(opts.output / "carsim_native" / "Run_all.par");
         if (!outcome.carsim_info.speed_target_constant.empty() &&
             !carsim_model.speed_target_kmh.empty() &&
@@ -264,12 +227,14 @@ SimulationRun runConfiguredSimulation(const AppConfig& opts) {
                 std::stod(carsim_model.speed_target_kmh))
             throw std::runtime_error("CarSim speed target differs between Parsfile and solver echo");
         outcome.carsim_info.speed_target_constant = carsim_model.speed_target_kmh;
-        outcome.model_front_stiffness_n_per_rad = carsim_model.front_stiffness_n_per_rad;
-        outcome.model_rear_stiffness_n_per_rad = carsim_model.rear_stiffness_n_per_rad;
+        const double stiffness_divisor = opts.mpc.usesTireRelaxation()
+            ? carsim_model.vehicle.road_grip_scale : 1.0;
+        outcome.model_front_stiffness_n_per_rad = carsim_model.front_stiffness_n_per_rad / stiffness_divisor;
+        outcome.model_rear_stiffness_n_per_rad = carsim_model.rear_stiffness_n_per_rad / stiffness_divisor;
         outcome.requested_distance_m = opts.distance_m;
-        std::unique_ptr<LateralMpc> fixed_controller;
-        LateralMpc* controller = nullptr;
         const int current_np = opts.mpc.np;
+        const double curvature_sigma_m = opts.mpc.steer_feedforward && opts.mpc.r_steer > 0.0
+            ? opts.mpc.reference_curvature_sigma_m : 0.0;
         MpcTuningAction current_action;
         current_action.np = opts.mpc.np;
         current_action.q_y = opts.mpc.q_y;
@@ -278,25 +243,27 @@ SimulationRun runConfiguredSimulation(const AppConfig& opts) {
         current_action.q_r = opts.mpc.q_r;
         current_action.r_steer = opts.mpc.r_steer;
         current_action.r_delta = opts.mpc.r_delta;
-        try {
-            fixed_controller = std::make_unique<LateralMpc>(model_vehicle, opts.mpc, ref, tires);
-            controller = fixed_controller.get();
-        } catch (const std::exception& e) {
-            outcome.first_fallback_reason = std::string("MPC initialization: ") + e.what();
-        }
+        LateralMpc controller(model_vehicle, opts.mpc, ref, tires);
+        controller.setRoadGripProfile([&carsim_model](double x) {
+            return carsim_model.road_grip.at(x);
+        });
         VehicleState state = plant->initialState();
         double t = 0.0;
         double prev_delta = 0.0;
-        bool grip_mode_active = false;
+        double prev_increment = 0.0;
         std::vector<SimulationRecord> rows;
         const double step_budget_speed = state.vx;
         const int max_steps = static_cast<int>(2.5 * opts.distance_m /
                                (std::max(1.0, step_budget_speed) * opts.mpc.dt)) + 1000;
         rows.reserve(static_cast<std::size_t>(max_steps));
         std::cout << "Running: " << opts.experiment << '\n'
+                  << "  Config=" << opts.source_config_file.string() << '\n'
+                  << "  Reference=" << outcome.reference_source << '\n'
                   << "  CarSim initial vx="
                   << 3.6 * step_budget_speed << " km/h, Ts=" << opts.mpc.dt
                   << " s, Nc=" << opts.mpc.nc << '\n';
+        std::cout << "  Front-wheel angle bound=" << opts.mpc.max_steer * 180.0 / std::acos(-1.0)
+                  << " deg (" << (opts.steer_limit_from_carsim ? "CarSim RACK_KIN" : "configured") << ")\n";
         std::cout << "  Fixed Np=" << opts.mpc.np
                   << " (Tp=" << opts.mpc.np * opts.mpc.dt << " s, Tc="
                   << opts.mpc.nc * opts.mpc.dt << " s)\n"
@@ -307,46 +274,22 @@ SimulationRun runConfiguredSimulation(const AppConfig& opts) {
         std::cout << std::flush;
 
         for (int step = 0; state.x < opts.distance_m && step < max_steps; ++step) {
-            model_vehicle.road_grip_scale = carsim_model.road_grip.at(state.x);
-            if (controller) controller->setRoadGrip(model_vehicle.road_grip_scale);
             const auto start = std::chrono::steady_clock::now();
-            MpcResult control;
-            bool fallback = !controller;
-            if (controller) {
-                controller->setGripLimitedMode(grip_mode_active);
-                try {
-                    control = controller->control(state, prev_delta);
-                    if (!std::isfinite(control.steer))
-                        throw std::runtime_error("MPC returned nonfinite steering");
-                    if (!control.prediction_failure.empty() && outcome.first_fallback_reason.empty())
-                        outcome.first_fallback_reason = std::string("MPC prediction: ") +
-                            control.prediction_failure + " at X=" + std::to_string(state.x) + " m";
-                    if (control.iterations > 0 && !control.converged && outcome.first_fallback_reason.empty())
-                        outcome.first_fallback_reason = "MPC QP did not converge at X=" +
-                            std::to_string(state.x) + " m";
-                } catch (const std::exception& e) {
-                    if (outcome.first_fallback_reason.empty())
-                        outcome.first_fallback_reason = std::string(e.what()) +
-                            " at X=" + std::to_string(state.x) + " m";
-                    // A solver exception must not turn the steering toward zero
-                    // while the original path still requires a lateral response.
-                    try {
-                        control = controller->enterGripLimitedMode(state, prev_delta);
-                    } catch (const std::exception&) {
-                        controller = nullptr;
-                        fallback = true;
-                    }
-                }
-                if (controller) grip_mode_active = controller->gripLimitedModeActive();
+            const auto control = controller.control(state, prev_delta, prev_increment);
+            const bool held_steering = !control.prediction_failure.empty();
+            if (!control.converged && outcome.first_solve_issue.empty()) {
+                outcome.first_solve_issue = (held_steering ? control.prediction_failure :
+                    "MPC QP did not converge") + " at X=" + std::to_string(state.x) + " m";
             }
-            if (fallback) control = neutralFallback(prev_delta, opts.mpc, state.vx);
             const auto stop = std::chrono::steady_clock::now();
             const double solve_ms = std::chrono::duration<double, std::milli>(stop - start).count();
             rows.push_back(recordSample(state, ref, t, control, solve_ms,
-                                        true, fallback, current_np, current_action, model_vehicle.road_grip_scale));
+                                        true, held_steering, current_action,
+                                        carsim_model.road_grip.at(state.x), curvature_sigma_m));
             VehicleState next = state;
+            double elapsed;
             try {
-                plant->step(next, control.steer, opts.mpc.dt);
+                elapsed = plant->step(next, control.steer, opts.mpc.dt, opts.distance_m);
             } catch (const std::exception& e) {
                 outcome.stop_reason = std::string("Vehicle integration failed: ") + e.what();
                 break;
@@ -360,10 +303,11 @@ SimulationRun runConfiguredSimulation(const AppConfig& opts) {
                 next.y - next_reference.y, angleDifference(next.psi, next_reference.psi),
                 control.steer, current_np, opts.mpc, opts.rl, prev_delta, current_np,
                 current_action, current_action, next.vy,
-                next.r - next.vx * next_reference.curvature, control.grip_limited);
+                next.r - next.vx * next_reference.curvature, std::atan2(next.vy, next.vx));
             state = next;
+            prev_increment = control.steer - prev_delta;
             prev_delta = control.steer;
-            t += opts.mpc.dt;
+            t += elapsed;
         }
         if (state.x < opts.distance_m) {
             outcome.completed = false;
@@ -373,8 +317,8 @@ SimulationRun runConfiguredSimulation(const AppConfig& opts) {
             MpcResult last_command;
             last_command.steer = prev_delta;
             rows.push_back(recordSample(state, ref, t,
-                                        last_command, 0.0, false, false, current_np, current_action,
-                                        carsim_model.road_grip.at(state.x)));
+                                        last_command, 0.0, false, false, current_action,
+                                        carsim_model.road_grip.at(state.x), curvature_sigma_m));
         }
 
         // Finalize VS/VSB output before copying it into the Browser cache.
@@ -406,11 +350,15 @@ SimulationRun runConfiguredSimulation(const AppConfig& opts) {
             AppConfig snapshot = opts;
             snapshot.vehicle = model_vehicle;
             snapshot.tire_data_file = "tire_data.csv";
+            snapshot.steer_limit_from_carsim = false;
+            if (opts.steer_limit_from_carsim)
+                out << "# Steering angle bound derived from this run's CarSim RACK_KIN tables.\n";
             out << configToIni(snapshot);
         }
         std::cout << std::fixed << std::setprecision(6)
                   << (outcome.completed ? "Finished: X=" : "Partial result: X=")
                   << rows.back().s.x << " m, samples=" << rows.size() << '\n'
+                  << "  Lateral MAE        = " << metrics.mae_y << " m\n"
                   << "  Lateral RMSE       = " << metrics.rmse_y << " m\n"
                   << "  Max |lateral err|  = " << metrics.max_abs_y << " m\n"
                   << "  Heading RMSE       = " << metrics.rmse_heading_deg << " deg\n"
@@ -422,20 +370,19 @@ SimulationRun runConfiguredSimulation(const AppConfig& opts) {
                   << "  Mean / peak QP ms  = " << metrics.mean_qp_time_ms << " / "
                   << metrics.max_qp_time_ms << " ms\n"
                   << "  QP not converged   = " << metrics.qp_nonconverged_steps << " steps\n"
-                  << "  Grip-limited track = " << metrics.grip_limited_steps << " steps\n"
-                  << "  Fallback steering  = " << metrics.fallback_control_steps << " steps\n"
+                  << "  Held steering      = " << metrics.fallback_control_steps << " steps\n"
                   << "  Browser Video/Plot   = " << outcome.browser_result_status << '\n'
                   << "Results: " << std::filesystem::absolute(opts.output).string()
                   << '\n' << std::flush;
         if (!outcome.completed)
             std::cerr << "WARNING: Simulation incomplete: " << outcome.stop_reason
                       << ". Exported actual samples only.\n";
-        if (!outcome.first_fallback_reason.empty())
-            std::cerr << "WARNING: MPC fallback started: "
-                      << outcome.first_fallback_reason << '\n';
+        if (!outcome.first_solve_issue.empty())
+            std::cerr << "WARNING: First MPC solve issue: "
+                      << outcome.first_solve_issue << '\n';
         if (metrics.qp_nonconverged_steps > 0)
             std::cerr << "WARNING: Some MPC steps lacked a converged QP result "
-                         "(including fallback steps). Check summary.txt.\n";
+                         "(including held-steering steps). Check summary.txt.\n";
         const double initial_grip = rows.front().road_grip;
         return {opts.output, std::move(rows), metrics, outcome, initial_grip, carsim_model.road_grip.variable()};
 }

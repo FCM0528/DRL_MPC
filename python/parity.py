@@ -1,4 +1,5 @@
 """Require neutral Python actions to reproduce fixed C++ MPC on one CarSim case."""
+import configparser
 import csv
 import json
 import math
@@ -61,15 +62,24 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10)
         raise RuntimeError("Expected one fixed MPC simulation.csv")
     with runs[0].open(newline="", encoding="utf-8") as file:
         fixed_rows = list(csv.DictReader(file))
+    effective = configparser.ConfigParser(interpolation=None)
+    effective.read(runs[0].with_name("effective_config.ini"), encoding="utf-8-sig")
+    tracking_v2 = effective.getboolean("rl_reward", "tracking_v2", fallback=False)
+    squared_lateral = effective.getboolean("rl_reward", "squared_lateral_reward", fallback=False)
+    penalize_qp = effective.getboolean("rl", "penalize_qp_failure", fallback=False)
+    qp_penalty = effective.getfloat("rl_reward",
+                                   "qp_failure_penalty" if tracking_v2 else "failure_penalty")
     env = CarSimMPCEnv(bridge, config, simfile, output / "bridge")
     rewards = []
     try:
         env.reset(seed=42)
         for _ in range(blocks):
-            _, reward, terminated, truncated, _ = env.step(np.zeros(4, dtype=np.float32))
+            _, reward, terminated, truncated, info = env.step(np.zeros(4, dtype=np.float32))
             rewards.append(reward)
-            if terminated or truncated:
-                raise AssertionError("Neutral parity episode ended before the requested control blocks")
+            if truncated or info["failed"]:
+                raise AssertionError("Neutral parity episode failed or was truncated")
+            if terminated:
+                break
     finally:
         env.close()
     trace = output / "bridge" / "episode_000001" / "bridge_trace.csv"
@@ -101,11 +111,17 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10)
             raise AssertionError("Missing fixed MPC reward rows")
         expected = (sum(float(row["reward"]) for row in block) /
                     len(block) / params["reward_scale"])
+        if penalize_qp:
+            failed_solves = sum(not int(row["qp_converged"]) for row in block)
+            expected -= qp_penalty * failed_solves / (1 if tracking_v2 else len(block))
         _close(reward, expected, "block reward", b, 1e-5)
+    loss = "squared_lateral" if squared_lateral else "negative_log1p"
+    version = "tracking_v2_" + loss if tracking_v2 else (
+        "squared_lateral_v1" if squared_lateral else "negative_log1p_v3")
     summary = {"passed": True, "control_steps": len(bridge_rows),
                "decision_steps": params["decision_steps"],
                "decision_duration_s": params["dt"] * params["decision_steps"],
-               "gamma_per_decision": params["gamma"]}
+               "gamma_per_decision": params["gamma"], "reward_scheme": version}
     (output / "parity.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 

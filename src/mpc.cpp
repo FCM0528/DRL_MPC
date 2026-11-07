@@ -11,38 +11,34 @@ double effectiveSteerRate(const MpcParameters& p, double vx) {
         (std::min(p.max_steer_rate, p.speed_rate_end_limit) - p.max_steer_rate);
 }
 
-bool optimizationFailed(const MpcResult& result) {
-    return (result.iterations > 0 && !result.converged) || !result.prediction_failure.empty();
-}
-
 LateralMpc::LateralMpc(const VehicleParameters& v,
                        const MpcParameters& p,
                        const DoubleLaneChange& r,
                        const TireTable& tires)
     : vehicle_(v), p_(p), ref_(r), tires_(tires) {
     if (p.np < 2 || p.np > 150 || p.nc < 1 || p.nc > p.np ||
-        p.dt <= 0.0 || p.max_steer <= 0.0 || p.max_steer_rate <= 0.0 ||
+        p.dt <= 0.0 || !std::isfinite(p.max_steer) || p.max_steer <= 0.0 ||
+        !(p.max_steer_rate > 0.0) || (p.speed_rate_enabled && !std::isfinite(p.max_steer_rate)) ||
         !std::isfinite(p.speed_rate_start) || !std::isfinite(p.speed_rate_end) ||
         p.speed_rate_start < 0 || p.speed_rate_end <= p.speed_rate_start ||
         !std::isfinite(p.speed_rate_end_limit) || p.speed_rate_end_limit <= 0 ||
         p.admm_rho <= 0.0 || p.admm_max_iterations <= 0 ||
         p.admm_primal_tol <= 0.0 || p.admm_dual_tol <= 0.0 ||
-        !std::isfinite(p.grip_preview_s) || p.grip_preview_s <= 0.0 ||
-        !std::isfinite(p.tire_slope_floor) || p.tire_slope_floor < 0.0 || p.tire_slope_floor > 1.0)
+        !std::isfinite(p.r_delta_change) || p.r_delta_change < 0.0 ||
+        !std::isfinite(p.reference_curvature_sigma_m) || p.reference_curvature_sigma_m < 0.0 ||
+        !std::isfinite(p.tire_slope_floor) || p.tire_slope_floor < 0.0 || p.tire_slope_floor > 1.0 ||
+        !std::isfinite(p.front_relaxation_m) || p.front_relaxation_m < 0.0 ||
+        !std::isfinite(p.rear_relaxation_m) || p.rear_relaxation_m < 0.0 ||
+        !std::isfinite(p.stage_weight_lambda) || std::abs(p.stage_weight_lambda) > 5.0)
         throw std::invalid_argument("Invalid MPC settings (require 1 <= Nc <= Np <= 150)");
-    setRoadGrip(v.road_grip_scale);
+    if (!std::isfinite(v.road_grip_scale) || v.road_grip_scale <= 0.0)
+        throw std::invalid_argument("Invalid road grip");
     current_steer_rate_ = p.max_steer_rate;
     last_solution_.assign(p.nc, 0.0);
 }
 
-void LateralMpc::setRoadGrip(double grip) {
-    if (!std::isfinite(grip) || grip <= 0.0) throw std::invalid_argument("Invalid road grip");
-    vehicle_.road_grip_scale = grip;
-    const auto [front_load, rear_load] = staticWheelLoads(vehicle_);
-    front_stiffness_ = 2.0 * grip * tires_.corneringStiffness(front_load);
-    rear_stiffness_ = 2.0 * grip * tires_.corneringStiffness(rear_load);
-    max_lateral_accel_ = 2.0 * grip *
-        (tires_.peakLateralForce(front_load) + tires_.peakLateralForce(rear_load)) / vehicle_.mass;
+void LateralMpc::setRoadGripProfile(std::function<double(double)> grip_at_x) {
+    road_grip_at_x_ = std::move(grip_at_x);
 }
 
 void LateralMpc::adoptPreviousSolution(const LateralMpc& previous) {
@@ -69,11 +65,23 @@ void LateralMpc::precompute(const VehicleState& plant, double prev, double ax) {
         nominal_increments_[i] = nominal_steering_[i] - last;
         last = nominal_steering_[i];
     }
-    nominal_states_.assign(np + 1, State6{});
+    nominal_states_.assign(np + 1, PredictionState{});
     nominal_states_[0] = {plant.vy, plant.vx, plant.psi, plant.r,
-                           plant.y, plant.x};
-    sensitivity_.assign(np, std::vector<State6>(nc, State6{}));
-    std::vector<State6> current(nc, State6{});
+                           plant.y, plant.x, plant.alpha_front, plant.alpha_rear};
+    sensitivity_.assign(np, std::vector<PredictionState>(nc, PredictionState{}));
+    std::vector<PredictionState> current(nc, PredictionState{});
+    const auto [front_load, rear_load] = staticWheelLoads(vehicle_);
+    const double mu = road_grip_at_x_ ? road_grip_at_x_(plant.x) : vehicle_.road_grip_scale;
+    // Anchor the first prediction to the observed forces. Fade the residual
+    // as the forecast moves away from the measured load and tire state.
+    const auto measured_bias = [&](double force, double slip, double load, double length) {
+        if (length == 0.0 || !std::isfinite(force)) return 0.0;
+        return force - 2.0 * mu * tires_.boundedLateralForce(slip / mu, load);
+    };
+    const double front_bias = measured_bias(plant.fy_front, plant.alpha_front, front_load,
+                                            p_.front_relaxation_m);
+    const double rear_bias = measured_bias(plant.fy_rear, plant.alpha_rear, rear_load,
+                                           p_.rear_relaxation_m);
     for (int stage = 0; stage < np; ++stage) {
         const int active = std::min(stage, nc - 1);
         const auto& state = nominal_states_[stage];
@@ -81,25 +89,32 @@ void LateralMpc::precompute(const VehicleState& plant, double prev, double ax) {
         operating.vy = state[0]; operating.vx = state[1];
         operating.psi = state[2]; operating.r = state[3];
         operating.y = state[4]; operating.x = state[5];
+        operating.alpha_front = state[6]; operating.alpha_rear = state[7];
         // A measured acceleration is a local disturbance, not a constant
         // full-horizon braking command. Fade it during the nominal rollout.
         const double stage_ax = ax * std::exp(-stage * p_.dt / 0.5);
-        const auto model = discretizeErrorModel(vehicle_, tires_, operating,
-                                                nominal_steering_[active], stage_ax, p_.dt, p_.nonlinear_tire,
-                                                p_.tire_slope_floor);
+        const double force_bias_scale = std::exp(-stage * p_.dt / 0.08);
+        VehicleParameters stage_vehicle = vehicle_;
+        if (road_grip_at_x_) stage_vehicle.road_grip_scale = road_grip_at_x_(operating.x);
+        const auto model = discretizeErrorModel(stage_vehicle, tires_, operating,
+                                                nominal_steering_[active], stage_ax, p_.dt,
+                                                p_.tire_slope_floor,
+                                                p_.front_relaxation_m, p_.rear_relaxation_m,
+                                                front_bias * force_bias_scale,
+                                                rear_bias * force_bias_scale);
         auto next_state = matrixTimesState(model.a, state);
-        for (int d = 0; d < 6; ++d)
+        for (int d = 0; d < prediction_state_count; ++d)
             next_state[d] += model.b[d] * nominal_steering_[active] + model.c[d];
         for (double value : next_state)
             if (!std::isfinite(value))
                 throw std::runtime_error("LTV prediction became nonfinite");
         nominal_states_[stage + 1] = next_state;
-        std::vector<State6> next(nc, State6{});
+        std::vector<PredictionState> next(nc, PredictionState{});
         for (int j = 0; j < nc; ++j) {
             next[j] = matrixTimesState(model.a, current[j]);
             // Delta-steering j changes every later absolute steering command.
             if (j <= active)
-                for (int d = 0; d < 6; ++d) next[j][d] += model.b[d];
+                for (int d = 0; d < prediction_state_count; ++d) next[j][d] += model.b[d];
         }
         current = std::move(next);
         sensitivity_[stage] = current;
@@ -107,7 +122,6 @@ void LateralMpc::precompute(const VehicleState& plant, double prev, double ax) {
     low_.assign(2*nc,0.0);
     high_.assign(2*nc,0.0);
 }
-//
 std::vector<std::vector<double>> LateralMpc::choleskyFactor(
     const std::vector<std::vector<double>>& a) {
     const int n = static_cast<int>(a.size());
@@ -127,7 +141,6 @@ std::vector<std::vector<double>> LateralMpc::choleskyFactor(
     return l;
 }
 
-//
 std::vector<double> LateralMpc::solveCholesky(const std::vector<double>& rhs) const {
     const int n = p_.nc;
     std::vector<double> y(n, 0.0), x(n, 0.0);
@@ -144,7 +157,6 @@ std::vector<double> LateralMpc::solveCholesky(const std::vector<double>& rhs) co
     return x;
 }
 
-//
 void LateralMpc::buildBounds(double prev) {
     const int nc = p_.nc;
     const double step = current_steer_rate_ * p_.dt;
@@ -157,7 +169,6 @@ void LateralMpc::buildBounds(double prev) {
     }
 }
 
-//
 std::vector<double> LateralMpc::constraintProduct(const std::vector<double>& u) const {
     const int nc = p_.nc;
     std::vector<double> v(2 * nc, 0.0);
@@ -170,7 +181,6 @@ std::vector<double> LateralMpc::constraintProduct(const std::vector<double>& u) 
     return v;
 }
 
-//
 std::vector<double> LateralMpc::constraintTranspose(const std::vector<double>& v) const {
     const int nc = p_.nc;
     std::vector<double> u(nc, 0.0);
@@ -182,114 +192,88 @@ std::vector<double> LateralMpc::constraintTranspose(const std::vector<double>& v
     return u;
 }
 
-//
 double LateralMpc::predictedSteeringAt(int prediction_step) const {
     if (prediction_step < 0 || prediction_step >= p_.np)
         throw std::out_of_range("Prediction step is outside [0,Np)");
     return last_solution_[std::min(prediction_step, p_.nc - 1)];
 }
 
-MpcResult LateralMpc::gripLimitedControl(const VehicleState& plant,
-                                        double previous_steer) const {
-    const double speed = std::max(1.0, std::abs(plant.vx));
-    const double lookahead = std::clamp(p_.grip_preview_s * speed, 10.0, 28.0);
-    const auto target = ref_.at(plant.x + lookahead);
-    const double dx = lookahead;
-    const double dy = target.y - plant.y;
-    const double distance = std::max(1.0, std::hypot(dx, dy));
-    const double bearing_error = angleDifference(std::atan2(dy, dx), plant.psi);
-    const double max_curvature = max_lateral_accel_ / (speed * speed);
-    const double desired_curvature = std::clamp(
-        2.0 * std::sin(bearing_error) / distance, -max_curvature, max_curvature);
-    const double desired_yaw_rate = speed * desired_curvature;
-    const double wheelbase = vehicle_.a + vehicle_.b;
-    const double understeer = vehicle_.mass * speed * speed / wheelbase *
-        (vehicle_.b / front_stiffness_ - vehicle_.a / rear_stiffness_);
-    const double sideslip = std::atan2(plant.vy, speed);
-    const double desired_steer = (wheelbase + understeer) * desired_curvature
-        + 0.15 * (desired_yaw_rate - plant.r) - 0.35 * sideslip;
-    const double max_step = p_.dt * current_steer_rate_;
-    MpcResult result;
-    result.steer = std::clamp(desired_steer,
-        std::max(-p_.max_steer, previous_steer - max_step),
-        std::min(p_.max_steer, previous_steer + max_step));
-    result.grip_limited = true;
-    return result;
+MpcResult LateralMpc::control(const VehicleState& plant, double prev, double previous_increment) {
+    if (!std::isfinite(prev) || std::abs(prev) > p_.max_steer)
+        throw std::invalid_argument("Previous steering is outside the MPC angle bound");
+    try {
+        return solve(plant, prev, previous_increment);
+    } catch (const std::exception& e) {
+        has_solution_ = false;
+        MpcResult status;
+        status.steer = prev;
+        status.prediction_failure = e.what();
+        return status;
+    }
 }
 
-MpcResult LateralMpc::enterGripLimitedMode(const VehicleState& plant,
-                                          double previous_steer) {
-    current_steer_rate_ = effectiveSteerRate(p_, plant.vx);
-    grip_mode_ = true;
-    has_solution_ = false;
-    return gripLimitedControl(plant, previous_steer);
-}
-
-//
-MpcResult LateralMpc::control(const VehicleState& plant, double prev) {
+MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previous_increment) {
     if (!std::isfinite(plant.vx) || !std::isfinite(plant.ax))
-        throw std::runtime_error("MPC requires finite vehicle speed and longitudinal acceleration");
+        throw std::runtime_error("MPC requires finite vehicle speed and acceleration");
     current_steer_rate_ = effectiveSteerRate(p_, plant.vx);
-    const auto current_ref = ref_.at(plant.x);
-    const double position_error = plant.y - current_ref.y;
-    const double heading_error = angleDifference(plant.psi, current_ref.psi);
-    const double current_demand = plant.vx * plant.vx * std::abs(current_ref.curvature);
-    const bool excessive_sideslip = std::abs(std::atan2(plant.vy, std::max(1.0, std::abs(plant.vx)))) > 0.12;
-    const bool state_risk = (std::abs(position_error) > 0.6 && std::abs(plant.vy) > 0.6) || excessive_sideslip;
-    const bool legacy_risk = current_demand > 1.10 * max_lateral_accel_ ||
-        (std::abs(position_error) > 0.3 && std::abs(plant.vy) > 0.5);
-    if (p_.grip_switch_enabled && (p_.grip_state_only ? state_risk : legacy_risk))
-        grip_mode_ = true;
-    if (grip_mode_ && (p_.grip_state_only || current_demand < 0.7 * max_lateral_accel_) &&
-        std::abs(position_error) < 0.08 && std::abs(heading_error) < 0.05 &&
-        std::abs(plant.vy) < 0.3)
-        grip_mode_ = false;
-    if (grip_mode_ || plant.vx < 1.0) {
-        has_solution_ = false;
-        return gripLimitedControl(plant, prev);
-    }
-    const double ax = std::clamp(plant.ax, -6.0, 6.0);
-    try { precompute(plant, prev, ax); }
-    catch (const std::exception& ex) {
-        grip_mode_ = true;
-        has_solution_ = false;
-        auto fallback = gripLimitedControl(plant, prev);
-        fallback.prediction_failure = ex.what();
-        return fallback;
-    }
+    precompute(plant, prev, std::clamp(plant.ax, -6.0, 6.0));
     const int np = p_.np, nc = p_.nc;
     std::vector<double> gradient(nc, 0.0);
     hessian_.assign(nc, std::vector<double>(nc, 0.0));
     const double q[4] = {p_.q_y, p_.q_psi, p_.q_vy, p_.q_r};
     const double wheelbase = vehicle_.a + vehicle_.b;
+    const auto [front_load, rear_load] = staticWheelLoads(vehicle_);
+    const bool use_feedforward = p_.steer_feedforward && p_.r_steer > 0.0;
+    const double peak_accel = use_feedforward ? 2.0 *
+        (tires_.peakLateralForce(front_load) + tires_.peakLateralForce(rear_load)) /
+        vehicle_.mass : 0.0;
+    const double understeer_per_vx2 = use_feedforward ? vehicle_.mass / (2.0 * wheelbase) *
+        (vehicle_.b / tires_.corneringStiffness(front_load) -
+         vehicle_.a / tires_.corneringStiffness(rear_load)) : 0.0;
     for (int stage = 0; stage < np; ++stage) {
         const auto& nominal = nominal_states_[stage + 1];
         const auto path = ref_.at(nominal[5]);
-        const double curve_limit = max_lateral_accel_ /
-            std::max(1.0, nominal[1] * nominal[1]);
-        const double curvature = std::clamp(path.curvature,
-                                            -curve_limit, curve_limit);
         const double heading_slope = path.d2ydx2 /
             (1.0 + path.dydx * path.dydx);
-        const double curvature_slope = (ref_.at(nominal[5] + 0.2).curvature -
-            ref_.at(nominal[5] - 0.2).curvature) / 0.4;
+        const auto ahead = ref_.at(nominal[5] + 0.2);
+        const auto behind = ref_.at(nominal[5] - 0.2);
+        const double heading_slope_x =
+            (ahead.d2ydx2 / (1.0 + ahead.dydx * ahead.dydx) -
+             behind.d2ydx2 / (1.0 + behind.dydx * behind.dydx)) / 0.4;
+        const double cpsi = std::cos(nominal[2]);
+        const double spsi = std::sin(nominal[2]);
+        const double x_dot = nominal[1] * cpsi - nominal[0] * spsi;
+        const double y_dot = nominal[1] * spsi + nominal[0] * cpsi;
+        const double ey_dot = y_dot - path.dydx * x_dot;
+        const double heading_rate = heading_slope * x_dot;
+        // With tire sideslip, the CG velocity direction can follow the path
+        // tangent while the body yaw differs from it.
+        const double course_offset = p_.track_course
+            ? std::atan2(nominal[0], nominal[1]) : 0.0;
+        const double speed_squared = std::max(1e-6,
+            nominal[0] * nominal[0] + nominal[1] * nominal[1]);
         const double error[4] = {nominal[4] - path.y,
-            angleDifference(nominal[2], path.psi), nominal[0],
-            nominal[3] - nominal[1] * curvature};
+            angleDifference(nominal[2] + course_offset, path.psi), ey_dot,
+            nominal[3] - heading_rate};
         std::vector<std::array<double, 4>> error_sensitivity(nc);
         for (int j = 0; j < nc; ++j) {
             const auto& s = sensitivity_[stage][j];
+            const double x_dot_s = cpsi * s[1] - spsi * s[0] - y_dot * s[2];
+            const double y_dot_s = spsi * s[1] + cpsi * s[0] + x_dot * s[2];
+            const double course_offset_s = p_.track_course
+                ? (nominal[1] * s[0] - nominal[0] * s[1]) / speed_squared : 0.0;
             error_sensitivity[j] = {s[4] - path.dydx * s[5],
-                s[2] - heading_slope * s[5], s[0],
-                s[3] - curvature * s[1] -
-                nominal[1] * curvature_slope * s[5]};
+                s[2] + course_offset_s - heading_slope * s[5],
+                y_dot_s - path.dydx * x_dot_s - path.d2ydx2 * x_dot * s[5],
+                s[3] - heading_slope * x_dot_s - heading_slope_x * x_dot * s[5]};
         }
         double error_offset[4] = {error[0], error[1], error[2], error[3]};
         for (int j = 0; j < nc; ++j)
             for (int d = 0; d < 4; ++d)
                 error_offset[d] -= error_sensitivity[j][d] *
                                    nominal_increments_[j];
-        const double terminal = stage == np - 1 ? p_.terminal_scale : 1.0;
+        const double terminal = (stage == np - 1 ? p_.terminal_scale : 1.0) *
+            std::exp(p_.stage_weight_lambda * (stage + 1.0) / np);
         for (int j = 0; j < nc; ++j) {
             for (int d = 0; d < 4; ++d)
                 gradient[j] += 2.0 * terminal * q[d] *
@@ -300,11 +284,17 @@ MpcResult LateralMpc::control(const VehicleState& plant, double prev) {
                         error_sensitivity[j][d] * error_sensitivity[k][d];
         }
         const int active = std::min(stage, nc - 1);
-        const double understeer = vehicle_.mass * nominal[1] * nominal[1] /
-            wheelbase * (vehicle_.b / front_stiffness_ -
-                         vehicle_.a / rear_stiffness_);
-        const double ff = std::clamp((wheelbase + understeer) * curvature,
-                                     -p_.max_steer, p_.max_steer);
+        double ff = 0.0;
+        if (use_feedforward) {
+            const double grip = road_grip_at_x_ ? road_grip_at_x_(nominal[5]) : vehicle_.road_grip_scale;
+            const double vx2 = nominal[1] * nominal[1];
+            const double curve_limit = grip * peak_accel / std::max(1.0, vx2);
+            const double stiffness_scale = p_.usesTireRelaxation() ? 1.0 : grip;
+            const double understeer = understeer_per_vx2 * vx2 / stiffness_scale;
+            const double curvature = ref_.controlCurvature(nominal[5], p_.reference_curvature_sigma_m);
+            ff = std::clamp((wheelbase + understeer) *
+                std::clamp(curvature, -curve_limit, curve_limit), -p_.max_steer, p_.max_steer);
+        }
         // Absolute steering = prev + prefix sum of optimized increments.
         for (int j = 0; j <= active; ++j) {
             gradient[j] += 2.0 * p_.r_steer * (prev - ff);
@@ -314,6 +304,17 @@ MpcResult LateralMpc::control(const VehicleState& plant, double prev) {
     }
     for (int i = 0; i < nc; ++i)
         hessian_[i][i] += 2.0 * p_.r_delta + 1e-9;
+    // Penalize sudden changes in steering rate, starting from the last applied move.
+    const double rate_change = 2.0 * p_.r_delta_change;
+    gradient[0] -= rate_change * previous_increment;
+    hessian_[0][0] += rate_change;
+    for (int i = 1; i < nc; ++i) {
+        hessian_[i][i] += rate_change;
+        hessian_[i - 1][i - 1] += rate_change;
+        hessian_[i][i - 1] -= rate_change;
+        hessian_[i - 1][i] -= rate_change;
+    }
+    if (nc < np) hessian_[nc - 1][nc - 1] += rate_change;
     auto lhs = hessian_;
     // G=[lower-triangular prefix sums; identity].
     for (int j = 0; j < nc; ++j)
@@ -326,8 +327,7 @@ MpcResult LateralMpc::control(const VehicleState& plant, double prev) {
     std::vector<double> u = nominal_increments_;
     auto z = constraintProduct(u);
     std::vector<double> dual(2 * nc, 0.0);
-
-	// ADMM iterations
+    // ADMM iterations
     MpcResult status;
     for (int iteration = 0; iteration < p_.admm_max_iterations; ++iteration) {
         std::vector<double> z_minus_dual(2 * nc);
@@ -337,6 +337,9 @@ MpcResult LateralMpc::control(const VehicleState& plant, double prev) {
         for (int i = 0; i < nc; ++i)
             rhs[i] = -gradient[i] + p_.admm_rho * rhs_correction[i];
         u = solveCholesky(rhs);
+        for (double move : u)
+            if (!std::isfinite(move))
+                throw std::runtime_error("QP produced a nonfinite steering increment");
 
         auto au = constraintProduct(u);
         auto z_old = z;
@@ -371,15 +374,6 @@ MpcResult LateralMpc::control(const VehicleState& plant, double prev) {
         last_solution_[i] = last;
     }
     status.steer = last_solution_[0];
-    if (!status.converged) {
-        grip_mode_ = true;
-        has_solution_ = false;
-        auto fallback = gripLimitedControl(plant, prev);
-        fallback.iterations = status.iterations;
-        fallback.primal_residual = status.primal_residual;
-        fallback.dual_residual = status.dual_residual;
-        return fallback;
-    }
     has_solution_ = true;
     return status;
 }

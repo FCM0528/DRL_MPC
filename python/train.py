@@ -1,6 +1,8 @@
 """Train DDPG, TD3 or TQC against the existing C++ CarSim/MPC bridge."""
 import argparse
 import configparser
+import csv
+import hashlib
 import json
 import math
 import shutil
@@ -30,6 +32,27 @@ class TrainingEnv(CarSimMPCEnv):
         if log.is_file():
             log.unlink()
         return result
+
+
+class LateralValidationEnv(CarSimMPCEnv):
+    """Score completed validation runs by full-resolution lateral RMSE."""
+
+    def step(self, action):
+        obs, _, terminated, truncated, info = super().step(action)
+        score = 0.0
+        if terminated or truncated:
+            self.close()
+            trace = self.output_root / f"episode_{self._episode_id:06d}" / "bridge_trace.csv"
+            with trace.open(newline="", encoding="utf-8") as file:
+                rows = list(csv.DictReader(file))
+            if terminated and not info["failed"] and rows and all(
+                not int(row["qp_failed"]) for row in rows
+            ):
+                mse = sum(float(row["ey_m"]) ** 2 for row in rows) / len(rows)
+                score = -math.sqrt(mse)
+            else:
+                score = -math.inf
+        return obs, score, terminated, truncated, info
 
 
 def load_training_settings(path) -> dict:
@@ -147,6 +170,26 @@ def tqc_design(profile: str, drop: int, settings: dict) -> dict:
     )
 
 
+def controller_config_hashes(config: Path) -> dict[str, str]:
+    """Fingerprint the selected controller config, its bases, and data tables."""
+    pending = [config]
+    seen = set()
+    while pending:
+        path = pending.pop().resolve(strict=True)
+        if path in seen:
+            continue
+        seen.add(path)
+        parser = configparser.ConfigParser(interpolation=None)
+        with path.open(encoding="utf-8-sig") as file:
+            parser.read_file(file)
+        base = parser.get("inherit", "base", fallback=None)
+        if base:
+            pending.append(path.parent / base)
+    seen.update(config.parent.glob("*.csv"))
+    return {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(seen)}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--algorithm", choices=("ddpg", "td3", "tqc"), required=True)
@@ -159,6 +202,8 @@ def main():
                    help="Number of completed training episodes in this run")
     p.add_argument("--seed", type=int)
     p.add_argument("--eval-frequency", type=int)
+    p.add_argument("--select-lateral-rmse", action="store_true",
+                   help="Select the best completed validation model by lateral RMSE")
     p.add_argument("--out", default="runs/python_rl")
     p.add_argument("--resume", help="Continue a Python SB3 model of the same algorithm")
     p.add_argument("--parity-blocks", type=int, default=10)
@@ -192,7 +237,9 @@ def main():
         if file.is_file() and file.suffix.lower() in (".ini", ".csv"):
             shutil.copy2(file, config_snapshot / file.name)
     frozen_config = config_snapshot / source_config.name
+    config_hashes = controller_config_hashes(frozen_config)
     manifest = {**vars(args), "training_settings": settings, "scenario": scenario,
+                "controller_config_sha256": config_hashes,
                 "bridge": str(Path(args.bridge).resolve()),
                 "config": str(source_config), "frozen_config": str(frozen_config),
                 "simfile": str(Path(args.simfile).resolve()),
@@ -200,7 +247,7 @@ def main():
     manifest["algorithm_design"] = (tqc_design(args.tqc_profile, args.tqc_drop, settings)
                                     if args.algorithm == "tqc" else
                                     deterministic_design(args.algorithm, settings))
-    manifest["reward_scheme"] = "negative_log1p_v3"
+    manifest["tire_model"] = "carsim_tire_carpet_from_zero_v2"
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     shutil.copy2(source_config, root / "source_config.ini")
     shutil.copy2(args.train_config, root / "source_training.ini")
@@ -209,10 +256,12 @@ def main():
     parity = check_neutral_parity(args.bridge, args.controller, args.config,
                                   args.simfile, root / "neutral_parity", args.parity_blocks)
     manifest["neutral_parity"] = parity
+    manifest["reward_scheme"] = parity["reward_scheme"]
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     train_env = Monitor(TrainingEnv(args.bridge, args.config, args.simfile, root / "solver_train"),
                         filename=str(root / "train_monitor.csv"))
-    validation = Monitor(CarSimMPCEnv(args.bridge, args.config, args.simfile, root / "solver_validation"))
+    validation_env = LateralValidationEnv if args.select_lateral_rmse else CarSimMPCEnv
+    validation = Monitor(validation_env(args.bridge, args.config, args.simfile, root / "solver_validation"))
     cls = {"ddpg": ConfiguredDDPG, "td3": ConfiguredTD3,
            "tqc": ConfiguredTQC}[args.algorithm]
     try:
@@ -223,9 +272,15 @@ def main():
             if previous_manifest is None:
                 raise ValueError("Resume requires a run manifest with the current reward scheme")
             previous = json.loads(previous_manifest.read_text(encoding="utf-8"))
-            if previous.get("reward_scheme") != manifest["reward_scheme"] or \
-               previous.get("algorithm_design") != manifest["algorithm_design"]:
-                raise ValueError("Resumed model design or reward differs; start a fresh run")
+            if (previous.get("reward_scheme") != manifest["reward_scheme"] or
+                previous.get("tire_model") != manifest["tire_model"] or
+                previous.get("algorithm_design") != manifest["algorithm_design"] or
+                not isinstance(previous.get("controller_config_sha256"), dict) or
+                any(previous["controller_config_sha256"].get(name) != digest
+                    for name, digest in config_hashes.items()) or
+                previous.get("scenario", {}).get("parsfile_sha256") != scenario["parsfile_sha256"] or
+                previous.get("scenario", {}).get("simfile_sha256") != scenario["simfile_sha256"]):
+                raise ValueError("Resumed model design, controller config or scenario differs; start a fresh run")
             model = cls.load(args.resume, env=train_env, tensorboard_log=str(root / "tensorboard"))
             if abs(model.gamma - parity["gamma_per_decision"]) > 1e-12:
                 raise ValueError("Resumed model gamma differs from C++ decision discount")
@@ -260,12 +315,13 @@ def main():
     if best_model.is_file():
         evaluate_models(args.algorithm, [best_model], args.bridge, args.config,
                         args.simfile, [args.seed], root / "best_evaluation", root)
+    selection_label = "验证横向 RMSE 最小模型" if args.select_lateral_rmse else "验证回报最高模型"
     (root / "文件说明.txt").write_text(
         f"训练：{args.algorithm.upper()}，目标 {args.episodes} 回合，种子 {args.seed}\n"
         f"CarSim 目标车速：{scenario['target_speed_kmh'] if scenario['target_speed_kmh'] is not None else '非单一恒定值'} km/h（实际车速见报告）\n"
         f"工况参数：{scenario['parsfile']}\nSHA-256：{scenario['parsfile_sha256']}\n"
         f"{run_name}_final_model.zip：最终模型\n"
-        f"{run_name}_best_validation_model.zip：验证回报最高模型（有验证时）\n"
+        f"{run_name}_best_validation_model.zip：{selection_label}（有合格验证时）\n"
         "final_model.zip、best/best_model.zip：兼容原有命令的模型文件\n"
         "train_monitor.csv：每回合回报与长度；validation/evaluations.npz：验证数据\n"
         "evaluation/training_and_control_report.html：训练与控制对照汇总\n"
