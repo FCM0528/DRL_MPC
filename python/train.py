@@ -16,9 +16,12 @@ from stable_baselines3.common.noise import NormalActionNoise
 from algorithms import ConfiguredDDPG, ConfiguredTD3, ConfiguredTQC
 
 from envs.carsim_mpc_env import CarSimMPCEnv
-from evaluate import evaluate_models
+from evaluate import DEFAULT_FIXED_CONFIG, evaluate_models, fixed_episode, require_same_distance
 from parity import check_neutral_parity
+from report import control_trace
 from scenario import read_scenario, resolve_simfile, snapshot_scenario
+
+REJECTED_LATERAL_SCORE = -1.0e6
 
 
 class TrainingEnv(CarSimMPCEnv):
@@ -34,13 +37,35 @@ class TrainingEnv(CarSimMPCEnv):
         return result
 
 
+def lateral_validation_metrics(trace, key_segment):
+    data = control_trace(trace)
+    absolute = np.abs(data["ey_m"])
+    metrics = {"rmse": float(np.sqrt(np.mean(absolute**2))), "peak": float(absolute.max())}
+    if key_segment is not None:
+        start, end = key_segment
+        x = data["x_m"]
+        key = absolute[(x >= start) & (x < end)]
+        tail = absolute[x >= end]
+        if not key.size or not tail.size:
+            raise ValueError("The key segment and its recovery section must both contain samples")
+        metrics.update(key_rmse=float(np.sqrt(np.mean(key**2))), tail_peak=float(tail.max()))
+    return metrics
+
+
 class LateralValidationEnv(CarSimMPCEnv):
-    """Score completed validation runs by full-resolution lateral RMSE."""
+    """Score complete runs with optional fixed-controller limits on absolute error."""
+
+    def __init__(self, *args, key_segment=None, baseline=None):
+        super().__init__(*args)
+        self.key_segment = key_segment
+        self.baseline = baseline
 
     def step(self, action):
         obs, _, terminated, truncated, info = super().step(action)
         score = 0.0
         if terminated or truncated:
+            score = REJECTED_LATERAL_SCORE
+            metrics = {}
             self.close()
             trace = self.output_root / f"episode_{self._episode_id:06d}" / "bridge_trace.csv"
             with trace.open(newline="", encoding="utf-8") as file:
@@ -48,10 +73,23 @@ class LateralValidationEnv(CarSimMPCEnv):
             if terminated and not info["failed"] and rows and all(
                 not int(row["qp_failed"]) for row in rows
             ):
-                mse = sum(float(row["ey_m"]) ** 2 for row in rows) / len(rows)
-                score = -math.sqrt(mse)
-            else:
-                score = -math.inf
+                metrics = lateral_validation_metrics(trace, self.key_segment)
+                score = -metrics.get("key_rmse", metrics["rmse"])
+                if self.baseline is not None and (
+                    metrics["rmse"] >= self.baseline["rmse"] or
+                    metrics["peak"] >= self.baseline["peak"] or
+                    metrics.get("tail_peak", 0) > self.baseline.get("tail_peak", 0)
+                ):
+                    score = REJECTED_LATERAL_SCORE
+            path = self.output_root / "lateral_validation.csv"
+            new_file = not path.exists()
+            with path.open("a", newline="", encoding="utf-8") as file:
+                writer = csv.DictWriter(file, fieldnames=[
+                    "episode", "eligible", "rmse", "peak", "key_rmse", "tail_peak"])
+                if new_file:
+                    writer.writeheader()
+                writer.writerow({"episode": self._episode_id,
+                                 "eligible": score > REJECTED_LATERAL_SCORE, **metrics})
         return obs, score, terminated, truncated, info
 
 
@@ -204,6 +242,13 @@ def main():
     p.add_argument("--eval-frequency", type=int)
     p.add_argument("--select-lateral-rmse", action="store_true",
                    help="Select the best completed validation model by lateral RMSE")
+    p.add_argument("--lateral-key-segment", nargs=2, type=float, metavar=("START_M", "END_M"),
+                   help="Rank by lateral RMSE on this station interval")
+    p.add_argument("--require-lateral-improvement", action="store_true",
+                   help="Require lower whole-run RMSE and peak absolute error than fixed MPC, "
+                        "and cap the recovery peak when a key segment is specified")
+    p.add_argument("--fixed-config", type=Path,
+                   help="Fixed MPC baseline for comparison and validation limits")
     p.add_argument("--out", default="runs/python_rl")
     p.add_argument("--resume", help="Continue a Python SB3 model of the same algorithm")
     p.add_argument("--parity-blocks", type=int, default=10)
@@ -223,6 +268,13 @@ def main():
         p.error("--episodes, --eval-frequency and --parity-blocks must be positive")
     if not 0 <= args.tqc_drop < settings["tqc_n_quantiles"]:
         p.error("--tqc-drop must be below tqc.n_quantiles")
+    if args.lateral_key_segment is not None:
+        start, end = args.lateral_key_segment
+        if not (0 <= start < end and math.isfinite(end)):
+            p.error("--lateral-key-segment requires finite positions with 0 <= start < end")
+    args.select_lateral_rmse |= args.lateral_key_segment is not None or args.require_lateral_improvement
+    if args.fixed_config is not None:
+        args.fixed_config = str(args.fixed_config.resolve(strict=True))
     args.simfile = str(resolve_simfile(args.config, args.simfile))
     scenario = read_scenario(args.simfile)
     run_name = (f"{args.algorithm}_{scenario['speed_token']}_{args.episodes}episodes_"
@@ -237,11 +289,23 @@ def main():
         if file.is_file() and file.suffix.lower() in (".ini", ".csv"):
             shutil.copy2(file, config_snapshot / file.name)
     frozen_config = config_snapshot / source_config.name
+    fixed_config = config_snapshot / DEFAULT_FIXED_CONFIG.name
+    if not fixed_config.is_file():
+        shutil.copy2(DEFAULT_FIXED_CONFIG, fixed_config)
+    if args.fixed_config is not None:
+        fixed_source = Path(args.fixed_config)
+        fixed_snapshot = root / "fixed_source_configs"
+        fixed_snapshot.mkdir()
+        for file in fixed_source.parent.iterdir():
+            if file.is_file() and file.suffix.lower() in (".ini", ".csv"):
+                shutil.copy2(file, fixed_snapshot / file.name)
+        fixed_config = fixed_snapshot / fixed_source.name
     config_hashes = controller_config_hashes(frozen_config)
     manifest = {**vars(args), "training_settings": settings, "scenario": scenario,
                 "controller_config_sha256": config_hashes,
                 "bridge": str(Path(args.bridge).resolve()),
                 "config": str(source_config), "frozen_config": str(frozen_config),
+                "fixed_config": str(fixed_config),
                 "simfile": str(Path(args.simfile).resolve()),
                 "snapshot_simfile": str(frozen_simfile)}
     manifest["algorithm_design"] = (tqc_design(args.tqc_profile, args.tqc_drop, settings)
@@ -257,14 +321,26 @@ def main():
                                   args.simfile, root / "neutral_parity", args.parity_blocks)
     manifest["neutral_parity"] = parity
     manifest["reward_scheme"] = parity["reward_scheme"]
+    baseline_limits = None
+    if args.require_lateral_improvement:
+        baseline = fixed_episode(args.controller, args.simfile, root / "validation_fixed", fixed_config)
+        parity_trace, = (root / "neutral_parity" / "fixed").glob("*/simulation.csv")
+        require_same_distance(parity_trace, baseline["trace"])
+        if baseline["qp_failures"] != 0:
+            raise ValueError("The fixed validation baseline must complete with zero QP failures")
+        baseline_limits = lateral_validation_metrics(baseline["trace"], args.lateral_key_segment)
+        manifest["lateral_validation_baseline"] = baseline_limits
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     train_env = Monitor(TrainingEnv(args.bridge, args.config, args.simfile, root / "solver_train"),
                         filename=str(root / "train_monitor.csv"))
-    validation_env = LateralValidationEnv if args.select_lateral_rmse else CarSimMPCEnv
-    validation = Monitor(validation_env(args.bridge, args.config, args.simfile, root / "solver_validation"))
+    validation_args = (args.bridge, args.config, args.simfile, root / "solver_validation")
+    validation = Monitor(LateralValidationEnv(*validation_args, key_segment=args.lateral_key_segment,
+                         baseline=baseline_limits) if args.select_lateral_rmse else CarSimMPCEnv(*validation_args))
     cls = {"ddpg": ConfiguredDDPG, "td3": ConfiguredTD3,
            "tqc": ConfiguredTQC}[args.algorithm]
     try:
+        manifest["observation_profile"] = train_env.unwrapped.observation_profile
+        manifest["observation_dim"] = train_env.observation_space.shape[0]
         if args.resume:
             model_path = Path(args.resume).resolve()
             previous_manifest = next((parent / "manifest.json" for parent in model_path.parents
@@ -293,12 +369,15 @@ def main():
             model = cls("MlpPolicy", train_env, **kwargs)
         manifest["training_start_timesteps"] = int(model.num_timesteps) if args.resume else 0
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        validation_callback = EvalCallback(validation, best_model_save_path=str(root / "best"),
+                                           log_path=str(root / "validation"),
+                                           eval_freq=args.eval_frequency, n_eval_episodes=1,
+                                           deterministic=True)
+        if args.select_lateral_rmse:
+            validation_callback.best_mean_reward = REJECTED_LATERAL_SCORE
         callbacks = [CheckpointCallback(save_freq=args.eval_frequency,
                                         save_path=str(root / "checkpoints")),
-                     EvalCallback(validation, best_model_save_path=str(root / "best"),
-                                  log_path=str(root / "validation"),
-                                  eval_freq=args.eval_frequency, n_eval_episodes=1,
-                                  deterministic=True),
+                     validation_callback,
                      StopTrainingOnMaxEpisodes(max_episodes=args.episodes, verbose=1)]
         model.learn(total_timesteps=2_147_483_647, callback=callbacks,
                     reset_num_timesteps=not bool(args.resume))
@@ -311,11 +390,14 @@ def main():
         train_env.close()
         validation.close()
     evaluate_models(args.algorithm, [root / "final_model.zip"], args.bridge, args.config,
-                    args.simfile, [args.seed], root / "evaluation", root)
+                    args.simfile, [args.seed], root / "evaluation", root, args.controller,
+                    fixed_config)
     if best_model.is_file():
         evaluate_models(args.algorithm, [best_model], args.bridge, args.config,
-                        args.simfile, [args.seed], root / "best_evaluation", root)
-    selection_label = "验证横向 RMSE 最小模型" if args.select_lateral_rmse else "验证回报最高模型"
+                        args.simfile, [args.seed], root / "best_evaluation", root, args.controller,
+                        fixed_config)
+    selection_label = ("验证关键段横向 RMSE 最小模型" if args.lateral_key_segment is not None else
+                       "验证横向 RMSE 最小模型" if args.select_lateral_rmse else "验证回报最高模型")
     (root / "文件说明.txt").write_text(
         f"训练：{args.algorithm.upper()}，目标 {args.episodes} 回合，种子 {args.seed}\n"
         f"CarSim 目标车速：{scenario['target_speed_kmh'] if scenario['target_speed_kmh'] is not None else '非单一恒定值'} km/h（实际车速见报告）\n"
@@ -325,8 +407,8 @@ def main():
         "final_model.zip、best/best_model.zip：兼容原有命令的模型文件\n"
         "train_monitor.csv：每回合回报与长度；validation/evaluations.npz：验证数据\n"
         "evaluation/training_and_control_report.html：训练与控制对照汇总\n"
-        "best_evaluation/training_and_control_report.html：验证最佳模型与中性 MPC 对照（有验证时）\n"
-        "evaluation/seed_*_*/episode_000001/report.html：C++ 完整控制图与指标\n"
+        "best_evaluation/training_and_control_report.html：验证最佳模型与固定 MPC 对照（有验证时）\n"
+        "evaluation/seed_*/ 下的 report.html：C++ 完整控制图与指标\n"
         "checkpoints/：按决策步数保存的中间检查点；tensorboard/：训练日志\n",
         encoding="utf-8")
     print(f"训练与控制汇总报告: {root / 'evaluation' / 'training_and_control_report.html'}")

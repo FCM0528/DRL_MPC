@@ -3,11 +3,12 @@
 #include "vehicle.h"
 #include "reference.h"
 #include <array>
+#include <functional>
 #include <string>
 #include <vector>
 
 // The policy sees normalized, observable vehicle/path quantities only.
-using RlObservation = std::array<double, 17>;
+using RoadPreviewObservation = std::vector<double>;
 
 struct RlRewardConfig {
     bool tracking_v2 = false;
@@ -18,6 +19,8 @@ struct RlRewardConfig {
     double w_y = 1.0;
     double w_peak = 0.20;
     double peak_threshold_m = 0.30;
+    double w_lateral_growth = 0.0;
+    double lateral_growth_preview_s = 0.25;
     double w_psi = 0.17;
     double w_steer = 0.03;
     double w_steer_rate = 0.08;
@@ -41,6 +44,7 @@ struct RlConfig {
     int min_np = 10;
     int max_np = 40;
     int nominal_np = 15; // independent center for the learned Np action
+    bool align_neutral_to_mpc = false;
     int np_step = 1;
     int max_np_change_per_decision = 0; // 0 disables the applied-horizon slew limit
     bool smooth_tuning = false;
@@ -61,10 +65,10 @@ struct RlConfig {
         return weight_choices[k].empty() ? weight_max[k] : weight_choices[k].back();
     }
     double curvature_preview_s = 1.5;
-    bool augmented_observation = false; // compact policy additionally sees steering and protection state
+    double road_preview_min_m = 0.0;
+    double road_preview_max_m = 0.0; // zero means unbounded
+    std::string observation_profile = "road_preview_v2";
     bool penalize_qp_failure = false; // penalize failed optimization even if grip control takes over
-    double train_mu_min = 0.3;
-    double train_mu_max = 0.9;
     RlRewardConfig reward;
 };
 
@@ -83,15 +87,13 @@ MpcTuningAction neutralRlAction(const RlConfig& config);
 MpcTuningAction advanceRlTuning(const std::array<double, 4>& action,
                                const MpcTuningAction& previous,
                                const RlConfig& config);
-RlObservation makeRlObservation(const VehicleState& state,
-                                const DoubleLaneChange& reference,
-                                int current_np, double distance_m,
-                                double speed_scale, const RlConfig& config,
-                                const MpcTuningAction& current_action = {},
-                                double road_grip = 0.8,
-                                double previous_steer = 0.0,
-                                double previous_plan = 0.0,
-                                double steer_scale = 0.42);
+double roadPreviewDuration(const RlConfig& config, double mpc_dt);
+double roadPreviewDistance(const RlConfig& config, double mpc_dt, double x_speed);
+RoadPreviewObservation makeRoadPreviewObservation(
+    const VehicleState& state, const DoubleLaneChange& reference,
+    const std::function<double(double)>& grip_at_x, double distance_m,
+    const MpcParameters& mpc, const RlConfig& config, int current_np,
+    double previous_steer);
 MpcParameters applyRlAction(const MpcParameters& base, const MpcTuningAction& action,
                             const RlConfig& config);
 double scalarizedRlReward(double ey, double epsi, double steer, int np,
@@ -99,6 +101,8 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           double previous_steer = 0.0, int previous_np = -1,
                           const MpcTuningAction& action = {},
                           const MpcTuningAction& previous_action = {},
-                          double vy = 0.0, double yaw_error = 0.0, double sideslip = 0.0);
+                          double vy = 0.0, double yaw_error = 0.0, double sideslip = 0.0,
+                          double ey_dot = 0.0);
+double lateralErrorRate(const VehicleState& state, const ReferencePoint& reference);
 double rlDecisionReward(double step_reward_sum, int steps, int qp_failures,
                         bool failed, bool incomplete, const RlConfig& config);

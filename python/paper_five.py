@@ -1,4 +1,4 @@
-"""Five TQC ablations followed by an independent 1000-episode run."""
+"""Five TQC ablations followed by an independent repeat of the winner."""
 import configparser
 import csv
 import json
@@ -34,18 +34,18 @@ def main():
     ]
     suite = {'status': 'training', 'scenario': read_scenario(case), 'groups': [],
              'selection': 'highest validation return among completed runs with zero QP failures',
-             'note': '1000-episode run is independent from scratch using the winning configuration'}
+             'note': 'The repeat starts from scratch using the winning configuration'}
     def save():
         (root / 'suite_manifest.json').write_text(json.dumps(suite, indent=2, ensure_ascii=False), encoding='utf-8')
-    def run(name, training_config, episodes):
+    def run(name, training_config):
         output = root / name
         output.mkdir()
         command = [sys.executable, '-u', str(project / 'python/train.py'), '--algorithm', 'tqc',
-                   '--episodes', str(episodes), '--seed', '42', '--config', str(control),
+                   '--seed', '42', '--config', str(control),
                    '--train-config', str(training_config), '--simfile', str(case), '--out', str(output)]
         environment = os.environ.copy()
         environment['PYTHONIOENCODING'] = 'utf-8'
-        print(f'{name}: {episodes} episodes; log {output / "training.log"}', flush=True)
+        print(f'{name}: {output / "training.log"}', flush=True)
         with (output / 'training.log').open('w', encoding='utf-8') as log:
             subprocess.run(command, cwd=project, env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
         runs = [x for x in output.iterdir() if x.is_dir() and (x / 'best_evaluation/metrics.csv').is_file()]
@@ -65,7 +65,7 @@ def main():
             training = root / f'{name}.ini'
             with training.open('w', encoding='utf-8') as f:
                 parser.write(f)
-            path, metrics = run(name, training, 500)
+            path, metrics = run(name, training)
             suite['groups'].append({'name': name, 'changes': changes, 'training_config': str(training),
                                     'run': str(path), 'metrics': metrics})
             save()
@@ -76,10 +76,10 @@ def main():
             raise RuntimeError('No group meets the fixed safety selection criteria')
         winner = max(eligible, key=lambda g: float(g['metrics']['return_']))
         suite['winner'] = winner['name']
-        suite['status'] = 'training_1000'
+        suite['status'] = 'training_repeat'
         save()
-        path, metrics = run('winner_1000', Path(winner['training_config']), 1000)
-        suite['winner_1000'] = {'run': str(path), 'metrics': metrics}
+        path, metrics = run('winner_repeat', Path(winner['training_config']))
+        suite['winner_repeat'] = {'run': str(path), 'metrics': metrics}
         suite['status'] = 'complete'
         save()
         print(f'Complete: {root}', flush=True)

@@ -118,6 +118,8 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10)
     loss = "squared_lateral" if squared_lateral else "negative_log1p"
     version = "tracking_v2_" + loss if tracking_v2 else (
         "squared_lateral_v1" if squared_lateral else "negative_log1p_v3")
+    if effective.getfloat("rl_reward", "w_lateral_growth", fallback=0.0) > 0:
+        version += "_lateral_growth"
     summary = {"passed": True, "control_steps": len(bridge_rows),
                "decision_steps": params["decision_steps"],
                "decision_duration_s": params["dt"] * params["decision_steps"],

@@ -78,9 +78,7 @@ def read_scenario(simfile):
             "parsfile_sha256": hashlib.sha256(payload).hexdigest()}
 
 
-def resolve_simfile(config, simfile=None):
-    if simfile:
-        return Path(simfile).resolve()
+def resolve_config_value(config, section, key, default=None):
     config = Path(config).resolve()
     active = set()
     def read_file(path):
@@ -92,11 +90,18 @@ def resolve_simfile(config, simfile=None):
         with path.open(encoding="utf-8-sig") as file:
             parser.read_file(file)
         inherited = parser.get("inherit", "base", fallback=None)
-        value = read_file(path.parent / inherited) if inherited else None
-        value = parser.get("carsim", "simfile", fallback=value)
+        value = read_file(path.parent / inherited) if inherited else default
+        value = parser.get(section, key, fallback=value)
         active.remove(path)
         return value
-    value = read_file(config)
+    return read_file(config)
+
+
+def resolve_simfile(config, simfile=None):
+    if simfile:
+        return Path(simfile).resolve()
+    config = Path(config).resolve()
+    value = resolve_config_value(config, "carsim", "simfile")
     if not value:
         raise ValueError("No carsim.simfile in config; pass --simfile")
     path = Path(value)

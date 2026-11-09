@@ -284,10 +284,13 @@ SimulationMetrics exportResults(
     const RunOutcome& outcome) {
     if (rows.empty()) throw std::invalid_argument("Simulation yielded no samples");
     std::filesystem::create_directories(output);
+    // The first row is the initial state. The bridge trace records post-step states.
+    const auto first_state = rows.begin() + (rows.size() > 1 ? 1 : 0);
+    const auto state_samples = static_cast<std::size_t>(rows.end() - first_state);
     SimulationMetrics metrics;
-    metrics.min_speed_mps = rows.front().s.vx;
-    metrics.max_speed_mps = rows.front().s.vx;
-    metrics.min_ground_speed_mps = std::hypot(rows.front().s.vx, rows.front().s.vy);
+    metrics.min_speed_mps = first_state->s.vx;
+    metrics.max_speed_mps = first_state->s.vx;
+    metrics.min_ground_speed_mps = std::hypot(first_state->s.vx, first_state->s.vy);
     metrics.max_ground_speed_mps = metrics.min_ground_speed_mps;
     double sum_abs_y = 0.0, sum_y2 = 0.0, sum_heading2 = 0.0, sum_iters = 0.0;
     double sum_abs_yaw_rate = 0.0, sum_abs_front_wheel = 0.0;
@@ -302,15 +305,8 @@ SimulationMetrics exportResults(
     };
     auto min_weights = applied_weights(rows.front());
     auto max_weights = min_weights;
-    double prev_delta = 0.0;
-    for (const auto& p : rows) {
-        min_np = std::min(min_np, p.prediction_horizon);
-        max_np = std::max(max_np, p.prediction_horizon);
-        const auto current_weights = applied_weights(p);
-        for (std::size_t k = 0; k < 6; ++k) {
-            min_weights[k] = std::min(min_weights[k], current_weights[k]);
-            max_weights[k] = std::max(max_weights[k], current_weights[k]);
-        }
+    for (auto it = first_state; it != rows.end(); ++it) {
+        const auto& p = *it;
         metrics.min_speed_mps = std::min(metrics.min_speed_mps, p.s.vx);
         metrics.max_speed_mps = std::max(metrics.max_speed_mps, p.s.vx);
         const double ground_speed = std::hypot(p.s.vx, p.s.vy);
@@ -332,6 +328,16 @@ SimulationMetrics exportResults(
             metrics.max_abs_front_wheel_deg = std::max({metrics.max_abs_front_wheel_deg, left, right});
             ++front_wheel_samples;
         }
+    }
+    double prev_delta = 0.0;
+    for (const auto& p : rows) {
+        min_np = std::min(min_np, p.prediction_horizon);
+        max_np = std::max(max_np, p.prediction_horizon);
+        const auto current_weights = applied_weights(p);
+        for (std::size_t k = 0; k < min_weights.size(); ++k) {
+            min_weights[k] = std::min(min_weights[k], current_weights[k]);
+            max_weights[k] = std::max(max_weights[k], current_weights[k]);
+        }
         metrics.max_abs_steering_deg = std::max(metrics.max_abs_steering_deg,
                                                 std::abs(p.steer * rad2deg));
         metrics.max_steering_rate_deg_s = std::max(metrics.max_steering_rate_deg_s,
@@ -350,11 +356,11 @@ SimulationMetrics exportResults(
         }
         prev_delta = p.steer;
     }
-    metrics.mae_y = sum_abs_y / rows.size();
-    metrics.rmse_y = std::sqrt(sum_y2 / rows.size());
-    metrics.rmse_heading_deg = rad2deg * std::sqrt(sum_heading2 / rows.size());
-    metrics.mean_abs_yaw_rate_deg_s = sum_abs_yaw_rate / rows.size();
-    metrics.has_front_wheel_angles = front_wheel_samples == rows.size();
+    metrics.mae_y = sum_abs_y / state_samples;
+    metrics.rmse_y = std::sqrt(sum_y2 / state_samples);
+    metrics.rmse_heading_deg = rad2deg * std::sqrt(sum_heading2 / state_samples);
+    metrics.mean_abs_yaw_rate_deg_s = sum_abs_yaw_rate / state_samples;
+    metrics.has_front_wheel_angles = front_wheel_samples == state_samples;
     if (metrics.has_front_wheel_angles)
         metrics.mean_abs_front_wheel_deg = sum_abs_front_wheel / (2.0 * front_wheel_samples);
     if (solver_samples > 0) {
@@ -479,6 +485,7 @@ SimulationMetrics exportResults(
             << "C++ experiment label: " << experiment_name << '\n'
             << "Reference source: " << outcome.reference_source << '\n'
             << (outcome.adaptive ? "Controller mode: Python RL adaptive Np and Q/R\n"
+                : outcome.scheduled_horizon ? "Controller mode: curvature/grip scheduled Np and fixed Q/R\n"
                                  : "Controller mode: fixed prediction horizon and Q/R weights\n")
             << "Run status: " << (outcome.completed ? "completed" : "incomplete") << '\n'
             << "Requested distance (m): " << fmt(outcome.requested_distance_m, 3) << '\n'
@@ -569,6 +576,7 @@ SimulationMetrics exportResults(
             << "; start/end (km/h): " << fmt(mp.speed_rate_start * 3.6) << " / " << fmt(mp.speed_rate_end * 3.6)
             << "; end limit (deg/s): " << fmt(mp.speed_rate_end_limit * rad2deg) << '\n'
             << "Simulation samples: " << rows.size() << '\n'
+            << "Samples used for state statistics: " << state_samples << '\n'
             << "Distance reached (m): " << fmt(rows.back().s.x, 3) << '\n'
             << "Reference parameters: CarSim LTARG_TABLE in staged Run_all.par\n"
             << "MPC angle objective: " << (mp.track_course ? "CG course angle" : "body yaw angle") << '\n'
@@ -622,6 +630,7 @@ SimulationMetrics exportResults(
             << "</style></head><body><header><h1>"
             << "CarSim 车辆动力学"
             << (outcome.adaptive ? " · Python 强化学习自适应 MPC 双移线轨迹跟踪</h1>"
+                : outcome.scheduled_horizon ? " · 曲率与附着调度 Np 的双移线轨迹跟踪</h1>"
                                  : " · 中性 MPC 双移线轨迹跟踪</h1>")
             << "<p>C++ 实验标签：" << xmlEscape(experiment_name)
             << " · 参考轨迹：" << xmlEscape(outcome.reference_source)
@@ -701,7 +710,9 @@ SimulationMetrics exportResults(
             out << "<p>曲率图显示转向前馈所用的空间估计。CarSim 原始参考曲率和前馈曲率均保存在 simulation.csv。"
                    "横向误差沿用原生参考位置。</p>"
                    "<p><a href=\"06_native_reference_curvature.svg\">查看 CarSim 原生几何曲率</a></p>";
-        out << "<div class=\"stats\">"
+        out << "<p>车辆状态与跟踪误差按 " << state_samples
+            << (rows.size() > 1 ? " 个控制后样本统计。</p>" : " 个初始样本统计。</p>")
+            << "<div class=\"stats\">"
             << "<div class=\"stat\"><small>最大横向误差绝对值</small><strong>"
             << fmt(metrics.max_abs_y, 4) << " m</strong></div>"
             << "<div class=\"stat\"><small>横向误差平均绝对值</small><strong>"

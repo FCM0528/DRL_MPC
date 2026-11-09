@@ -134,6 +134,10 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "tire.road_grip_scale") c.vehicle.road_grip_scale = readDouble(value, key);
 
     else if (key == "mpc.np") c.mpc.np = readInt(value, key);
+    else if (key == "horizon_schedule.short_np") c.horizon_schedule.short_np = readInt(value, key);
+    else if (key == "horizon_schedule.lookahead_s") c.horizon_schedule.lookahead_s = readDouble(value, key);
+    else if (key == "horizon_schedule.enter_ratio") c.horizon_schedule.enter_ratio = readDouble(value, key);
+    else if (key == "horizon_schedule.exit_ratio") c.horizon_schedule.exit_ratio = readDouble(value, key);
     else if (key == "mpc.nc") c.mpc.nc = readInt(value, key);
     else if (key == "mpc.dt_s") c.mpc.dt = readDouble(value, key);
     else if (key == "mpc.reference_curvature_sigma_m") c.mpc.reference_curvature_sigma_m = readDouble(value, key);
@@ -156,6 +160,7 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "weights.q_psi") c.mpc.q_psi = readDouble(value, key);
     else if (key == "weights.q_vy") c.mpc.q_vy = readDouble(value, key);
     else if (key == "weights.q_r") c.mpc.q_r = readDouble(value, key);
+    else if (key == "weights.q_tire_slip") c.mpc.q_tire_slip = readDouble(value, key);
     else if (key == "weights.r_steer") c.mpc.r_steer = readDouble(value, key);
     else if (key == "weights.track_course") c.mpc.track_course = readBool(value, key);
     else if (key == "weights.steer_feedforward") c.mpc.steer_feedforward = readBool(value, key);
@@ -181,6 +186,7 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "rl.min_np") c.rl.min_np = readInt(value, key);
     else if (key == "rl.max_np") c.rl.max_np = readInt(value, key);
     else if (key == "rl.nominal_np") c.rl.nominal_np = readInt(value, key);
+    else if (key == "rl.align_neutral_to_mpc") c.rl.align_neutral_to_mpc = readBool(value, key);
     else if (key == "rl.np_step") c.rl.np_step = readInt(value, key);
     else if (key == "rl.max_np_change_per_decision") c.rl.max_np_change_per_decision = readInt(value, key);
     else if (key == "rl.smooth_tuning") c.rl.smooth_tuning = readBool(value, key);
@@ -204,10 +210,16 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "rl.q_psi_values") c.rl.weight_choices[1] = readWeightChoices(value, key);
     else if (key == "rl.r_delta_values") c.rl.weight_choices[5] = readWeightChoices(value, key);
     else if (key == "rl.curvature_preview_s") c.rl.curvature_preview_s = readDouble(value, key);
-    else if (key == "rl.augmented_observation") c.rl.augmented_observation = readBool(value, key);
+    else if (key == "rl.road_preview_min_m") c.rl.road_preview_min_m = readDouble(value, key);
+    else if (key == "rl.road_preview_max_m") c.rl.road_preview_max_m = readDouble(value, key);
+    else if (key == "rl.observation_profile") c.rl.observation_profile = lower(value);
     else if (key == "rl.penalize_qp_failure") c.rl.penalize_qp_failure = readBool(value, key);
-    else if (key == "rl.train_mu_min") c.rl.train_mu_min = readDouble(value, key);
-    else if (key == "rl.train_mu_max") c.rl.train_mu_max = readDouble(value, key);
+    // Older effective configs wrote these fields even for road-preview policies.
+    else if (key == "rl.augmented_observation") {
+        if (readBool(value, key))
+            throw std::invalid_argument("rl.augmented_observation requires the retired legacy observation profile");
+    }
+    else if (key == "rl.train_mu_min" || key == "rl.train_mu_max") (void)readDouble(value, key);
     else if (key == "rl_reward.tracking_v2") c.rl.reward.tracking_v2 = readBool(value, key);
     else if (key == "rl_reward.reward_scale") c.rl.reward.reward_scale = readDouble(value, key);
     else if (key == "rl_reward.ey_scale_m") c.rl.reward.ey_scale_m = readDouble(value, key);
@@ -215,6 +227,9 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     else if (key == "rl_reward.w_y") c.rl.reward.w_y = readDouble(value, key);
     else if (key == "rl_reward.w_peak") c.rl.reward.w_peak = readDouble(value, key);
     else if (key == "rl_reward.peak_threshold_m") c.rl.reward.peak_threshold_m = readDouble(value, key);
+    else if (key == "rl_reward.w_lateral_growth") c.rl.reward.w_lateral_growth = readDouble(value, key);
+    else if (key == "rl_reward.lateral_growth_preview_s")
+        c.rl.reward.lateral_growth_preview_s = readDouble(value, key);
     else if (key == "rl_reward.w_psi") c.rl.reward.w_psi = readDouble(value, key);
     else if (key == "rl_reward.w_steer") c.rl.reward.w_steer = readDouble(value, key);
     else if (key == "rl_reward.w_steer_rate") c.rl.reward.w_steer_rate = readDouble(value, key);
@@ -292,6 +307,8 @@ AppConfig loadConfig(const std::filesystem::path& filename) {
     active_files.erase(file);
     };
     read_file(filename);
+    if (result.rl.align_neutral_to_mpc)
+        result.rl.nominal_np = result.mpc.np;
     if (!result.tire_data_file.empty() && result.tire_data_file.is_relative())
         result.tire_data_file = std::filesystem::absolute(filename).parent_path() /
                                 result.tire_data_file;
@@ -337,6 +354,15 @@ void validateConfig(const AppConfig& c) {
     const auto& p = c.mpc;
     if (p.np < 2 || p.np > 150 || p.nc < 1 || p.nc > p.np)
         throw std::invalid_argument("MPC horizons must satisfy 1 <= Nc <= Np <= 150 and Np >= 2");
+    const auto& schedule = c.horizon_schedule;
+    if (schedule.short_np != 0 &&
+        (schedule.short_np < std::max(2, p.nc) || schedule.short_np >= p.np))
+        throw std::invalid_argument("horizon_schedule.short_np must be zero or satisfy Nc <= short_np < mpc.np");
+    positive(schedule.lookahead_s, "horizon_schedule.lookahead_s");
+    positive(schedule.enter_ratio, "horizon_schedule.enter_ratio");
+    nonnegative(schedule.exit_ratio, "horizon_schedule.exit_ratio");
+    if (schedule.exit_ratio >= schedule.enter_ratio)
+        throw std::invalid_argument("horizon_schedule.exit_ratio must be below enter_ratio");
     positive(p.dt, "mpc.dt_s");
     nonnegative(p.front_relaxation_m, "mpc.front_relaxation_m");
     nonnegative(p.rear_relaxation_m, "mpc.rear_relaxation_m");
@@ -349,13 +375,16 @@ void validateConfig(const AppConfig& c) {
         throw std::invalid_argument("mpc.dt_s must be between 0.005 and 0.15");
     nonnegative(p.q_y, "q_y"); nonnegative(p.q_psi, "q_psi");
     nonnegative(p.q_vy, "q_vy"); nonnegative(p.q_r, "q_r");
+    nonnegative(p.q_tire_slip, "q_tire_slip");
+    if (p.q_tire_slip > 0.0 && !(p.front_relaxation_m > 0.0 && p.rear_relaxation_m > 0.0))
+        throw std::invalid_argument("weights.q_tire_slip requires front and rear tire relaxation");
     nonnegative(p.r_steer, "r_steer"); nonnegative(p.r_delta, "r_delta");
     nonnegative(p.r_delta_change, "r_delta_change");
     nonnegative(p.reference_curvature_sigma_m, "reference_curvature_sigma_m");
     positive(p.terminal_scale, "terminal_scale");
     if (!std::isfinite(p.stage_weight_lambda) || std::abs(p.stage_weight_lambda) > 5.0)
         throw std::invalid_argument("stage_weight_lambda must be finite and within [-5, 5]");
-    if (p.q_y+p.q_psi+p.q_vy+p.q_r+p.r_steer+p.r_delta+p.r_delta_change <= 0.0)
+    if (p.q_y+p.q_psi+p.q_vy+p.q_r+p.q_tire_slip+p.r_steer+p.r_delta+p.r_delta_change <= 0.0)
         throw std::invalid_argument("At least one MPC cost weight must be positive");
     if (!c.steer_limit_from_carsim) positive(p.max_steer, "max_steer_deg");
     if (p.speed_rate_enabled || p.max_steer_rate != std::numeric_limits<double>::infinity())
@@ -385,8 +414,8 @@ void validateConfig(const AppConfig& c) {
     }
     if (rl.action_profile != "full" && rl.action_profile != "compact" && rl.action_profile != "np_only")
         throw std::invalid_argument("rl.action_profile must be full, compact or np_only");
-    if (rl.augmented_observation && rl.action_profile != "compact")
-        throw std::invalid_argument("augmented observation requires compact action profile");
+    if (rl.observation_profile != "road_preview" && rl.observation_profile != "road_preview_v2")
+        throw std::invalid_argument("rl.observation_profile must be road_preview or road_preview_v2");
     if (rl.min_np < 2 ||
         rl.max_np > 150 || rl.max_np <= rl.min_np)
         throw std::invalid_argument("RL horizons require 2 <= min_np < max_np <= 150");
@@ -395,6 +424,14 @@ void validateConfig(const AppConfig& c) {
     if (rl.np_step < 1 || (rl.max_np - rl.min_np) % rl.np_step != 0 ||
         (rl.nominal_np - rl.min_np) % rl.np_step != 0)
         throw std::invalid_argument("RL nominal and maximum Np must align with min_np and np_step");
+    if (rl.align_neutral_to_mpc) {
+        const auto neutral = neutralRlAction(rl);
+        if (neutral.np != p.np || rl.min_np < p.nc ||
+            std::abs(neutral.q_y - p.q_y) > 1e-9 ||
+            std::abs(neutral.q_psi - p.q_psi) > 1e-9 ||
+            std::abs(neutral.r_delta - p.r_delta) > 1e-9)
+            throw std::invalid_argument("RL neutral Np and weight centers must match the base MPC; min_np must cover Nc");
+    }
     if (rl.max_np_change_per_decision < 0 || rl.max_np_change_per_decision > 150)
         throw std::invalid_argument("rl.max_np_change_per_decision must be 0..150");
     if (rl.max_np_change_per_decision > 0 && rl.max_np_change_per_decision < rl.np_step)
@@ -408,21 +445,23 @@ void validateConfig(const AppConfig& c) {
     positive(rl.grip_demand_clip, "rl.grip_demand_clip");
     if (rl.grip_demand_clip != 3.0 && rl.grip_demand_clip != 4.0)
         throw std::invalid_argument("rl.grip_demand_clip must be 3 or 4");
-    if (rl.grip_demand_clip != 3.0 && (rl.action_profile != "compact" || rl.augmented_observation))
-        throw std::invalid_argument("non-default grip demand observation requires non-augmented compact policy");
-    if (!std::isfinite(rl.train_mu_min) || !std::isfinite(rl.train_mu_max) ||
-        rl.train_mu_min < 0.1 || rl.train_mu_max > 1.5 ||
-        rl.train_mu_min > rl.train_mu_max)
-        throw std::invalid_argument("RL training road friction range must satisfy 0.1 <= min <= max <= 1.5");
+    if (rl.grip_demand_clip != 3.0 && rl.action_profile != "compact")
+        throw std::invalid_argument("non-default grip demand observation requires compact policy");
     positive(rl.curvature_preview_s, "rl.curvature_preview_s");
     if (rl.curvature_preview_s > 10.0)
         throw std::invalid_argument("rl.curvature_preview_s must be <= 10 s");
+    nonnegative(rl.road_preview_min_m, "rl.road_preview_min_m");
+    nonnegative(rl.road_preview_max_m, "rl.road_preview_max_m");
+    if (rl.road_preview_max_m > 0.0 && rl.road_preview_max_m < rl.road_preview_min_m)
+        throw std::invalid_argument("rl.road_preview_max_m must be zero or at least road_preview_min_m");
     positive(rl.reward.reward_scale, "rl_reward.reward_scale");
     positive(rl.reward.ey_scale_m, "rl_reward.ey_scale_m");
     positive(rl.reward.epsi_scale_rad, "rl_reward.epsi_scale_rad");
     nonnegative(rl.reward.w_y, "rl_reward.w_y");
     nonnegative(rl.reward.w_peak, "rl_reward.w_peak");
     positive(rl.reward.peak_threshold_m, "rl_reward.peak_threshold_m");
+    nonnegative(rl.reward.w_lateral_growth, "rl_reward.w_lateral_growth");
+    positive(rl.reward.lateral_growth_preview_s, "rl_reward.lateral_growth_preview_s");
     nonnegative(rl.reward.w_psi, "rl_reward.w_psi");
     nonnegative(rl.reward.w_steer, "rl_reward.w_steer");
     nonnegative(rl.reward.w_steer_rate, "rl_reward.w_steer_rate");
@@ -504,10 +543,15 @@ std::string configToIni(const AppConfig& c) {
         << "\ntire_slope_floor = " << c.mpc.tire_slope_floor
         << "\nfront_relaxation_m = " << c.mpc.front_relaxation_m
         << "\nrear_relaxation_m = " << c.mpc.rear_relaxation_m << "\n\n"
+        << "[horizon_schedule]\nshort_np = " << c.horizon_schedule.short_np
+        << "\nlookahead_s = " << c.horizon_schedule.lookahead_s
+        << "\nenter_ratio = " << c.horizon_schedule.enter_ratio
+        << "\nexit_ratio = " << c.horizon_schedule.exit_ratio << "\n\n"
         << "[weights]\nq_y = " << c.mpc.q_y
         << "\nq_psi = " << c.mpc.q_psi
         << "\nq_vy = " << c.mpc.q_vy
         << "\nq_r = " << c.mpc.q_r
+        << "\nq_tire_slip = " << c.mpc.q_tire_slip
         << "\nr_steer = " << c.mpc.r_steer
         << "\ntrack_course = " << c.mpc.track_course
         << "\nsteer_feedforward = " << c.mpc.steer_feedforward
@@ -531,6 +575,7 @@ std::string configToIni(const AppConfig& c) {
         << "\nmin_np = " << c.rl.min_np
         << "\nmax_np = " << c.rl.max_np
         << "\nnominal_np = " << c.rl.nominal_np
+        << "\nalign_neutral_to_mpc = " << c.rl.align_neutral_to_mpc
         << "\nnp_step = " << c.rl.np_step
         << "\nmax_np_change_per_decision = " << c.rl.max_np_change_per_decision
         << "\nsmooth_tuning = " << c.rl.smooth_tuning
@@ -550,12 +595,12 @@ std::string configToIni(const AppConfig& c) {
         << "\nr_delta_min = " << c.rl.weight_min[5]
         << "\nr_delta_max = " << c.rl.weight_max[5]
         << "\ncurvature_preview_s = " << c.rl.curvature_preview_s
+        << "\nroad_preview_min_m = " << c.rl.road_preview_min_m
+        << "\nroad_preview_max_m = " << c.rl.road_preview_max_m
+        << "\nobservation_profile = " << c.rl.observation_profile
         << "\ngrip_demand_clip = " << c.rl.grip_demand_clip
-        << "\naugmented_observation = " << c.rl.augmented_observation
         << "\npenalize_qp_failure = " << c.rl.penalize_qp_failure
         << std::setprecision(15)
-        << "\ntrain_mu_min = " << c.rl.train_mu_min
-        << "\ntrain_mu_max = " << c.rl.train_mu_max
         << std::setprecision(17) << '\n';
     const auto write_choices = [&](const char* key, std::size_t k) {
         const auto& choices = c.rl.weight_choices[k];
@@ -575,6 +620,8 @@ std::string configToIni(const AppConfig& c) {
         << "\nw_y = " << c.rl.reward.w_y
         << "\nw_peak = " << c.rl.reward.w_peak
         << "\npeak_threshold_m = " << c.rl.reward.peak_threshold_m
+        << "\nw_lateral_growth = " << c.rl.reward.w_lateral_growth
+        << "\nlateral_growth_preview_s = " << c.rl.reward.lateral_growth_preview_s
         << "\nw_psi = " << c.rl.reward.w_psi
         << "\nw_steer = " << c.rl.reward.w_steer
         << "\nw_steer_rate = " << c.rl.reward.w_steer_rate

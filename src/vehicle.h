@@ -12,6 +12,7 @@ public:
 
     double corneringStiffness(double normal_load_n) const;
     double peakLateralForce(double normal_load_n) const;
+    double peakLateralSlip(double normal_load_n) const; // rad
     double lateralForce(double slip_rad, double normal_load_n) const;
     double boundedLateralForce(double slip_rad, double normal_load_n) const;
     double minLoad() const { return loads_.front(); }
@@ -23,6 +24,7 @@ private:
     std::vector<std::vector<double>> forces_;
 
     double positiveForce(double slip_deg, double normal_load_n) const;
+    std::pair<double, double> lateralPeak(double normal_load_n) const;
 };
 
 // 车辆物理参数

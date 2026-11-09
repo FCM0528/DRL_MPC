@@ -16,6 +16,7 @@ struct MpcParameters {
     bool track_course = false; // compare velocity direction to path tangent
     double q_vy = 0.4;
     double q_r = 8.0;
+    double q_tire_slip = 0.0; // squared axle slip relative to the local force-peak slip
     double terminal_scale = 3.0;
     double stage_weight_lambda = 0.0; // paper-style exp(lambda * step / Np)
     // R penalizes front-wheel angle relative to curvature feedforward;
@@ -62,6 +63,7 @@ public:
     MpcResult control(const VehicleState& plant, double previous_steer,
                       double previous_increment = 0.0);
     void setRoadGripProfile(std::function<double(double)> grip_at_x);
+    void setPredictionHorizon(int np);
     // Preserve the latest nominal trajectory when adaptive tuning changes.
     void adoptPreviousSolution(const LateralMpc& previous);
 

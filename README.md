@@ -4,9 +4,9 @@ CarSim 提供车辆动力学、道路和驾驶工况。C++ 从 CarSim 读取状�
 
 默认读取所选配置中 `[carsim] simfile` 指向的当前 CarSim 工况；修改 CarSim 工况后请先生成或更新该 Simfile。也可用 `--simfile` 显式指定。运行 CarSim 求解器需要在同一 Windows 会话中打开 CarSim Browser 并具备可用许可。
 
-默认固定 MPC 和 Python DRL 训练使用 `distance_m = reference_end`，仿真在 CarSim 质心首次达到当前 `LTARG_TABLE` 末端时结束。固定 MPC 可用 `--distance` 显式指定结束 X。
+固定 MPC、DDPG、TD3 和 TQC 共用 `configs/default.ini` 的 `simulation.distance_m = 120`。CarSim 质心首次到达或越过 X = 120 m 时结束，末点可因求解器积分步长略超 120 m。跟踪误差统一按控制后的状态样本统计。独立固定 MPC 实验可用 `--distance` 显式指定结束 X。
 
-默认固定 MPC 使用质心运动方向跟踪路径切线，并用 CarSim 实测侧偏和侧向力预测前后轴的轮胎力建立过程。横向误差按同一全局 X 处的 `Y - Yref` 计算。Python 配置单独指定已有策略的时域、轮胎预测方式、权重和转向约束。对照实验请核对 CarSim 快照及 `effective_config.ini`。
+默认固定 MPC 使用质心运动方向跟踪路径切线，并用 CarSim 实测侧偏和侧向力预测前后轴的轮胎力建立过程。横向误差按同一全局 X 处的 `Y - Yref` 计算。Python 配置继承固定 MPC 的时域、采样周期、权重、轮胎预测和转向约束；零动作与固定 MPC 一致。对照评估核对两边生效配置的终点距离。
 
 直接运行 `MPC_DoubleLaneChange.exe` 或指定 `--config configs/default.ini` 即可使用固定 MPC。控制器、CarSim 与 Visualizer 共用当前工况 Parsfile 中的 `LTARG_TABLE`。默认固定 MPC 关闭 Browser 缓存回写，结果目录包含对应的 Visualizer 入口。
 
@@ -18,11 +18,15 @@ CarSim 提供车辆动力学、道路和驾驶工况。C++ 从 CarSim 读取状�
 
 | 文件 | 修改内容 | 主要字段 |
 | --- | --- | --- |
-| `configs/default.ini` | 固定 MPC 与 CarSim 基础设置 | `[mpc] np/nc/dt_s`、`[weights]`、`[constraints]`、`[solver]`、`[carsim] simfile` |
+| `configs/default.ini` | 固定 MPC 与 DRL 共用的 CarSim 基础设置 | `[simulation] distance_m`、`[mpc] np/nc/dt_s`、`[weights]`、`[constraints]`、`[solver]`、`[carsim] simfile` |
 | `configs/carsim_python_rl.ini` | Python 策略调用 C++ 桥接时的控制与奖励设置；继承 `default.ini` | `[rl]` 的 Np 和 Q/R 动作范围、`decision_steps`、`discount_gamma`，以及 `[rl_reward]` |
 | `configs/rl_training.ini` | Python 神经网络训练设置，不由 C++ 读取 | `[training]` 通用参数；`[ddpg]`、`[td3]`、`[tqc]` 各自的 Actor/Critic 学习率、网络、目标更新与探索设置 |
 
-在 `default.ini` 的 `[weights]` 调整固定 MPC 权重。`track_course = true` 时，角度代价比较 `ψ + atan2(vy, vx)` 与路径切线，图中的航向误差仍按车身朝向计算。结果目录提供横向误差 MAE、RMSE、最大绝对值和参考曲率。策略的离散候选值位于 `carsim_python_rl.ini` 的 `[rl]`。Np 取 10 至 50 的偶数，三个自适应权重的中性值取各数组的中间项。车辆参数与轮胎数据来自 CarSim 求解器回显。训练和评价使用同一份配置。
+在 `default.ini` 的 `[weights]` 调整固定 MPC 权重。`track_course = true` 时，角度代价比较 `ψ + atan2(vy, vx)` 与路径切线，图中的航向误差仍按车身朝向计算。结果目录提供横向误差 MAE、RMSE、最大绝对值和参考曲率。策略的离散候选值位于 `carsim_python_rl.ini` 的 `[rl]`。Np 取 10 至 50 的整数，三个自适应权重的中性值取各数组的中间项。车辆参数与轮胎数据来自 CarSim 求解器回显。训练和评价使用同一份配置。
+
+当前默认 MPC 采样周期为 0.04 s，Np = 47 对应 1.88 s 预测时域，Nc = 7 对应 0.28 s 独立转向增量。Nc 由 50–90 m 关键段的固定 MPC 扫参决定，三个自适应权重各有九个候选值。`q_tire_slip` 对归一化的前后轴预测侧偏角加权，固定 MPC 和 DRL 共用该项。新策略用 14 维 `road_preview_v2` 观测，归档的 12 维策略仍使用训练时的 `road_preview` 配置。
+
+使用 `MPC_DoubleLaneChange.exe --config configs/carsim_curvature_schedule.ini` 运行分段 Np 控制。控制器沿前方参考轨迹计算平滑曲率产生的横向加速度需求与当地附着预算之比。预瞄区间内的最大比值达到 `enter_ratio` 时使用 `[mpc] np`，回落至 `exit_ratio` 时使用 `short_np`，两个阈值之间保持当前时域。Nc 与转向热启动跨切换保留。报告的 Np 曲线和 `simulation.csv` 记录每步实际采用的 Np。
 
 例如只调 TQC 训练：编辑 `configs/rl_training.ini` 后运行 `python python/train.py --algorithm tqc`；临时覆盖可用 `--episodes 100 --seed 43 --eval-frequency 500 --tqc-profile practical --tqc-drop 2`。指定另一个训练配置用 `--train-config <文件>`，指定另一组控制器参数用 `--config <文件>`。三算法顺序训练 `train_four.py` 同样支持 `--train-config`。每次训练会把配置文件和源工况复制进结果目录，避免运行中修改原文件影响该次实验。
 
@@ -53,7 +57,7 @@ python python/test_bridge.py --exe out/python-rl-build/Release/MPC_RL_Bridge.exe
 
 `--config` 可指定其他 MPC 配置；`--simfile` 可覆盖配置中的工况路径。训练启动时将当前 Simfile 和 Parsfile 保存到本次训练目录的 `source_case`，各回合使用该快照；在 CarSim 改动工况后重新启动训练即可读取新工况。桥接程序每回合启动独立进程，不修改源工况。四维动作依次为 Np、Qy、Qψ、RΔ；Qvy、Qr、Rsteer 保持 `[weights]` 中的设置。观测归一化和奖励只由 C++ 计算。
 
-评价会冻结一次工况，确保中性 MPC 和策略使用同一份源文件；每次评价请选择新的输出目录。训练所得策略不自动适用于新工况，改变车速、车辆或道路后需重新验证。若源工况没有唯一的恒定目标车速，目录名称使用 `vVariable`。桥接仍要求 C++ 支持该 CarSim 的参考轨迹和道路格式，并且 `simulation.distance_m` 应与当前场景相符。
+评价会冻结一次工况，确保固定 MPC 和策略使用同一份源文件。固定 MPC 直接读取 `configs/default.ini`。每次评价请选择新的输出目录。若源工况没有唯一的恒定目标车速，目录名称使用 `vVariable`。桥接要求 C++ 支持该 CarSim 的参考轨迹和道路格式，并且 `simulation.distance_m` 应与当前场景相符。
 
 ## 训练、运行与评价
 
@@ -64,25 +68,25 @@ TQC 使用 SAC 随机策略和自动熵系数。多个评论家各输出 25 个�
 `--tqc-profile practical` 使用 `rl_training.ini` 中明确填写的评论家数量和隐藏层（当前为 3 个评论家、每个两层 256 单元）；`--tqc-profile paper` 临时采用论文实验中的 5 个评论家、每个三层 512 单元，计算开销明显更大。分位数数量、学习率、批量和目标网络更新频率均可在训练配置中分别调整；折扣系数从 C++ 配置读取。完整设置保存在训练 `manifest.json`；奖励函数更改后，旧 Critic 和回放池不适合直接续训。
 
 ```powershell
-python python/train.py --algorithm tqc --episodes 500 --seed 42 --eval-frequency 1000 --tqc-profile practical --tqc-drop 2
+python python/train.py --algorithm tqc --episodes 300 --seed 42 --eval-frequency 1000 --tqc-profile practical --tqc-drop 2
 ```
 
 论文：[Kuznetsov et al., ICML 2020](https://proceedings.mlr.press/v119/kuznetsov20a.html)。设计公式与训练设置见 [TQC 设计说明](docs/TQC_Design.md)。项目的 CarSim 工况与论文的 MuJoCo 基准不同，需看独立工况的控制误差和安全指标，不能仅据训练回报判断策略有效。
 
-三种算法各训练 500 回合，并将中性 MPC、DDPG、TD3、TQC 画在同一组对比图上：
+三种算法各训练 300 回合，生成固定 MPC 与三种策略的闭环对照，以及三条训练回报曲线的汇总图 `training_summary.png`。
 
 ```powershell
-python python/train_four.py --episodes 500 --seed 42
+python python/train_four.py --episodes 300 --seed 42
 ```
 
-该命令按顺序训练，避免多个 CarSim 求解器互相干扰。三种算法和四组评价使用同一份启动时冻结的工况与控制配置；最终打开命令输出的 `four_controller_comparison.html`，每种算法的训练日志位于对应 `train_*/training.log`。如已有三个模型，可运行 `python python/compare_four.py --help` 查看独立对照命令。
+该命令按顺序训练。四组评价共用启动时冻结的 CarSim 工况，固定 MPC 使用独立冻结的 `default.ini`。每种算法复评已保存的检查点，选取跑完全程、QP 零失败且横向 RMSE 最低的模型。结果见 `four_controller_comparison.html`，选模明细见各算法目录下的 `checkpoint_selection.csv`。如已有三个模型，可运行 `python python/compare_four.py --help` 查看独立对照命令。
 
-训练默认完成 500 个回合（失败或截断也计为结束）；`--episodes` 可调整本次运行的回合数。验证与检查点仍按 `--eval-frequency` 指定的决策步数触发，当前 60 km/h 工况默认每 550 步（约 10 回合）；奖励图横坐标为已完成的训练回合。续训时回合从本次运行重新计数，模型加载不会自动恢复经验回放池。
+训练默认完成 300 个回合，失败或截断也计为回合结束。`--episodes` 可调整本次运行的回合数。验证与检查点按 `--eval-frequency` 指定的决策步数触发，默认每 550 步。汇总图从第 15 回合开始，绘制完整的 15 回合滑动平均，包含训练中的探索动作。续训时回合从本次运行重新计数，模型加载不会自动恢复经验回放池。
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 python python/parity.py --blocks 10 --out "runs/neutral_parity_$stamp"
-python python/train.py --algorithm td3 --episodes 500 --seed 42
+python python/train.py --algorithm td3 --episodes 300 --seed 42
 $latest = Get-ChildItem runs/python_rl -Directory -Filter 'td3_*' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $model = Join-Path $latest.FullName 'best/best_model.zip'
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
@@ -94,6 +98,6 @@ python python/evaluate.py --algorithm td3 --model $model --out "runs/td3_evaluat
 
 Python `.zip` 模型由 Python 加载并通过桥接协议发送动作，不能交给旧 C++ `.txt` 策略加载器。C++ 的旧强化学习训练入口已停用。基础 MPC 仍可用 `MPC_DoubleLaneChange.exe --config configs/default.ini --rl-mode fixed` 运行。
 
-训练目录名包含算法、CarSim 目标车速、目标回合数、种子与时间（例如 td3_v60kmh_500episodes_seed42_时间），manifest.json 保存工况参数文件路径和 SHA-256 指纹；`文件说明.txt` 解释模型、检查点和图表。主报告是 `evaluation/training_and_control_report.html`：结果图参考 Peng 等（2025）的 Fig. 5 与 Fig. 10，分别显示车辆状态六联图，以及轨迹与控制量对比图。Fig. 5 在同一 CarSim 工况下对比中性 MPC 与策略；Fig. 10 扩展为八个子图，后四幅完整展示 Np、Qy、Qψ、RΔ 四个调参量。只有另外运行多个恒速工况才能得到论文式多速度叠加图。可通过 `--set mpc.np=25 --set mpc.nc=10` 临时指定时域；`rl.max_np_change_per_decision=0` 可关闭策略的时域变化限制。其他逐周期诊断量可在 CSV 中查看。当前奖励是非正的负损失，零损失时为 0；控制误差下降时回报向 0 增大。桥接不裁剪回报，旧正回报与当前回报不能直接比较。更新源代码后需重新构建 `MPC_RL_Bridge` 和 `MPC_DoubleLaneChange`。
+训练目录名包含算法、CarSim 目标车速、目标回合数、种子与时间（例如 td3_v80kmh_300episodes_seed42_时间），manifest.json 保存工况参数文件路径和 SHA-256 指纹；`文件说明.txt` 解释模型、检查点和图表。主报告是 `evaluation/training_and_control_report.html`：结果图参考 Peng 等（2025）的 Fig. 5 与 Fig. 10，分别显示车辆状态六联图，以及轨迹与控制量对比图。Fig. 5 在同一 CarSim 工况下对比固定 MPC 与策略；Fig. 10 扩展为八个子图，后四幅完整展示 Np、Qy、Qψ、RΔ 四个调参量。只有另外运行多个恒速工况才能得到论文式多速度叠加图。可通过 `--set mpc.np=25 --set mpc.nc=10` 临时指定时域；`rl.max_np_change_per_decision=0` 可关闭策略的时域变化限制。其他逐周期诊断量可在 CSV 中查看。当前奖励是非正的负损失，零损失时为 0；控制误差下降时回报向 0 增大。桥接不裁剪回报，旧正回报与当前回报不能直接比较。更新源代码后需重新构建 `MPC_RL_Bridge` 和 `MPC_DoubleLaneChange`。
 
 控制算法见 [docs/Control_Algorithm_Implementation.md](docs/Control_Algorithm_Implementation.md)，CarSim 接口见 [docs/CarSim_CPP_Integration.md](docs/CarSim_CPP_Integration.md)。

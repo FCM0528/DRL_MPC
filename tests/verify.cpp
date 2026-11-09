@@ -69,6 +69,8 @@ void testTireZeroLoadColumn() {
     require(std::abs(tire.lateralForce(rad, 95.0) - 9.5) < 1e-10 &&
             tire.lateralForce(rad, 0.0) == 0.0,
             "CarSim zero-load column should interpolate within the tire table");
+    require(std::abs(tire.peakLateralSlip(95.0) - 2.0 * rad) < 1e-12,
+            "Tire force-peak slip must use radians");
     bool rejected = false;
     try { (void)tire.lateralForce(rad, 210.0); }
     catch (const std::invalid_argument&) { rejected = true; }
@@ -80,28 +82,35 @@ void testTireZeroLoadColumn() {
 }
 void testConfig() {
     auto config = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/default.ini");
-    require(config.mpc.track_course && config.mpc.nc <= config.mpc.np &&
+    require(config.mpc.track_course && config.mpc.np >= config.mpc.nc &&
+            config.mpc.dt == 0.04 && config.mpc.q_tire_slip == 4000.0 &&
             config.mpc.front_relaxation_m == 0.40 && config.mpc.rear_relaxation_m == 0.30 &&
             config.mpc.q_y > 0.0 && config.mpc.q_psi == 2800.0 &&
             config.mpc.q_vy == 650.0 && config.mpc.q_r == 150.0 &&
             config.mpc.r_steer == 33000.0 && config.mpc.steer_feedforward &&
-            config.mpc.r_delta > 0.0 && config.mpc.r_delta_change == 240000.0 &&
+            config.mpc.r_delta > 0.0 && config.mpc.r_delta_change == 960000.0 &&
             config.mpc.terminal_scale == 1.0 && config.mpc.stage_weight_lambda == 0.0,
             "Default incremental MPC did not load configured base weights");
     require(config.plant == "carsim" && !config.carsim.sync_browser_result,
             "CarSim default configuration incorrect");
-    require(config.stop_at_reference_end && config.steer_limit_from_carsim && !config.mpc.speed_rate_enabled &&
+    require(!config.stop_at_reference_end && config.distance_m == 120.0 &&
+            config.steer_limit_from_carsim && !config.mpc.speed_rate_enabled &&
             config.mpc.reference_curvature_sigma_m == 2.5 &&
             std::isinf(effectiveSteerRate(config.mpc, 95.0 / 3.6)),
             "Fixed MPC must use the CarSim wheel range without an actuator slew limit");
     const auto rl_config = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/carsim_python_rl.ini");
     const auto& a = config.mpc;
     const auto& b = rl_config.mpc;
+    require(!rl_config.stop_at_reference_end && rl_config.distance_m == config.distance_m &&
+            rl_config.rl.align_neutral_to_mpc && a.np == b.np && a.nc == b.nc &&
+            a.q_y == b.q_y && a.q_psi == b.q_psi && a.r_delta == b.r_delta,
+            "Training and fixed MPC must share the base parameters and 120 m endpoint");
     require(rl_config.steer_limit_from_carsim && b.reference_curvature_sigma_m == a.reference_curvature_sigma_m &&
             b.track_course && b.usesTireRelaxation() && b.np == rl_config.rl.nominal_np &&
             b.nc <= rl_config.rl.min_np && b.tire_slope_floor == a.tire_slope_floor &&
             std::isinf(b.max_steer_rate) &&
-            b.q_vy == a.q_vy && b.q_r == a.q_r && b.r_steer == a.r_steer &&
+            b.q_vy == a.q_vy && b.q_r == a.q_r && b.q_tire_slip == a.q_tire_slip &&
+            b.r_steer == a.r_steer &&
             b.steer_feedforward && b.r_delta_change == a.r_delta_change,
             "Discrete Python policy must use the calibrated fixed MPC model");
     require(a.dt == b.dt && a.terminal_scale == b.terminal_scale &&
@@ -130,6 +139,9 @@ void testConfig() {
     overrideConfig(config, "rl.smooth_tuning", "true");
     overrideConfig(config, "rl.train_speed_min_kmh", "36"); // archived setting
     overrideConfig(config, "rl.tuning_ay_start_mps2", "0.35"); // archived setting
+    overrideConfig(config, "rl.augmented_observation", "false"); // archived effective config
+    overrideConfig(config, "rl.train_mu_min", "0.3");
+    overrideConfig(config, "rl.train_mu_max", "0.9");
     validateConfig(config);
     require(config.mpc.np == 30 && config.mpc.nc == 10 && config.mpc.q_y == 250 &&
             config.rl.max_np_change_per_decision == 2 && config.rl.smooth_tuning,
@@ -140,6 +152,8 @@ void testConfig() {
             saved.find("smooth_tuning = true") != std::string::npos &&
             saved.find("train_speed_min_kmh") == std::string::npos &&
             saved.find("tuning_ay_start_mps2") == std::string::npos &&
+            saved.find("augmented_observation") == std::string::npos &&
+            saved.find("train_mu_") == std::string::npos &&
             saved.find("max_speed_drop") == std::string::npos &&
             saved.find("[reference]") == std::string::npos,
             "Effective config retained legacy plant settings");
@@ -168,6 +182,11 @@ void testConfig() {
     try { overrideConfig(config, "mpc.nonlinear_tire", "false"); }
     catch (const std::invalid_argument&) { linear_rejected = true; }
     require(linear_rejected, "Removed linear-tire mode was accepted");
+    write(fixture / "legacy.ini", "[inherit]\nbase = base.ini\n[rl]\nobservation_profile = legacy\n");
+    bool legacy_rejected = false;
+    try { loadConfig(fixture / "legacy.ini"); }
+    catch (const std::invalid_argument&) { legacy_rejected = true; }
+    require(legacy_rejected, "Retired observation profile was accepted");
     write(fixture / "cycle.ini", "[inherit]\nbase = cycle.ini\n");
     bool cycle_rejected = false;
     try { loadConfig(fixture / "cycle.ini"); } catch (const std::runtime_error&) { cycle_rejected = true; }
@@ -366,8 +385,9 @@ void testCarSimMpcModel() {
 }
 void testRlModule() {
     auto config = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/carsim_python_rl.ini");
-    require(config.stop_at_reference_end && config.rl.reward.tracking_v2,
-            "Training must use the CarSim reference end and current reward");
+    require(!config.stop_at_reference_end && config.distance_m == 120.0 &&
+            config.rl.reward.tracking_v2,
+            "Training must use the shared 120 m endpoint and current reward");
     const auto neutral = neutralRlAction(config.rl);
     require(neutral.np == config.mpc.np &&
             std::abs(neutral.q_y - config.mpc.q_y) < 1e-12 &&
@@ -377,24 +397,34 @@ void testRlModule() {
     const std::array<double, 4> high{1, 1, 1, 1}, low{-1, -1, -1, -1};
     const auto raised = advanceRlTuning(high, neutral, config.rl);
     const auto lowered = advanceRlTuning(low, raised, config.rl);
-    require(raised.np == neutral.np + 2 && lowered.np == neutral.np &&
+    require(raised.np == config.rl.max_np && lowered.np == config.rl.min_np &&
             raised.q_y == 13800.0 && raised.q_psi == 5600.0 && raised.r_delta == 27000.0 &&
             lowered.q_y == 4600.0 && lowered.q_psi == 1400.0 && lowered.r_delta == 6750.0,
-            "Discrete actions must reach weight endpoints and preserve the even horizon slew");
-    auto discrete = config.rl;
-    discrete.max_np_change_per_decision = 0;
-    for (int np = 10; np <= 50; np += 2) {
+            "Default discrete actions must reach horizon and weight endpoints in one decision");
+    const auto& discrete = config.rl;
+    require(discrete.min_np == 10 && discrete.max_np == 50 && discrete.np_step == 1 &&
+            discrete.decision_steps == 2,
+            "The 40 ms MPC must expose all 41 integer horizons at 80 ms policy intervals");
+    for (int np = discrete.min_np; np <= discrete.max_np; np += discrete.np_step) {
         const int span = np < neutral.np ? neutral.np - discrete.min_np : discrete.max_np - neutral.np;
         const double request = static_cast<double>(np - neutral.np) / span;
         require(advanceRlTuning({request, 0, 0, 0}, neutral, discrete).np == np,
-                "Every even horizon from 10 to 50 must be reachable");
+                "Every configured horizon must be reachable");
     }
     const auto intermediate = advanceRlTuning({0, -0.5, 0.35, 0.67}, neutral, discrete);
-    require(intermediate.q_y == 7500.0 && intermediate.q_psi == 3500.0 &&
+    require(intermediate.q_y == 7500.0 && intermediate.q_psi == 3150.0 &&
             intermediate.r_delta == 21500.0, "Interior requests must select exact array entries");
+    for (std::size_t i = 0; i < 9; ++i) {
+        const double request = -1.0 + 0.25 * static_cast<double>(i);
+        const auto action = advanceRlTuning({0, request, request, request}, neutral, discrete);
+        require(action.q_y == discrete.weight_choices[0].at(i) &&
+                action.q_psi == discrete.weight_choices[1].at(i) &&
+                action.r_delta == discrete.weight_choices[5].at(i),
+                "Each of the nine candidates per learned weight must be reachable");
+    }
     const auto saved = configToIni(config);
-    require(saved.find("np_step = 2") != std::string::npos &&
-            saved.find("q_y_values = 4600, 6000, 7500, 9200, 10500, 12000, 13800") != std::string::npos &&
+    require(saved.find("np_step = 1") != std::string::npos &&
+            saved.find("q_y_values = 4600, 6000, 7500, 8250, 9200, 9850, 10500, 12000, 13800") != std::string::npos &&
             saved.find("q_psi_values = ") != std::string::npos && saved.find("r_delta_values = ") != std::string::npos,
             "Effective configuration must retain the discrete action space");
     RlConfig legacy;
@@ -411,24 +441,47 @@ void testRlModule() {
     base.r_steer = 9.0;
     const auto tuned = applyRlAction(base, neutral, config.rl);
     require(tuned.np == config.rl.nominal_np && tuned.q_vy == base.q_vy &&
-            tuned.q_r == base.q_r && tuned.r_steer == base.r_steer,
+            tuned.q_r == base.q_r && tuned.q_tire_slip == base.q_tire_slip &&
+            tuned.r_steer == base.r_steer,
             "Untrained MPC weights changed by a Python action");
     const auto reference = testReference();
     VehicleState state;
     state.vx = 60.0 / 3.6;
-    const auto obs = makeRlObservation(state, reference, neutral.np,
-        config.distance_m, 30.0, config.rl, neutral, 0.8);
-    require(obs.size() == 17 && std::all_of(obs.begin(), obs.end(),
-        [](double x) { return std::isfinite(x); }), "Bridge observation schema changed");
-    auto paper_action = neutral;
-    paper_action.q_vy = 0.0;
-    paper_action.q_r = 0.0;
-    paper_action.r_steer = config.mpc.r_steer;
-    const auto paper_obs = makeRlObservation(state, reference, paper_action.np,
-        config.distance_m, 30.0, config.rl, paper_action, 0.8);
-    require(std::all_of(paper_obs.begin(), paper_obs.end(),
-        [](double x) { return std::isfinite(x); }),
-        "Zero error-rate weights made the RL observation nonfinite");
+    require(RlConfig{}.observation_profile == "road_preview_v2" &&
+            config.rl.observation_profile == "road_preview_v2",
+            "New training must use the road preview profile");
+    require(roadPreviewDistance(config.rl, config.mpc.dt, 0.0) == 0.0 &&
+            roadPreviewDistance(config.rl, config.mpc.dt, 2.0) == 10.0 &&
+            roadPreviewDistance(config.rl, config.mpc.dt, 10.0) == 20.0 &&
+            roadPreviewDistance(config.rl, config.mpc.dt, 20.0) == 40.0 &&
+            roadPreviewDistance(config.rl, config.mpc.dt, 30.0) == 50.0,
+            "Road preview must scale with speed between the configured distance bounds");
+    auto preview_config = config.rl;
+    preview_config.min_np = 10;
+    preview_config.max_np = 80;
+    preview_config.np_step = preview_config.max_np_change_per_decision = 2;
+    preview_config.decision_steps = 4;
+    preview_config.curvature_preview_s = 1.5;
+    preview_config.road_preview_min_m = preview_config.road_preview_max_m = 0.0;
+    require(std::abs(roadPreviewDuration(preview_config, 0.02) - 3.18) < 1e-12,
+            "Preview must cover the horizon slew, decision latency and margin");
+    state.x = 40.0;
+    const auto dry = [](double) { return 1.5; };
+    const auto grip_drop = [](double x) { return x < 55.0 ? 1.5 : 0.03; };
+    const auto dry_obs = makeRoadPreviewObservation(state, reference, dry,
+        config.distance_m, config.mpc, preview_config, neutral.np, 0.0);
+    const auto drop_obs = makeRoadPreviewObservation(state, reference, grip_drop,
+        config.distance_m, config.mpc, preview_config, neutral.np, 0.0);
+    require(drop_obs.size() == 14 && std::all_of(drop_obs.begin(), drop_obs.end(),
+                [](double x) { return std::isfinite(x); }) &&
+            drop_obs[5] == dry_obs[5] && drop_obs[6] > dry_obs[6] &&
+            drop_obs[7] > 0.0 && drop_obs[7] < dry_obs[7] &&
+            drop_obs[12] < dry_obs[12] && drop_obs[13] == dry_obs[13],
+            "Distant grip loss must reach the preview without affecting immediate demand");
+    preview_config.observation_profile = "road_preview";
+    require(makeRoadPreviewObservation(state, reference, dry, config.distance_m,
+                config.mpc, preview_config, neutral.np, 0.0).size() == 12,
+            "Archived road preview policies must retain their 12 inputs");
     const double reward = scalarizedRlReward(0.1, 0.02, 0.01, neutral.np,
         config.mpc, config.rl, 0.0, neutral.np, neutral, neutral);
     require(std::isfinite(reward) && reward < 0.0, "C++ reward is invalid");
@@ -444,6 +497,14 @@ void testRlModule() {
     require(accurate > moderate && moderate > at_threshold && at_threshold > large &&
             std::abs(at_threshold / moderate - 25.0) < 1e-12 && large / moderate > 49.0,
             "Lateral reward must be quadratic with extra loss above 0.25 m");
+    const auto lateral_reward = [&](double ey, double rate) {
+        return scalarizedRlReward(ey, 0, 0, neutral.np, config.mpc, config.rl,
+            0, neutral.np, neutral, neutral, 0, 0, 0, rate);
+    };
+    require(lateral_reward(0.05, -0.2) == moderate &&
+            lateral_reward(0.05, -0.8) < moderate &&
+            lateral_reward(0.05, 0.8) == lateral_reward(-0.05, -0.8),
+            "Lateral reward must penalize fast crossing and treat left/right growth equally");
     const auto& r = config.rl.reward;
     const double rate_loss = scalarizedRlReward(0.0, 0.0, 0.0, neutral.np,
         config.mpc, config.rl, -r.steer_rate_scale_rad_s * config.mpc.dt,
@@ -674,6 +735,10 @@ void testMpcConstraints() {
         retuned.adoptPreviousSolution(mpc);
         require(retuned.lastControlMoves() == mpc.lastControlMoves(),
                 "Adaptive MPC did not retain the previous steering sequence");
+        mpc.setPredictionHorizon(adjusted.np);
+        require(mpc.hasLastSolution() &&
+                mpc.predictedSteeringAt(adjusted.np - 1) == retuned.lastControlMoves().back(),
+                "Changing Np must retain the Nc warm start and update the prediction range");
     }
     {
         auto p = config.mpc;
@@ -682,6 +747,7 @@ void testMpcConstraints() {
         // Use the instantaneous-tire fixture here so friction changes the
         // small-slip stiffness as well as the saturation force.
         p.front_relaxation_m = p.rear_relaxation_m = 0.0;
+        p.q_tire_slip = 0.0;
         p.q_y = 700.0;
         p.r_delta = 800.0;
         p.max_steer = 0.42;
@@ -768,6 +834,7 @@ void testIncrementalClosedLoop() {
     settings.nc = 7;
     // This synthetic plant uses instantaneous cornering forces.
     settings.front_relaxation_m = settings.rear_relaxation_m = 0.0;
+    settings.q_tire_slip = 0.0;
     VehicleParameters vehicle;
     vehicle.mass = 1501.0; vehicle.iz = 2192.089539;
     vehicle.a = 1.049562958; vehicle.b = 1.860437042;

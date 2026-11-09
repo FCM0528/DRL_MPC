@@ -1,7 +1,7 @@
 // Standalone CarSim/Gymnasium bridge.
 // Protocol (one line per command): RESET | STEP a_np a_qy a_qpsi a_rdelta | CLOSE
-// Reply: BRIDGE_RESET <17 observation values>
-//        BRIDGE_STEP <17 observation values> <reward> <terminated> <truncated>
+// Reply: BRIDGE_RESET <configured observation values>
+//        BRIDGE_STEP <configured observation values> <reward> <terminated> <truncated>
 //            <x> <ey> <epsi> <steer> <qp_failed> <reserved> <n_control_steps> <failed> <executed_np>
 // Each process serves one episode. Python spawns another process for reset.
 #include "config.h"
@@ -74,14 +74,6 @@ class Episode {
     std::vector<SimulationRecord> records_;
 
     double gripAtCurrentX() const { return model_.road_grip.at(state_.x); }
-    double plannedSteer() const {
-        if (controller_ && controller_->hasLastSolution() &&
-            !controller_->lastControlMoves().empty()) {
-            const auto& controls = controller_->lastControlMoves();
-            return controls[std::min<std::size_t>(1, controls.size() - 1)];
-        }
-        return previous_steer_;
-    }
 public:
     Episode(const AppConfig& input, const fs::path& dir) : cfg_(input), dir_(dir) {
         if (cfg_.rl.min_np < cfg_.mpc.nc || cfg_.rl.min_np >= cfg_.rl.nominal_np || cfg_.rl.nominal_np >= cfg_.rl.max_np)
@@ -132,10 +124,10 @@ public:
                << "step,x_m,y_m,vx_mps,ey_m,epsi_rad,steer_rad,np,q_y,q_psi,r_delta,qp_failed,vy_mps,psi_rad,yaw_rate_radps,sideslip_rad\n";
     }
 
-    RlObservation observation() const {
-        return makeRlObservation(state_, *reference_, current_.np, cfg_.distance_m,
-            30.0, cfg_.rl, current_, gripAtCurrentX(), previous_steer_,
-            plannedSteer(), cfg_.mpc.max_steer);
+    RoadPreviewObservation observation() const {
+        return makeRoadPreviewObservation(state_, *reference_,
+            [this](double x) { return model_.road_grip.at(x); }, cfg_.distance_m,
+            cfg_.mpc, cfg_.rl, current_.np, previous_steer_);
     }
 
     void sendReset() const {
@@ -208,7 +200,7 @@ public:
                     current_.np, cfg_.mpc, cfg_.rl, prior_steer,
                     i == 0 ? previous_action.np : current_.np,
                     current_, reward_previous_action, state_.vy,
-                    state_.r - state_.vx * next.curvature, sideslip);
+                    state_.r - state_.vx * next.curvature, sideslip, lateralErrorRate(state_, next));
                 step_reward_sum += row.reward;
                 if (!cfg_.rl.reward.tracking_v2 && bad_qp && cfg_.rl.penalize_qp_failure)
                     row.reward -= cfg_.rl.reward.reward_scale * cfg_.rl.reward.failure_penalty;
@@ -321,6 +313,8 @@ int main(int argc, char** argv) {
     }
     try {
         auto cfg = loadConfig(argv[1]);
+        if (cfg.horizon_schedule.short_np > 0)
+            throw std::invalid_argument("Use MPC_DoubleLaneChange for curvature-scheduled Np; the bridge uses policy actions");
         cfg.carsim.simfile = fs::absolute(argv[2]);
         cfg.open_report = false;
         validateConfig(cfg);

@@ -25,6 +25,8 @@ LateralMpc::LateralMpc(const VehicleParameters& v,
         p.admm_rho <= 0.0 || p.admm_max_iterations <= 0 ||
         p.admm_primal_tol <= 0.0 || p.admm_dual_tol <= 0.0 ||
         !std::isfinite(p.r_delta_change) || p.r_delta_change < 0.0 ||
+        !std::isfinite(p.q_tire_slip) || p.q_tire_slip < 0.0 ||
+        (p.q_tire_slip > 0.0 && !(p.front_relaxation_m > 0.0 && p.rear_relaxation_m > 0.0)) ||
         !std::isfinite(p.reference_curvature_sigma_m) || p.reference_curvature_sigma_m < 0.0 ||
         !std::isfinite(p.tire_slope_floor) || p.tire_slope_floor < 0.0 || p.tire_slope_floor > 1.0 ||
         !std::isfinite(p.front_relaxation_m) || p.front_relaxation_m < 0.0 ||
@@ -39,6 +41,13 @@ LateralMpc::LateralMpc(const VehicleParameters& v,
 
 void LateralMpc::setRoadGripProfile(std::function<double(double)> grip_at_x) {
     road_grip_at_x_ = std::move(grip_at_x);
+}
+
+void LateralMpc::setPredictionHorizon(int np) {
+    if (np < std::max(2, p_.nc) || np > 150)
+        throw std::invalid_argument("Prediction horizon must satisfy Nc <= Np <= 150 and Np >= 2");
+    // The warm start contains Nc steering moves, independent of Np.
+    p_.np = np;
 }
 
 void LateralMpc::adoptPreviousSolution(const LateralMpc& previous) {
@@ -220,9 +229,15 @@ MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previ
     const int np = p_.np, nc = p_.nc;
     std::vector<double> gradient(nc, 0.0);
     hessian_.assign(nc, std::vector<double>(nc, 0.0));
-    const double q[4] = {p_.q_y, p_.q_psi, p_.q_vy, p_.q_r};
+    const double q[6] = {p_.q_y, p_.q_psi, p_.q_vy, p_.q_r, p_.q_tire_slip, p_.q_tire_slip};
     const double wheelbase = vehicle_.a + vehicle_.b;
     const auto [front_load, rear_load] = staticWheelLoads(vehicle_);
+    const bool penalize_slip = p_.q_tire_slip > 0.0;
+    const double front_peak_slip = penalize_slip ? tires_.peakLateralSlip(front_load) : 1.0;
+    const double rear_peak_slip = penalize_slip ? tires_.peakLateralSlip(rear_load) : 1.0;
+    if (!(front_peak_slip > 0.0 && rear_peak_slip > 0.0))
+        throw std::runtime_error("MPC tire slip penalty requires positive force-peak slip angles");
+    const int error_count = penalize_slip ? 6 : 4;
     const bool use_feedforward = p_.steer_feedforward && p_.r_steer > 0.0;
     const double peak_accel = use_feedforward ? 2.0 *
         (tires_.peakLateralForce(front_load) + tires_.peakLateralForce(rear_load)) /
@@ -232,6 +247,10 @@ MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previ
          vehicle_.a / tires_.corneringStiffness(rear_load)) : 0.0;
     for (int stage = 0; stage < np; ++stage) {
         const auto& nominal = nominal_states_[stage + 1];
+        const double grip = road_grip_at_x_ ? road_grip_at_x_(nominal[5]) : vehicle_.road_grip_scale;
+        // The relaxation model scales the force-peak slip by local road grip.
+        const double front_slip_scale = grip * front_peak_slip;
+        const double rear_slip_scale = grip * rear_peak_slip;
         const auto path = ref_.at(nominal[5]);
         const double heading_slope = path.d2ydx2 /
             (1.0 + path.dydx * path.dydx);
@@ -252,10 +271,11 @@ MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previ
             ? std::atan2(nominal[0], nominal[1]) : 0.0;
         const double speed_squared = std::max(1e-6,
             nominal[0] * nominal[0] + nominal[1] * nominal[1]);
-        const double error[4] = {nominal[4] - path.y,
+        double error_offset[6] = {nominal[4] - path.y,
             angleDifference(nominal[2] + course_offset, path.psi), ey_dot,
-            nominal[3] - heading_rate};
-        std::vector<std::array<double, 4>> error_sensitivity(nc);
+            nominal[3] - heading_rate, nominal[6] / front_slip_scale,
+            nominal[7] / rear_slip_scale};
+        std::vector<std::array<double, 6>> error_sensitivity(nc);
         for (int j = 0; j < nc; ++j) {
             const auto& s = sensitivity_[stage][j];
             const double x_dot_s = cpsi * s[1] - spsi * s[0] - y_dot * s[2];
@@ -265,28 +285,27 @@ MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previ
             error_sensitivity[j] = {s[4] - path.dydx * s[5],
                 s[2] + course_offset_s - heading_slope * s[5],
                 y_dot_s - path.dydx * x_dot_s - path.d2ydx2 * x_dot * s[5],
-                s[3] - heading_slope * x_dot_s - heading_slope_x * x_dot * s[5]};
+                s[3] - heading_slope * x_dot_s - heading_slope_x * x_dot * s[5],
+                s[6] / front_slip_scale, s[7] / rear_slip_scale};
         }
-        double error_offset[4] = {error[0], error[1], error[2], error[3]};
         for (int j = 0; j < nc; ++j)
-            for (int d = 0; d < 4; ++d)
+            for (int d = 0; d < error_count; ++d)
                 error_offset[d] -= error_sensitivity[j][d] *
                                    nominal_increments_[j];
         const double terminal = (stage == np - 1 ? p_.terminal_scale : 1.0) *
             std::exp(p_.stage_weight_lambda * (stage + 1.0) / np);
         for (int j = 0; j < nc; ++j) {
-            for (int d = 0; d < 4; ++d)
+            for (int d = 0; d < error_count; ++d)
                 gradient[j] += 2.0 * terminal * q[d] *
                                error_sensitivity[j][d] * error_offset[d];
             for (int k = 0; k < nc; ++k)
-                for (int d = 0; d < 4; ++d)
+                for (int d = 0; d < error_count; ++d)
                     hessian_[j][k] += 2.0 * terminal * q[d] *
                         error_sensitivity[j][d] * error_sensitivity[k][d];
         }
         const int active = std::min(stage, nc - 1);
         double ff = 0.0;
         if (use_feedforward) {
-            const double grip = road_grip_at_x_ ? road_grip_at_x_(nominal[5]) : vehicle_.road_grip_scale;
             const double vx2 = nominal[1] * nominal[1];
             const double curve_limit = grip * peak_accel / std::max(1.0, vx2);
             const double stiffness_scale = p_.usesTireRelaxation() ? 1.0 : grip;

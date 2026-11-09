@@ -44,6 +44,7 @@ SimulationRecord recordSample(const VehicleState& state, const DoubleLaneChange&
 struct RunOutcome {
     double requested_distance_m = 0.0;
     bool adaptive = false;
+    bool scheduled_horizon = false;
     std::string plant_name = "carsim";
     std::string reference_source = "CarSim LTARG_TABLE (straight east road)";
     CarSimRunInfo carsim_info;

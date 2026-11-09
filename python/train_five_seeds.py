@@ -1,5 +1,6 @@
-"""Repeat the selected 500-episode TQC design on five random seeds."""
+"""Repeat the selected TQC design on five random seeds."""
 import argparse
+import configparser
 import csv
 import json
 import os
@@ -23,6 +24,9 @@ def main():
         parser.error("The ablation suite has no selected winner")
     selected = original / Path(winner["training_config"]).name
     project = Path(__file__).resolve().parent.parent
+    defaults = configparser.ConfigParser(interpolation=None)
+    defaults.read(project / "configs/rl_training.ini", encoding="utf-8-sig")
+    episodes = defaults.getint("training", "episodes")
     root = project / 'runs/five_seeds' / datetime.now().strftime('%Y%m%d_%H%M%S')
     root.mkdir(parents=True, exist_ok=False)
     shutil.copytree(original / 'configs', root / 'configs')
@@ -30,7 +34,7 @@ def main():
     training = root / 'selected_training.ini'
     shutil.copy2(selected, training)
     case = snapshot_scenario(read_scenario(original / 'case/simfile.sim'), root / 'case')
-    info = {'status': 'training', 'seeds': [42, 43, 44, 45, 46], 'episodes': 500,
+    info = {'status': 'training', 'seeds': [42, 43, 44, 45, 46], 'episodes': episodes,
             'selection': 'best deterministic validation return per seed',
             'scenario': read_scenario(case), 'training_config': str(training),
             'control_config': str(control), 'runs': []}
@@ -44,7 +48,7 @@ def main():
             output = root / f'seed_{seed}'
             output.mkdir()
             command = [sys.executable, '-u', str(project / 'python/train.py'), '--algorithm', 'tqc',
-                       '--episodes', '500', '--seed', str(seed), '--config', str(control),
+                       '--episodes', str(episodes), '--seed', str(seed), '--config', str(control),
                        '--train-config', str(training), '--simfile', str(case), '--out', str(output)]
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
@@ -57,8 +61,8 @@ def main():
             with (runs[0] / 'best_evaluation/metrics.csv').open(encoding='utf-8', newline='') as file:
                 rows = list(csv.DictReader(file))
             learned = next(row for row in rows if row['controller'] == 'tqc')
-            neutral = next(row for row in rows if row['controller'] == 'neutral_mpc')
-            info['runs'].append({'seed': seed, 'run': str(runs[0]), 'metrics': learned, 'neutral_mpc': neutral})
+            fixed = next(row for row in rows if row['controller'] == 'fixed_mpc')
+            info['runs'].append({'seed': seed, 'run': str(runs[0]), 'metrics': learned, 'fixed_mpc': fixed})
             save()
         fields = ('return_', 'rmse_y_m', 'peak_y_m', 'rmse_heading_deg', 'qp_failures')
         info['aggregate'] = {field: {'mean': statistics.mean(v), 'sample_std': statistics.stdev(v)}

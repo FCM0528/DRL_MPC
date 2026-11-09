@@ -1,4 +1,4 @@
-"""Train DDPG, TD3 and TQC sequentially and compare them with neutral MPC."""
+"""Train DDPG, TD3 and TQC sequentially and compare them with fixed MPC."""
 import argparse
 import configparser
 import json
@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 
 from compare_four import ALGORITHMS, compare_four
+from evaluate import DEFAULT_FIXED_CONFIG, select_best_checkpoint
+from report import render_training_summary
 from scenario import read_scenario, resolve_simfile, snapshot_scenario
 
 
@@ -19,7 +21,7 @@ def main():
     parser.add_argument("--seed", type=int)
     parser.add_argument("--eval-frequency", type=int)
     parser.add_argument("--select-lateral-rmse", action="store_true",
-                        help="Compare models selected by validation lateral RMSE")
+                        help="Use lateral RMSE for validation during training")
     parser.add_argument("--parity-blocks", type=int, default=10)
     parser.add_argument("--config", default="configs/carsim_python_rl.ini")
     parser.add_argument("--train-config", default="configs/rl_training.ini")
@@ -52,11 +54,15 @@ def main():
         if item.is_file() and item.suffix.lower() in (".ini", ".csv"):
             shutil.copy2(item, configs / item.name)
     frozen_config = configs / config.name
+    fixed_config = configs / DEFAULT_FIXED_CONFIG.name
+    if not fixed_config.is_file():
+        shutil.copy2(DEFAULT_FIXED_CONFIG, fixed_config)
     frozen_train_config = configs / "rl_training.ini"
     if train_config != frozen_train_config:
         shutil.copy2(train_config, frozen_train_config)
     info = {"scenario": scenario, "seed": args.seed, "episodes_per_algorithm": args.episodes,
-            "model_selection": "validation_lateral_rmse" if args.select_lateral_rmse else "final",
+            "model_selection": "lowest_rmse_among_completed_zero_qp_failure_checkpoints",
+            "fixed_config": str(fixed_config),
             "source_config": str(config), "frozen_config": str(frozen_config),
             "source_training_config": str(train_config), "frozen_training_config": str(frozen_train_config),
             "snapshot_simfile": str(frozen), "status": "training", "models": {}}
@@ -65,6 +71,7 @@ def main():
         manifest.write_text(json.dumps(info, indent=2, ensure_ascii=False), encoding="utf-8")
     save()
     print(f"Suite directory: {root}", flush=True)
+    monitors = {}
     try:
         for algorithm in ALGORITHMS:
             output = root / ("train_" + algorithm)
@@ -90,16 +97,17 @@ def main():
             runs = [p for p in output.iterdir() if p.is_dir() and (p / "final_model.zip").is_file()]
             if len(runs) != 1:
                 raise RuntimeError(f"Expected exactly one completed {algorithm.upper()} run in {output}")
-            selected = runs[0] / ("best/best_model.zip" if args.select_lateral_rmse else "final_model.zip")
-            if not selected.is_file():
-                raise RuntimeError(f"No eligible validation model for {algorithm.upper()}")
+            selected = select_best_checkpoint(algorithm, runs[0], bridge, frozen_config,
+                frozen, output / "checkpoint_selection.csv", args.seed)
             info["models"][algorithm] = str(selected)
+            monitors[algorithm] = runs[0] / "train_monitor.csv"
             save()
             print(f"{algorithm.upper()} complete: {info['models'][algorithm]}", flush=True)
+        info["training_summary"] = str(render_training_summary(root, monitors, args.episodes, args.seed))
         info["status"] = "evaluating"
         save()
         report = compare_four(info["models"], bridge, frozen_config, frozen,
-                              root / "comparison", args.seed)
+                              root / "comparison", args.seed, controller, fixed_config)
         info["status"] = "complete"
         info["comparison_report"] = str(report)
         save()

@@ -55,7 +55,7 @@ std::filesystem::path namedOutputFolder(const AppConfig& config) {
 #endif
     std::ostringstream name;
     const auto& mode = config.rl.mode;
-    name << "mpc_fixed";
+    name << (config.horizon_schedule.short_np > 0 ? "mpc_scheduled" : "mpc_fixed");
     if (config.experiment != "ddpg_adaptive" && config.experiment != "path_tracking")
         name << '_' << readableToken(config.experiment);
     name << "_carsim";
@@ -232,11 +232,12 @@ SimulationRun runConfiguredSimulation(AppConfig opts) {
         outcome.model_front_stiffness_n_per_rad = carsim_model.front_stiffness_n_per_rad / stiffness_divisor;
         outcome.model_rear_stiffness_n_per_rad = carsim_model.rear_stiffness_n_per_rad / stiffness_divisor;
         outcome.requested_distance_m = opts.distance_m;
-        const int current_np = opts.mpc.np;
+        const auto& schedule = opts.horizon_schedule;
+        outcome.scheduled_horizon = schedule.short_np > 0;
         const double curvature_sigma_m = opts.mpc.steer_feedforward && opts.mpc.r_steer > 0.0
             ? opts.mpc.reference_curvature_sigma_m : 0.0;
         MpcTuningAction current_action;
-        current_action.np = opts.mpc.np;
+        current_action.np = outcome.scheduled_horizon ? schedule.short_np : opts.mpc.np;
         current_action.q_y = opts.mpc.q_y;
         current_action.q_psi = opts.mpc.q_psi;
         current_action.q_vy = opts.mpc.q_vy;
@@ -264,7 +265,9 @@ SimulationRun runConfiguredSimulation(AppConfig opts) {
                   << " s, Nc=" << opts.mpc.nc << '\n';
         std::cout << "  Front-wheel angle bound=" << opts.mpc.max_steer * 180.0 / std::acos(-1.0)
                   << " deg (" << (opts.steer_limit_from_carsim ? "CarSim RACK_KIN" : "configured") << ")\n";
-        std::cout << "  Fixed Np=" << opts.mpc.np
+        std::cout << "  " << (outcome.scheduled_horizon
+            ? "Scheduled Np=" + std::to_string(schedule.short_np) + " / " : "Fixed Np=")
+                  << opts.mpc.np
                   << " (Tp=" << opts.mpc.np * opts.mpc.dt << " s, Tc="
                   << opts.mpc.nc * opts.mpc.dt << " s)\n"
                   << "  Q=diag(" << opts.mpc.q_y << ", " << opts.mpc.q_psi
@@ -275,6 +278,25 @@ SimulationRun runConfiguredSimulation(AppConfig opts) {
 
         for (int step = 0; state.x < opts.distance_m && step < max_steps; ++step) {
             const auto start = std::chrono::steady_clock::now();
+            const auto previous_action = current_action;
+            if (outcome.scheduled_horizon) {
+                // Estimate peak lateral demand in the upcoming path using local road grip.
+                const double speed_squared = state.vx * state.vx + state.vy * state.vy;
+                const double preview_m = std::sqrt(speed_squared) * schedule.lookahead_s;
+                constexpr int preview_intervals = 16;
+                double ratio = 0.0;
+                for (int i = 0; i <= preview_intervals; ++i) {
+                    const double x = state.x + preview_m * i / preview_intervals;
+                    const double curvature = ref.controlCurvature(x, opts.mpc.reference_curvature_sigma_m);
+                    ratio = std::max(ratio, speed_squared * std::abs(curvature) /
+                        (9.80665 * carsim_model.road_grip.at(x)));
+                }
+                if (ratio >= schedule.enter_ratio)
+                    current_action.np = opts.mpc.np;
+                else if (ratio <= schedule.exit_ratio)
+                    current_action.np = schedule.short_np;
+                controller.setPredictionHorizon(current_action.np);
+            }
             const auto control = controller.control(state, prev_delta, prev_increment);
             const bool held_steering = !control.prediction_failure.empty();
             if (!control.converged && outcome.first_solve_issue.empty()) {
@@ -301,9 +323,10 @@ SimulationRun runConfiguredSimulation(AppConfig opts) {
             const auto next_reference = ref.at(next.x);
             rows.back().reward = scalarizedRlReward(
                 next.y - next_reference.y, angleDifference(next.psi, next_reference.psi),
-                control.steer, current_np, opts.mpc, opts.rl, prev_delta, current_np,
-                current_action, current_action, next.vy,
-                next.r - next.vx * next_reference.curvature, std::atan2(next.vy, next.vx));
+                control.steer, current_action.np, opts.mpc, opts.rl, prev_delta, previous_action.np,
+                current_action, previous_action, next.vy,
+                next.r - next.vx * next_reference.curvature, std::atan2(next.vy, next.vx),
+                lateralErrorRate(next, next_reference));
             state = next;
             prev_increment = control.steer - prev_delta;
             prev_delta = control.steer;

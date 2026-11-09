@@ -7,6 +7,7 @@ import gymnasium as gym
 from gymnasium import spaces
 
 from bridge.client import BridgeClient, BridgeError
+from scenario import resolve_config_value
 
 
 class CarSimMPCEnv(gym.Env):
@@ -21,9 +22,15 @@ class CarSimMPCEnv(gym.Env):
         self.output_root = Path(output_root).resolve()
         self.output_root.mkdir(parents=True, exist_ok=True)
         self.action_space = spaces.Box(-1.0, 1.0, shape=(4,), dtype=np.float32)
-        # Observations are the 17 feature scalings from src/rl.cpp::makeRlObservation.
+        self.observation_profile = resolve_config_value(
+            self.config, "rl", "observation_profile", "road_preview_v2"
+        ).lower()
+        dimensions = {"road_preview": 12, "road_preview_v2": 14}
+        if self.observation_profile not in dimensions:
+            raise ValueError(f"Unknown observation profile: {self.observation_profile}")
+        self._observation_size = dimensions[self.observation_profile]
         self.observation_space = spaces.Box(
-            -np.inf, np.inf, shape=(17,), dtype=np.float32
+            -np.inf, np.inf, shape=(self._observation_size,), dtype=np.float32
         )
         self._bridge = None
         self._episode_id = 0
@@ -32,10 +39,10 @@ class CarSimMPCEnv(gym.Env):
             if not file.is_file():
                 raise FileNotFoundError(file)
 
-    @staticmethod
-    def _observation(fields):
-        if len(fields) != 17:
-            raise BridgeError(f"Expected 17 observation scalars, got {len(fields)}")
+    def _observation(self, fields):
+        if len(fields) != self._observation_size:
+            raise BridgeError(f"{self.observation_profile} expects {self._observation_size} "
+                              f"observation scalars, got {len(fields)}")
         state = np.asarray(fields, dtype=np.float32)
         if not np.all(np.isfinite(state)):
             raise BridgeError("CarSim produced nonfinite observations")
@@ -69,24 +76,25 @@ class CarSimMPCEnv(gym.Env):
             raise ValueError("Action is outside [-1, 1]")
         data = self._bridge.exchange("STEP " + " ".join(format(x, ".17g") for x in a),
                                      "BRIDGE_STEP")
-        if len(data) != 29:
-            raise BridgeError(f"Expected 29 STEP values, got {len(data)}")
-        obs = self._observation(data[:17])
-        reward = float(data[17])
-        terminated = bool(int(data[18]))
-        truncated = bool(int(data[19]))
+        n = self._observation_size
+        if len(data) != n + 12:
+            raise BridgeError(f"Expected {n + 12} STEP values, got {len(data)}")
+        obs = self._observation(data[:n])
+        reward, terminated, truncated, x, ey, epsi, steer, qp, _, steps, failed, np_horizon = data[n:]
+        reward = float(reward)
+        terminated = bool(int(terminated))
+        truncated = bool(int(truncated))
         self._done = terminated or truncated
         info = {
-            "x_m": float(data[20]),
-            "ey_m": float(data[21]),
-            "epsi_rad": float(data[22]),
-            "steer_rad": float(data[23]),
-            "qp_failures": int(data[24]),
-            "mpc_steps": int(data[26]),
-            "failed": bool(int(data[27])),
-            "np": int(data[28]),
+            "x_m": float(x),
+            "ey_m": float(ey),
+            "epsi_rad": float(epsi),
+            "steer_rad": float(steer),
+            "qp_failures": int(qp),
+            "mpc_steps": int(steps),
+            "failed": bool(int(failed)),
+            "np": int(np_horizon),
         }
-        # 17 obs + reward/terminated/truncated + 8 diagnostic fields + executed Np = 29.
         if info["np"] <= 0:
             raise BridgeError("C++ bridge returned nonpositive prediction horizon")
         if not np.isfinite(reward):

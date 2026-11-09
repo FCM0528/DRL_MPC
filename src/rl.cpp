@@ -13,24 +13,13 @@ double neutralWeight(const RlConfig& config, std::size_t k) {
                            : choices[choices.size() / 2];
 }
 
-struct PathPreview {
-    double peak_curvature;
-    double curvature_change;
-};
-
-PathPreview previewPath(const VehicleState& state, const DoubleLaneChange& reference,
-                        double distance_m, double preview_s, double curvature) {
-    const double preview_m = std::min(std::max(0.0, distance_m - state.x),
-                                      std::max(5.0, state.vx * preview_s));
-    PathPreview preview{curvature, 0.0};
-    for (int i = 1; i <= 12; ++i) {
-        const double future = reference.at(state.x + preview_m * i / 12.0).curvature;
-        if (std::abs(future) > std::abs(preview.peak_curvature))
-            preview.peak_curvature = future;
-        preview.curvature_change = std::max(preview.curvature_change, std::abs(future - curvature));
-    }
-    return preview;
 }
+
+double lateralErrorRate(const VehicleState& state, const ReferencePoint& reference) {
+    const double c = std::cos(state.psi), s = std::sin(state.psi);
+    const double x_dot = state.vx * c - state.vy * s;
+    const double y_dot = state.vx * s + state.vy * c;
+    return y_dot - reference.dydx * x_dot;
 }
 
 double scalarizedRlReward(double ey, double epsi, double steer, int np,
@@ -38,7 +27,7 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           double previous_steer, int previous_np,
                           const MpcTuningAction& action,
                           const MpcTuningAction& previous_action,
-                          double vy, double yaw_error, double sideslip) {
+                          double vy, double yaw_error, double sideslip, double ey_dot) {
     const auto& r = config.reward;
     const double normalized_ey = ey / r.ey_scale_m;
     if (r.tracking_v2 && mpc.track_course)
@@ -85,8 +74,12 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
     const double lateral_loss = r.squared_lateral_reward
         ? normalized_ey * normalized_ey
         : tracking_loss(clip(normalized_ey, -20.0, 20.0));
-    const std::array<double, 11> terms{{r.w_y * lateral_loss,
+    // Penalize a predicted increase in absolute error, including crossing the line too fast.
+    const double growth = std::max(0.0, std::abs(ey + r.lateral_growth_preview_s * ey_dot)
+        - std::abs(ey)) / r.ey_scale_m;
+    const std::array<double, 12> terms{{r.w_y * lateral_loss,
         r.w_peak * peak_excess * peak_excess, r.w_psi * tracking_loss(normalized_epsi),
+        r.w_lateral_growth * growth * growth,
         r.w_steer * normalized_steer * normalized_steer,
         r.w_steer_rate * steer_rate_loss,
         r.w_sideslip * sideslip_excess * sideslip_excess,
@@ -172,50 +165,86 @@ MpcTuningAction advanceRlTuning(const std::array<double, 4>& action,
     return next;
 }
 
-RlObservation makeRlObservation(const VehicleState& state,
-                                const DoubleLaneChange& reference,
-                                int current_np, double distance_m,
-                                double speed_scale, const RlConfig& config,
-                                const MpcTuningAction& current_action,
-                                double road_grip, double previous_steer,
-                                double previous_plan, double steer_scale) {
-    if (!(std::isfinite(road_grip) && road_grip > 0.0))
-        throw std::invalid_argument("RL observation requires positive road grip");
+double roadPreviewDuration(const RlConfig& config, double mpc_dt) {
+    const double decision_s = mpc_dt * config.decision_steps;
+    const int slew = (config.max_np_change_per_decision / config.np_step) * config.np_step;
+    const int span = config.max_np - config.min_np;
+    const int ramp_decisions = slew > 0 ? (span + slew - 1) / slew : 0;
+    constexpr double margin_s = 0.30;
+    return std::max(config.curvature_preview_s, (ramp_decisions + 1) * decision_s + margin_s);
+}
+
+double roadPreviewDistance(const RlConfig& config, double mpc_dt, double x_speed) {
+    if (x_speed <= 0.0) return 0.0;
+    const double distance = std::max(config.road_preview_min_m,
+        x_speed * roadPreviewDuration(config, mpc_dt));
+    return config.road_preview_max_m > 0.0
+        ? std::min(distance, config.road_preview_max_m) : distance;
+}
+
+RoadPreviewObservation makeRoadPreviewObservation(
+    const VehicleState& state, const DoubleLaneChange& reference,
+    const std::function<double(double)>& grip_at_x, double distance_m,
+    const MpcParameters& mpc, const RlConfig& config, int current_np, double previous_steer) {
+    constexpr double gravity = 9.80665;
+    constexpr double demand_threshold = 1.0;
+    constexpr int samples = 32;
+    const double speed = std::hypot(state.vx, state.vy);
+    const double x_speed = std::max(0.0,
+        state.vx * std::cos(state.psi) - state.vy * std::sin(state.psi));
+    const double requested_preview_m = roadPreviewDistance(config, mpc.dt, x_speed);
     const auto point = reference.at(state.x);
-    const auto preview = previewPath(state, reference, distance_m, config.curvature_preview_s,
-                                     point.curvature);
-    const auto scale_state = [](double value, double minimum, double maximum) {
-        // Fixed paper-style error-rate weights may be zero even though the
-        // historical observation normalization bounds are positive.
-        if (value <= 0.0) return -1.0;
-        return clip(2.0 * (std::log(value) - std::log(minimum)) /
-            (std::log(maximum) - std::log(minimum)) - 1.0, -1.0, 1.0);
-    };
-    if (!(steer_scale > 0.0)) throw std::invalid_argument("RL steering observation scale must be positive");
-    return {clip(state.vx / speed_scale, 0.0, 2.0),
+    const double end_x = std::min(distance_m, point.x_max);
+    const double preview_m = std::min(requested_preview_m, std::max(0.0, end_x - state.x));
+    const double station_step = preview_m / samples;
+    const double grip = grip_at_x(state.x);
+    const double curvature = reference.controlCurvature(state.x, mpc.reference_curvature_sigma_m);
+    const double near_m = std::min(preview_m, 0.6 * x_speed);
+    const double demand_scale = speed * speed / gravity;
+    double peak_demand = demand_scale * std::abs(curvature) / grip;
+    double near_demand = peak_demand;
+    double min_grip = grip;
+    double demand_arrival_fraction = peak_demand >= demand_threshold ? 0.0 : 1.0;
+    double curvature_change = 0.0;
+    double curvature_rate = 0.0;
+    double previous_curvature = curvature;
+    for (int i = 1; i <= samples && station_step > 0.0; ++i) {
+        const double x = state.x + i * station_step;
+        const double future = reference.controlCurvature(x, mpc.reference_curvature_sigma_m);
+        const double future_grip = grip_at_x(x);
+        const double demand = demand_scale * std::abs(future) / future_grip;
+        min_grip = std::min(min_grip, future_grip);
+        if (i * station_step <= near_m)
+            near_demand = std::max(near_demand, demand);
+        if (peak_demand < demand_threshold && demand >= demand_threshold)
+            demand_arrival_fraction = i * station_step / requested_preview_m;
+        peak_demand = std::max(peak_demand, demand);
+        if (std::abs(future - curvature) > std::abs(curvature_change))
+            curvature_change = future - curvature;
+        curvature_rate = std::max(curvature_rate, std::abs(future - previous_curvature) / station_step);
+        previous_curvature = future;
+    }
+    const double near_x = state.x + near_m;
+    const double heading_change = angleDifference(reference.at(near_x).psi, point.psi);
+    const double course_error = angleDifference(state.psi + std::atan2(state.vy, state.vx), point.psi);
+    RoadPreviewObservation obs{clip(speed / 30.0, 0.0, 2.0),
+            clip(curvature * 25.0, -1.0, 1.0),
+            clip(curvature_change * 25.0, -1.0, 1.0),
+            clip(curvature_rate * 100.0, 0.0, 1.0),
+            clip(heading_change / 0.30, -1.0, 1.0),
+            clip(grip / 1.5, 0.0, 1.0),
+            clip(peak_demand / config.grip_demand_clip, 0.0, 1.0),
+            clip(demand_arrival_fraction, 0.0, 1.0),
             clip(std::asinh((state.y - point.y) / config.reward.ey_scale_m), -4.0, 4.0),
-            clip(std::asinh(angleDifference(state.psi, point.psi) /
-                            config.reward.epsi_scale_rad), -4.0, 4.0),
-            clip(state.vy / 5.0, -5.0, 5.0),
-            clip(state.r, -5.0, 5.0),
-            clip(point.curvature * 30.0, -5.0, 5.0),
-            clip(preview.peak_curvature * 30.0, -5.0, 5.0),
-            clip(preview.curvature_change * 30.0, 0.0, 5.0),
+            clip(std::asinh(course_error / config.reward.epsi_scale_rad), -4.0, 4.0),
+            clip(previous_steer / mpc.max_steer, -1.0, 1.0),
             clip(2.0 * (current_np - config.min_np) /
-                 static_cast<double>(config.max_np - config.min_np) - 1.0, -1.0, 1.0),
-            clip(state.vx * state.vx * std::abs(preview.peak_curvature) /
-                 (9.81 * road_grip),
-                 0.0, config.grip_demand_clip),
-            scale_state(current_action.q_y, config.minWeight(0), config.maxWeight(0)),
-            scale_state(current_action.q_psi, config.minWeight(1), config.maxWeight(1)),
-            config.augmented_observation ? clip(previous_steer / steer_scale, -1.0, 1.0) : scale_state(current_action.q_vy, config.weight_min[2], config.weight_max[2]),
-            // Reserve the former mode slot for existing augmented policies.
-            config.augmented_observation ? 0.0 : scale_state(current_action.q_r, config.weight_min[3], config.weight_max[3]),
-            config.augmented_observation ? clip(previous_plan / steer_scale, -1.0, 1.0) : scale_state(current_action.r_steer, config.weight_min[4], config.weight_max[4]),
-            scale_state(current_action.r_delta, config.minWeight(5), config.maxWeight(5)),
-            config.train_mu_min == config.train_mu_max ? 0.0 :
-                clip(2.0 * (road_grip - config.train_mu_min) /
-                     (config.train_mu_max - config.train_mu_min) - 1.0, -1.0, 1.0)};
+                static_cast<double>(config.max_np - config.min_np) - 1.0, -1.0, 1.0)};
+    if (config.observation_profile == "road_preview_v2") {
+        obs.push_back(clip(min_grip / 1.5, 0.0, 1.0));
+        obs.push_back(clip(near_demand / config.grip_demand_clip, 0.0, 1.0));
+    }
+    return obs;
 }
 
 MpcParameters applyRlAction(const MpcParameters& base, const MpcTuningAction& action,

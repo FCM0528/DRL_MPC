@@ -133,10 +133,24 @@ double TireTable::boundedLateralForce(double slip_rad, double normal_load_n) con
 }
 
 double TireTable::peakLateralForce(double normal_load_n) const {
+    return lateralPeak(normal_load_n).first;
+}
+
+double TireTable::peakLateralSlip(double normal_load_n) const {
+    return lateralPeak(normal_load_n).second / rad2deg;
+}
+
+std::pair<double, double> TireTable::lateralPeak(double normal_load_n) const {
     double peak = 0.0;
-    for (const double slip : slip_deg_)
-        peak = std::max(peak, positiveForce(slip, normal_load_n));
-    return peak;
+    double peak_slip_deg = 0.0;
+    for (const double slip : slip_deg_) {
+        const double force = positiveForce(slip, normal_load_n);
+        if (force > peak) {
+            peak = force;
+            peak_slip_deg = slip;
+        }
+    }
+    return {peak, peak_slip_deg};
 }
 
 PredictionState matrixTimesState(const PredictionMatrix& a, const PredictionState& x) {

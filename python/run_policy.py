@@ -17,13 +17,13 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     model = {"ddpg": DDPG, "td3": TD3, "tqc": TQC}[algorithm].load(model_path, device="cpu")
-    if model.observation_space.shape != (17,) or model.action_space.shape != (4,):
-        raise ValueError("Policy must use the bridge's 17 observations and four tuning actions")
     inputs = {"algorithm": algorithm, "model": str(Path(model_path).resolve()),
               "bridge": str(Path(bridge).resolve()), "config": str(Path(config).resolve()),
               "simfile": str(Path(simfile).resolve()), "scenario": read_scenario(simfile), "seed": seed}
     (output / "inputs.json").write_text(json.dumps(inputs, indent=2), encoding="utf-8")
     env = CarSimMPCEnv(bridge, config, simfile, output / "solver")
+    if model.observation_space.shape != env.observation_space.shape or model.action_space.shape != env.action_space.shape:
+        raise ValueError(f"Policy spaces do not match {env.observation_profile}; use its training configuration")
     total_reward = 0.0
     decisions = 0
     try:
