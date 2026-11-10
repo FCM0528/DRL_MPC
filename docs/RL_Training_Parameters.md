@@ -12,14 +12,14 @@
 | 策略决策间隔 | 0.08 s | 0.04 × 2 |
 | 未来奖励折扣因子 | 0.995967610541 | `carsim_python_rl.ini [rl] discount_gamma`，按策略决策生效 |
 | 观测 / 动作维数 | 14 / 4 | 默认 `road_preview_v2`；动作依次为 Np、Qy、Qψ、RΔ |
-| 训练回合数 | 300 | `rl_training.ini [training] episodes`，每种算法各自计数 |
+| 训练回合数 | 500 | `rl_training.ini [training] episodes`，每种算法各自计数 |
 | 随机种子 | 42 | `rl_training.ini [training] seed` |
 | 经验回放池容量 | 100000 个决策 | `buffer_size` |
 | 开始更新前采样数 | 550 个决策 | `learning_starts`；对应回合数随工况长度和车速变化 |
 | 随机小批量 | 256 | `batch_size` |
 | 更新间隔 | 每 1 个决策 | `train_freq` |
 | 每次更新的梯度步数 | 1 | `gradient_steps` |
-| 无探索验证及检查点间隔 | 550 个决策 | `eval_frequency`；用验证最佳检查点选模型 |
+| 无探索验证及检查点间隔 | 550 个决策 | `eval_frequency`；三算法套件只保存检查点，主报告使用最终模型 |
 
 ### 离散候选动作
 
@@ -30,7 +30,7 @@
 | Qψ | 1400, 1800, 2300, 2550, 2800, 3150, 3500, 4400, 5600 |
 | RΔ | 6750, 8500, 11000, 12250, 13500, 15250, 17000, 21500, 27000 |
 
-先按当前工况 50–90 m 段的固定 MPC 横向 RMSE 扫参，选出 Nc = 7。零动作与 `default.ini` 对齐，使用 Nc = 7 下全程 RMSE 最低且可作为双向动作中心的 Np = 47，以及 Qy = 9200、Qψ = 2800、RΔ = 13500。关键段对比基准使用 Np = 50、Nc = 7。`q_tire_slip = 4000` 由固定配置提供。C++ 每次决策将三个权重动作映射到各自的九个候选值。`max_np_change_per_decision = 0` 时，量化后的目标 Np 在当次决策直接生效。
+默认零动作与 default.ini 对齐。扫参脚本生成的新配置将零动作重新对齐到该轮选出的固定 MPC。C++ 每次决策按动作选择权重候选项。max_np_change_per_decision = 0 时，目标 Np 在本次决策直接生效。
 
 ### 预瞄观测
 
@@ -51,7 +51,7 @@
 
 主损失为 `2 × (|ey|/0.20)²`。单步绝对误差超出 0.25 m 时，再加 `3 × (max(0, |ey|−0.25)/0.25)²`。用质心速度与参考曲线斜率计算 `ey_dot`，以 `|ey + 0.25 s × ey_dot|` 估计短时偏差。如果估计的绝对误差大于当前值，对其增长量加归一化平方惩罚，权重为 0.6。该项对左右偏差对称，覆盖继续远离参考线和高速穿线后反向偏离。航向、转角、转向速率与稳定性仍作辅助项。训练回报按控制步损失聚合。
 
-训练传入 `--fixed-config configs/carsim_fixed_key_segment.ini --lateral-key-segment 50 90 --require-lateral-improvement` 可启用本工况的验收口径。验证先要求完赛、QP 零失败、全程 RMSE 与最大绝对横向误差都低于固定 MPC，且 90 m 后最大绝对误差不高于固定 MPC，然后按 50–90 m RMSE 排名。实测值与是否合格记录在 `solver_validation/lateral_validation.csv`。没有合格模型时，训练仍输出最终模型及对比指标供诊断。
+训练传入 `--fixed-config <固定MPC配置> --lateral-key-segment 50 90 --require-lateral-improvement` 可启用本工况的验收口径。验证先要求完赛、QP 零失败、全程 RMSE 与最大绝对横向误差都低于固定 MPC，且 90 m 后最大绝对误差不高于固定 MPC，然后按 50–90 m RMSE 排名。实测值与是否合格记录在 `solver_validation/lateral_validation.csv`。没有合格模型时，训练仍输出最终模型及对比指标供诊断。
 
 ## DDPG
 

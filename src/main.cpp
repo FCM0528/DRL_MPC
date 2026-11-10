@@ -54,13 +54,10 @@ std::filesystem::path namedOutputFolder(const AppConfig& config) {
     localtime_r(&now, &local);
 #endif
     std::ostringstream name;
-    const auto& mode = config.rl.mode;
     name << (config.horizon_schedule.short_np > 0 ? "mpc_scheduled" : "mpc_fixed");
     if (config.experiment != "ddpg_adaptive" && config.experiment != "path_tracking")
         name << '_' << readableToken(config.experiment);
-    name << "_carsim";
-    if (mode == "fixed") name << "_Np" << config.mpc.np;
-    name << "_Nc" << config.mpc.nc;
+    name << "_carsim_Np" << config.mpc.np << "_Nc" << config.mpc.nc;
     name << '_' << std::put_time(&local, "%Y%m%d-%H%M%S");
     const auto base = config.output / name.str();
     std::filesystem::create_directories(config.output);
@@ -131,7 +128,7 @@ AppConfig parseArgs(int argc, char** argv) {
             auto setting = value.substr(0, pos);
             std::transform(setting.begin(), setting.end(), setting.begin(),
                            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-            overrideConfig(c, value.substr(0, pos), value.substr(pos + 1));
+            overrideConfig(c, setting, value.substr(pos + 1));
         } else if (key == "--plant") overrideConfig(c, "simulation.plant", value);
         else if (key == "--np") overrideConfig(c, "mpc.np", value);
         else if (key == "--nc") overrideConfig(c, "mpc.nc", value);

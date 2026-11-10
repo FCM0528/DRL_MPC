@@ -6,9 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from stable_baselines3 import DDPG, TD3
-from sb3_contrib import TQC
-
+from algorithms import ALGORITHMS
 from envs.carsim_mpc_env import CarSimMPCEnv
 from scenario import resolve_simfile, read_scenario
 
@@ -16,7 +14,7 @@ from scenario import resolve_simfile, read_scenario
 def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
-    model = {"ddpg": DDPG, "td3": TD3, "tqc": TQC}[algorithm].load(model_path, device="cpu")
+    model = ALGORITHMS[algorithm].load(model_path, device="cpu")
     inputs = {"algorithm": algorithm, "model": str(Path(model_path).resolve()),
               "bridge": str(Path(bridge).resolve()), "config": str(Path(config).resolve()),
               "simfile": str(Path(simfile).resolve()), "scenario": read_scenario(simfile), "seed": seed}
@@ -55,7 +53,7 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--algorithm", choices=("ddpg", "td3", "tqc"), required=True)
+    p.add_argument("--algorithm", choices=ALGORITHMS, required=True)
     p.add_argument("--model", required=True, help="Python Stable-Baselines3 .zip model")
     p.add_argument("--bridge", default="out/python-rl-build/Release/MPC_RL_Bridge.exe")
     p.add_argument("--config", default="configs/carsim_python_rl.ini")

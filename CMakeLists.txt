@@ -5,57 +5,49 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(MPC_CORE
+function(mpc_compile_options target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /utf-8 $<$<CONFIG:Debug>:/Z7>)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endfunction()
+
+add_library(mpc_core STATIC
     src/config.cpp
     src/reference.cpp
     src/vehicle.cpp
     src/carsim_plant.cpp
     src/mpc.cpp
     src/rl.cpp
-)
-
-add_executable(MPC_DoubleLaneChange
-    src/main.cpp
     src/visualization.cpp
-    ${MPC_CORE}
 )
-target_include_directories(MPC_DoubleLaneChange PRIVATE src)
+target_include_directories(mpc_core PUBLIC src)
+mpc_compile_options(mpc_core)
+
+add_executable(MPC_DoubleLaneChange src/main.cpp)
+target_link_libraries(MPC_DoubleLaneChange PRIVATE mpc_core)
+mpc_compile_options(MPC_DoubleLaneChange)
 if(WIN32)
     target_link_libraries(MPC_DoubleLaneChange PRIVATE shell32)
 endif()
 if(MSVC)
-    # Keep Debug symbols in object files: avoids MSVC PDB server version conflicts.
-    target_compile_options(MPC_DoubleLaneChange PRIVATE /W4 /utf-8 $<$<CONFIG:Debug>:/Z7>)
-    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT MPC_DoubleLaneChange)
+    set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT MPC_DoubleLaneChange)
     set_target_properties(MPC_DoubleLaneChange PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         VS_DEBUGGER_COMMAND_ARGUMENTS "--config \"${CMAKE_CURRENT_SOURCE_DIR}/configs/default.ini\"")
-else()
-    target_compile_options(MPC_DoubleLaneChange PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+add_executable(MPC_RL_Bridge src/rl_bridge_main.cpp)
+target_link_libraries(MPC_RL_Bridge PRIVATE mpc_core)
+mpc_compile_options(MPC_RL_Bridge)
 
 option(MPC_BUILD_TESTS "Build MPC numerical and configuration tests" ON)
 if(MPC_BUILD_TESTS)
     enable_testing()
-    add_executable(mpc_tests tests/verify.cpp src/visualization.cpp ${MPC_CORE})
-    target_include_directories(mpc_tests PRIVATE src)
+    add_executable(mpc_tests tests/verify.cpp)
+    target_link_libraries(mpc_tests PRIVATE mpc_core)
     target_compile_definitions(mpc_tests PRIVATE PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-    if(MSVC)
-        target_compile_options(mpc_tests PRIVATE /W4 /utf-8 $<$<CONFIG:Debug>:/Z7>)
-    else()
-        target_compile_options(mpc_tests PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
+    mpc_compile_options(mpc_tests)
     add_test(NAME mpc_numerical_and_config_tests COMMAND mpc_tests)
-endif()
-
-# Python RL environment bridge; CarSim plant and MPC remain in C++.
-add_executable(MPC_RL_Bridge src/rl_bridge_main.cpp src/visualization.cpp ${MPC_CORE})
-target_include_directories(MPC_RL_Bridge PRIVATE src)
-if(WIN32)
-    target_link_libraries(MPC_RL_Bridge PRIVATE shell32)
-endif()
-if(MSVC)
-    target_compile_options(MPC_RL_Bridge PRIVATE /W4 /utf-8 $<$<CONFIG:Debug>:/Z7>)
-else()
-    target_compile_options(MPC_RL_Bridge PRIVATE -Wall -Wextra -Wpedantic)
 endif()

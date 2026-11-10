@@ -14,7 +14,7 @@
 
 `practical` 配置为 N=3、每层 256 单元的两层网络，供当前 CPU 上的 CarSim 训练使用。`paper` 配置为论文实验的 N=5、每层 512 单元的三层网络。两种配置均保留 M=25；论文消融显示评论家数量增加到约 3 后收益趋缓，因此 CPU 配置是计算量与表达能力之间的工程选择，并非论文原实验复现。
 
-默认训练参数由 `configs/rl_training.ini` 提供：经验回放容量 100000、预热 100 决策、批量 256，Actor、Critic 和熵系数学习率分别可调，默认均为 3e-4；每个环境决策进行一次梯度更新，默认每 2000 决策做一次无探索验证。TQC 的随机策略负责探索，不额外叠加 DDPG/TD3 的动作噪声。完整的逐项参数表见 `docs/RL_Training_Parameters.md`。
+默认训练参数由 `configs/rl_training.ini` 提供：经验回放容量 100000、预热 550 决策、批量 256，Actor、Critic 和熵系数学习率分别可调，默认分别为 1e-4、3e-4、1e-4；每个环境决策进行一次梯度更新，默认每 550 决策保存检查点，独立训练同时进行无探索验证。TQC 的随机策略负责探索，不额外叠加 DDPG/TD3 的动作噪声。完整的逐项参数表见 `docs/RL_Training_Parameters.md`。
 
 ```powershell
 python python/train.py --algorithm tqc --episodes 500 --seed 42 --eval-frequency 1000 --tqc-profile practical --tqc-drop 2

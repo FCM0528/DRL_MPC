@@ -183,7 +183,7 @@ def render_paper_charts(output, traces, labels, colors, bounds):
     return "fig10_tracking_comparison.svg"
 
 
-def render_report(output, algorithm, results, traces, training_root=None):
+def render_report(output, algorithm, results, traces):
     output = Path(output)
     first_seed = results[0]["seed"]
     baseline = "fixed_mpc" if (first_seed, "fixed_mpc") in traces else "neutral_mpc"
@@ -246,7 +246,6 @@ th{{background:#e4eef8}}section{{margin:20px 0;padding:10px;background:white}}im
 <p><a href="metrics.csv">逐工况指标 CSV</a> ｜ 原始控制步记录见各 seed 目录中的 bridge_trace.csv</p>
 <div style="overflow:auto"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>
 {pictures}</html>"""
-    (output / "report.html").write_text(page, encoding="utf-8")
     (output / "training_and_control_report.html").write_text(page, encoding="utf-8")
 
 
@@ -275,8 +274,7 @@ def main():
         else:
             trace = folder / "episode_000001" / "bridge_trace.csv"
         traces[(row["seed"], label)] = trace
-    training_root = output.parent if (output.parent / "train_monitor.csv").is_file() else None
-    render_report(output, algorithm, results, traces, training_root)
+    render_report(output, algorithm, results, traces)
     print(output / "training_and_control_report.html")
 
 

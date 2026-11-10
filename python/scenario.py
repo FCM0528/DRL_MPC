@@ -2,6 +2,7 @@
 import hashlib
 import configparser
 import math
+import shutil
 from pathlib import Path
 
 
@@ -106,6 +107,32 @@ def resolve_simfile(config, simfile=None):
         raise ValueError("No carsim.simfile in config; pass --simfile")
     path = Path(value)
     return (path if path.is_absolute() else config.parent / path).resolve()
+
+
+def snapshot_config(config, output):
+    """Copy a controller INI, its local inheritance chain and data tables."""
+    source = Path(config).resolve(strict=True)
+    output = Path(output).resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    path = source
+    seen = set()
+    while path not in seen:
+        seen.add(path)
+        shutil.copy2(path, output / path.name)
+        parser = configparser.ConfigParser(interpolation=None)
+        with path.open(encoding="utf-8-sig") as file:
+            parser.read_file(file)
+        base = parser.get("inherit", "base", fallback=None)
+        if not base:
+            break
+        path = (path.parent / base).resolve(strict=True)
+        if path.parent != source.parent:
+            raise ValueError("Inherited config must be in the same directory")
+    else:
+        raise ValueError("Cyclic config inheritance")
+    for table in source.parent.glob("*.csv"):
+        shutil.copy2(table, output / table.name)
+    return output / source.name
 
 
 def snapshot_scenario(scenario, output):

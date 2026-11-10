@@ -13,13 +13,13 @@ import numpy as np
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback, StopTrainingOnMaxEpisodes
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import NormalActionNoise
-from algorithms import ConfiguredDDPG, ConfiguredTD3, ConfiguredTQC
+from algorithms import TRAINING_ALGORITHMS
 
 from envs.carsim_mpc_env import CarSimMPCEnv
 from evaluate import DEFAULT_FIXED_CONFIG, evaluate_models, fixed_episode, require_same_distance
 from parity import check_neutral_parity
 from report import control_trace
-from scenario import read_scenario, resolve_simfile, snapshot_scenario
+from scenario import read_scenario, resolve_simfile, snapshot_config, snapshot_scenario
 
 REJECTED_LATERAL_SCORE = -1.0e6
 
@@ -230,7 +230,7 @@ def controller_config_hashes(config: Path) -> dict[str, str]:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--algorithm", choices=("ddpg", "td3", "tqc"), required=True)
+    p.add_argument("--algorithm", choices=TRAINING_ALGORITHMS, required=True)
     p.add_argument("--bridge", default="out/python-rl-build/Release/MPC_RL_Bridge.exe")
     p.add_argument("--controller", default="out/python-rl-build/Release/MPC_DoubleLaneChange.exe")
     p.add_argument("--config", default="configs/carsim_python_rl.ini")
@@ -240,6 +240,8 @@ def main():
                    help="Number of completed training episodes in this run")
     p.add_argument("--seed", type=int)
     p.add_argument("--eval-frequency", type=int)
+    p.add_argument("--training-only", action="store_true",
+                   help="Save models and checkpoints; leave evaluation to the suite")
     p.add_argument("--select-lateral-rmse", action="store_true",
                    help="Select the best completed validation model by lateral RMSE")
     p.add_argument("--lateral-key-segment", nargs=2, type=float, metavar=("START_M", "END_M"),
@@ -273,6 +275,8 @@ def main():
         if not (0 <= start < end and math.isfinite(end)):
             p.error("--lateral-key-segment requires finite positions with 0 <= start < end")
     args.select_lateral_rmse |= args.lateral_key_segment is not None or args.require_lateral_improvement
+    if args.training_only and args.select_lateral_rmse:
+        p.error("Online validation options cannot be used with --training-only")
     if args.fixed_config is not None:
         args.fixed_config = str(args.fixed_config.resolve(strict=True))
     args.simfile = str(resolve_simfile(args.config, args.simfile))
@@ -283,29 +287,19 @@ def main():
     root.mkdir(parents=True, exist_ok=False)
     frozen_simfile = snapshot_scenario(scenario, root / "source_case")
     source_config = Path(args.config).resolve(strict=True)
-    config_snapshot = root / "source_configs"
-    config_snapshot.mkdir()
-    for file in source_config.parent.iterdir():
-        if file.is_file() and file.suffix.lower() in (".ini", ".csv"):
-            shutil.copy2(file, config_snapshot / file.name)
-    frozen_config = config_snapshot / source_config.name
-    fixed_config = config_snapshot / DEFAULT_FIXED_CONFIG.name
-    if not fixed_config.is_file():
-        shutil.copy2(DEFAULT_FIXED_CONFIG, fixed_config)
-    if args.fixed_config is not None:
-        fixed_source = Path(args.fixed_config)
-        fixed_snapshot = root / "fixed_source_configs"
-        fixed_snapshot.mkdir()
-        for file in fixed_source.parent.iterdir():
-            if file.is_file() and file.suffix.lower() in (".ini", ".csv"):
-                shutil.copy2(file, fixed_snapshot / file.name)
-        fixed_config = fixed_snapshot / fixed_source.name
+    frozen_config = snapshot_config(source_config, root / "source_configs")
+    fixed_config = None
+    if not args.training_only:
+        fixed_source = Path(args.fixed_config) if args.fixed_config else source_config.with_name("default.ini")
+        if args.fixed_config is None and not fixed_source.is_file():
+            fixed_source = DEFAULT_FIXED_CONFIG
+        fixed_config = snapshot_config(fixed_source, root / "fixed_source_configs")
     config_hashes = controller_config_hashes(frozen_config)
     manifest = {**vars(args), "training_settings": settings, "scenario": scenario,
                 "controller_config_sha256": config_hashes,
                 "bridge": str(Path(args.bridge).resolve()),
                 "config": str(source_config), "frozen_config": str(frozen_config),
-                "fixed_config": str(fixed_config),
+                "fixed_config": str(fixed_config) if fixed_config else None,
                 "simfile": str(Path(args.simfile).resolve()),
                 "snapshot_simfile": str(frozen_simfile)}
     manifest["algorithm_design"] = (tqc_design(args.tqc_profile, args.tqc_drop, settings)
@@ -313,7 +307,6 @@ def main():
                                     deterministic_design(args.algorithm, settings))
     manifest["tire_model"] = "carsim_tire_carpet_from_zero_v2"
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    shutil.copy2(source_config, root / "source_config.ini")
     shutil.copy2(args.train_config, root / "source_training.ini")
     args.simfile = str(frozen_simfile)
     args.config = str(frozen_config)
@@ -333,11 +326,8 @@ def main():
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     train_env = Monitor(TrainingEnv(args.bridge, args.config, args.simfile, root / "solver_train"),
                         filename=str(root / "train_monitor.csv"))
-    validation_args = (args.bridge, args.config, args.simfile, root / "solver_validation")
-    validation = Monitor(LateralValidationEnv(*validation_args, key_segment=args.lateral_key_segment,
-                         baseline=baseline_limits) if args.select_lateral_rmse else CarSimMPCEnv(*validation_args))
-    cls = {"ddpg": ConfiguredDDPG, "td3": ConfiguredTD3,
-           "tqc": ConfiguredTQC}[args.algorithm]
+    validation = None
+    cls = TRAINING_ALGORITHMS[args.algorithm]
     try:
         manifest["observation_profile"] = train_env.unwrapped.observation_profile
         manifest["observation_dim"] = train_env.observation_space.shape[0]
@@ -369,32 +359,39 @@ def main():
             model = cls("MlpPolicy", train_env, **kwargs)
         manifest["training_start_timesteps"] = int(model.num_timesteps) if args.resume else 0
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        validation_callback = EvalCallback(validation, best_model_save_path=str(root / "best"),
-                                           log_path=str(root / "validation"),
-                                           eval_freq=args.eval_frequency, n_eval_episodes=1,
-                                           deterministic=True)
-        if args.select_lateral_rmse:
-            validation_callback.best_mean_reward = REJECTED_LATERAL_SCORE
         callbacks = [CheckpointCallback(save_freq=args.eval_frequency,
                                         save_path=str(root / "checkpoints")),
-                     validation_callback,
                      StopTrainingOnMaxEpisodes(max_episodes=args.episodes, verbose=1)]
+        if not args.training_only:
+            validation_args = (args.bridge, args.config, args.simfile, root / "solver_validation")
+            validation = Monitor(
+                LateralValidationEnv(*validation_args, key_segment=args.lateral_key_segment,
+                                     baseline=baseline_limits)
+                if args.select_lateral_rmse else CarSimMPCEnv(*validation_args))
+            evaluator = EvalCallback(validation, best_model_save_path=str(root / "best"),
+                                     log_path=str(root / "validation"),
+                                     eval_freq=args.eval_frequency, n_eval_episodes=1,
+                                     deterministic=True)
+            if args.select_lateral_rmse:
+                evaluator.best_mean_reward = REJECTED_LATERAL_SCORE
+            callbacks.insert(1, evaluator)
         model.learn(total_timesteps=2_147_483_647, callback=callbacks,
                     reset_num_timesteps=not bool(args.resume))
         model.save(root / "final_model")
-        shutil.copy2(root / "final_model.zip", root / f"{run_name}_final_model.zip")
         best_model = root / "best" / "best_model.zip"
-        if best_model.is_file():
-            shutil.copy2(best_model, root / f"{run_name}_best_validation_model.zip")
     finally:
         train_env.close()
-        validation.close()
+        if validation is not None:
+            validation.close()
+    if args.training_only:
+        print(f"Final model: {root / 'final_model.zip'}")
+        return
     evaluate_models(args.algorithm, [root / "final_model.zip"], args.bridge, args.config,
-                    args.simfile, [args.seed], root / "evaluation", root, args.controller,
+                    args.simfile, [args.seed], root / "evaluation", args.controller,
                     fixed_config)
     if best_model.is_file():
         evaluate_models(args.algorithm, [best_model], args.bridge, args.config,
-                        args.simfile, [args.seed], root / "best_evaluation", root, args.controller,
+                        args.simfile, [args.seed], root / "best_evaluation", args.controller,
                         fixed_config)
     selection_label = ("验证关键段横向 RMSE 最小模型" if args.lateral_key_segment is not None else
                        "验证横向 RMSE 最小模型" if args.select_lateral_rmse else "验证回报最高模型")
@@ -402,9 +399,8 @@ def main():
         f"训练：{args.algorithm.upper()}，目标 {args.episodes} 回合，种子 {args.seed}\n"
         f"CarSim 目标车速：{scenario['target_speed_kmh'] if scenario['target_speed_kmh'] is not None else '非单一恒定值'} km/h（实际车速见报告）\n"
         f"工况参数：{scenario['parsfile']}\nSHA-256：{scenario['parsfile_sha256']}\n"
-        f"{run_name}_final_model.zip：最终模型\n"
-        f"{run_name}_best_validation_model.zip：{selection_label}（有合格验证时）\n"
-        "final_model.zip、best/best_model.zip：兼容原有命令的模型文件\n"
+        "final_model.zip：最终模型\n"
+        f"best/best_model.zip：{selection_label}（有合格验证时）\n"
         "train_monitor.csv：每回合回报与长度；validation/evaluations.npz：验证数据\n"
         "evaluation/training_and_control_report.html：训练与控制对照汇总\n"
         "best_evaluation/training_and_control_report.html：验证最佳模型与固定 MPC 对照（有验证时）\n"

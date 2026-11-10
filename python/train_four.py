@@ -9,10 +9,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from compare_four import ALGORITHMS, compare_four
-from evaluate import DEFAULT_FIXED_CONFIG, select_best_checkpoint
+from algorithms import ALGORITHMS
+from compare_four import compare_four, comparison_limits
+from evaluate import DEFAULT_CONTROLLER, DEFAULT_FIXED_CONFIG
 from report import render_training_summary
-from scenario import read_scenario, resolve_simfile, snapshot_scenario
+from scenario import read_scenario, resolve_simfile, snapshot_config, snapshot_scenario
 
 
 def main():
@@ -20,14 +21,15 @@ def main():
     parser.add_argument("--episodes", type=int)
     parser.add_argument("--seed", type=int)
     parser.add_argument("--eval-frequency", type=int)
-    parser.add_argument("--select-lateral-rmse", action="store_true",
-                        help="Use lateral RMSE for validation during training")
     parser.add_argument("--parity-blocks", type=int, default=10)
     parser.add_argument("--config", default="configs/carsim_python_rl.ini")
+    parser.add_argument("--fixed-config", help="Fixed MPC baseline, such as the one written by sweep.py")
     parser.add_argument("--train-config", default="configs/rl_training.ini")
     parser.add_argument("--simfile")
     parser.add_argument("--bridge", default="out/python-rl-build/Release/MPC_RL_Bridge.exe")
-    parser.add_argument("--controller", default="out/python-rl-build/Release/MPC_DoubleLaneChange.exe")
+    parser.add_argument("--controller", default=DEFAULT_CONTROLLER)
+    parser.add_argument("--segments", nargs="+", type=float, default=[],
+                        help="Increasing X positions that split the comparison into segments")
     parser.add_argument("--out", default="runs")
     args = parser.parse_args()
     training = configparser.ConfigParser(interpolation=None)
@@ -44,24 +46,21 @@ def main():
     controller = Path(args.controller).resolve(strict=True)
     simfile = resolve_simfile(config, args.simfile)
     scenario = read_scenario(simfile)
+    fixed_source = Path(args.fixed_config) if args.fixed_config else config.with_name("default.ini")
+    if args.fixed_config is None and not fixed_source.is_file():
+        fixed_source = DEFAULT_FIXED_CONFIG
+    comparison_limits(scenario, config, fixed_source, args.segments)
     root = Path(args.out).resolve() / (
         f"four_{scenario['speed_token']}_{args.episodes}ep_seed{args.seed}_{datetime.now():%Y%m%d_%H%M%S}")
     root.mkdir(parents=True, exist_ok=False)
     frozen = snapshot_scenario(scenario, root / "case")
-    configs = root / "configs"
-    configs.mkdir()
-    for item in config.parent.iterdir():
-        if item.is_file() and item.suffix.lower() in (".ini", ".csv"):
-            shutil.copy2(item, configs / item.name)
-    frozen_config = configs / config.name
-    fixed_config = configs / DEFAULT_FIXED_CONFIG.name
-    if not fixed_config.is_file():
-        shutil.copy2(DEFAULT_FIXED_CONFIG, fixed_config)
-    frozen_train_config = configs / "rl_training.ini"
-    if train_config != frozen_train_config:
-        shutil.copy2(train_config, frozen_train_config)
+    frozen_config = snapshot_config(config, root / "configs")
+    fixed_config = snapshot_config(fixed_source, root / "fixed_configs")
+    frozen_train_config = root / "rl_training.ini"
+    shutil.copy2(train_config, frozen_train_config)
     info = {"scenario": scenario, "seed": args.seed, "episodes_per_algorithm": args.episodes,
-            "model_selection": "lowest_rmse_among_completed_zero_qp_failure_checkpoints",
+            "model_selection": "final_models",
+            "segment_cuts_m": args.segments,
             "fixed_config": str(fixed_config),
             "source_config": str(config), "frozen_config": str(frozen_config),
             "source_training_config": str(train_config), "frozen_training_config": str(frozen_train_config),
@@ -82,9 +81,7 @@ def main():
                        "--parity-blocks", str(args.parity_blocks), "--bridge", str(bridge),
                        "--controller", str(controller), "--config", str(frozen_config),
                        "--train-config", str(frozen_train_config),
-                       "--simfile", str(frozen), "--out", str(output)]
-            if args.select_lateral_rmse:
-                command.append("--select-lateral-rmse")
+                       "--simfile", str(frozen), "--out", str(output), "--training-only"]
             print(f"Starting {algorithm.upper()}: {args.episodes} episodes. Log: {output / 'training.log'}", flush=True)
             environment = os.environ.copy()
             environment["PYTHONIOENCODING"] = "utf-8"
@@ -97,9 +94,7 @@ def main():
             runs = [p for p in output.iterdir() if p.is_dir() and (p / "final_model.zip").is_file()]
             if len(runs) != 1:
                 raise RuntimeError(f"Expected exactly one completed {algorithm.upper()} run in {output}")
-            selected = select_best_checkpoint(algorithm, runs[0], bridge, frozen_config,
-                frozen, output / "checkpoint_selection.csv", args.seed)
-            info["models"][algorithm] = str(selected)
+            info["models"][algorithm] = str(runs[0] / "final_model.zip")
             monitors[algorithm] = runs[0] / "train_monitor.csv"
             save()
             print(f"{algorithm.upper()} complete: {info['models'][algorithm]}", flush=True)
@@ -107,7 +102,8 @@ def main():
         info["status"] = "evaluating"
         save()
         report = compare_four(info["models"], bridge, frozen_config, frozen,
-                              root / "comparison", args.seed, controller, fixed_config)
+                              root / "comparison", args.seed, controller, fixed_config,
+                              segments=args.segments)
         info["status"] = "complete"
         info["comparison_report"] = str(report)
         save()

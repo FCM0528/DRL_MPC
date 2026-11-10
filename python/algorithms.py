@@ -35,3 +35,7 @@ class ConfiguredTD3(SeparateOptimizerRates, TD3):
 
 class ConfiguredTQC(SeparateOptimizerRates, TQC):
     pass
+
+
+ALGORITHMS = {"ddpg": DDPG, "td3": TD3, "tqc": TQC}
+TRAINING_ALGORITHMS = {"ddpg": ConfiguredDDPG, "td3": ConfiguredTD3, "tqc": ConfiguredTQC}
