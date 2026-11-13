@@ -1,0 +1,13 @@
+{
+  "distance_m": 120,
+  "real_ablations": 18,
+  "nominal_config_changed": false,
+  "expanded_profile_retrained": false,
+  "original_ddpg_td3_300_done": true,
+  "extended_fixed_probe_rmse_reduction_pct": 31.212322806392876,
+  "extended_fixed_probe_heading_rmse_increase_pct": 29.433673082046607,
+  "reward_alignment_max_absolute_error": {
+    "ddpg": 9.992007221626409e-16,
+    "td3": 1.0164395367051604e-20
+  }
+}

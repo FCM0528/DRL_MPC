@@ -1,0 +1,19 @@
+# Rebuildable compiler and Simulink caches.
+build/
+**/__pycache__/
+**/*.slxc
+**/slprj/
+backups/**/*.mat
+backups/*.mexw64
+
+# Keep full local experiment data; version summaries, traces and figures.
+results/**/*.mat
+results/*.mat
+results/**/checkpoints/
+results/*.log
+results/**/*.log
+carsim/case/LastRun.vs
+carsim/case/LastRun.vsb
+carsim/case/LastRun_log.txt
+carsim/case/LastRun_end.par
+carsim/case/LastRun_all.par

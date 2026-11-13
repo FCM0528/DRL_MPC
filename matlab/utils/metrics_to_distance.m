@@ -1,0 +1,9 @@
+function metrics=metrics_to_distance(out,label,endDistance)
+% Metrics on logged MPC samples up to the requested station, inclusive.
+index=out.state_log.Data(:,1)<=endDistance;
+e=out.error_log.Data(index,:);d=out.control_log.Data(index,:);
+metrics=struct('controller',string(label),'range_end_m',endDistance, ...
+    'lateral_rmse_m',sqrt(mean(e(:,1).^2)),'max_abs_lateral_m',max(abs(e(:,1))), ...
+    'heading_rmse_rad',sqrt(mean(e(:,2).^2)),'qp_failures',nnz(d(:,2)==0), ...
+    'samples',nnz(index),'reached_range',out.state_log.Data(end,1)>=endDistance);
+end

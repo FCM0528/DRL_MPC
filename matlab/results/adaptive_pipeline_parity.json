@@ -1,0 +1,13 @@
+{
+  "samples": 197,
+  "columns": 35,
+  "max_difference": 0.0,
+  "prediction_horizons": [
+    12,
+    22,
+    40,
+    50
+  ],
+  "all_weight_candidates_exercised": true,
+  "qp_failures": 0
+}

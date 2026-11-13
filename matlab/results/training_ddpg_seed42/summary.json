@@ -1,0 +1,10 @@
+{
+  "algorithm": "ddpg",
+  "seed": 42,
+  "configured_episodes": 500,
+  "completed_episodes": 500,
+  "interactions": 49000,
+  "actor_max_parameter_change": 2.0408665761351585,
+  "sample_time_s": 0.08,
+  "learning_warmup_interactions": 550
+}

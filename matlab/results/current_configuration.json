@@ -1,0 +1,23 @@
+{
+  "mpc": {
+    "np": 40,
+    "nc": 12,
+    "min_np": 12,
+    "max_np": 50,
+    "baseline": [
+      40,
+      9200,
+      2800,
+      13500
+    ],
+    "key": "np40_nc12",
+    "fixed_label": "fixed_np40_nc12"
+  },
+  "default_training_episodes": 300,
+  "annotation_font": "宋体",
+  "chinese_annotations": 40,
+  "compiled": true,
+  "structure_healthy": true,
+  "new_agents_trained": true,
+  "matlab_pid": 2300
+}

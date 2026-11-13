@@ -1,0 +1,26 @@
+{
+  "reference_rows": 241,
+  "reference_equal": true,
+  "source_core_identical": true,
+  "source_core_sha256": {
+    "mpc.cpp": "11f4170abcfb10ea8b5fa658a7d78e69a01a5bbba039099210e79ca488dd407c",
+    "mpc.h": "ad86c369f1a59d752401559e104f4f13e2a2e6055ec7ce9302b7126cdd552839",
+    "vehicle.cpp": "0f18cce464a1f80366acd8f5f4a57dd96f2ba4f196effe38b68a654dbf604e37",
+    "vehicle.h": "a68e4301a1167c457a18045314fcc6ee2fcf6e36642a9b1e537469569b00057d",
+    "reference.cpp": "da3f8456a2466c0a01f0c9fba260eb7e633ed12163ef1c33d32ff8ce809b78a2",
+    "reference.h": "72bd0a08611303e48abe2a08f48c449d447f6e721dbe1bafedb32a7516f5b384",
+    "rl.cpp": "73a804517d7ae0d36f5ed3b1136ade2d492f31595f53c32411addb3edd8201cc",
+    "rl.h": "0687a712afea8de6feefad3368c50a5b714ef7da08802ddb39874789b9d54d4f"
+  },
+  "import_channels": [
+    [
+      "IMP_STEER_L1",
+      "Replace"
+    ],
+    [
+      "IMP_STEER_R1",
+      "Replace"
+    ]
+  ],
+  "source_pars_sha256": "9f2b97f7f570261df78c0d9eaf13b876a72ba224c6c42ec81a6e40dea89fa416"
+}

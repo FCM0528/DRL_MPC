@@ -1,0 +1,9 @@
+{
+  "configuration": "np40_nc12",
+  "episodes_per_algorithm": 300,
+  "seed": 42,
+  "started_at": "2026-11-13 00:30:56",
+  "phase": "complete",
+  "completed": true,
+  "finished_at": "2026-11-13 01:48:09"
+}

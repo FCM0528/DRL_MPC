@@ -1,0 +1,32 @@
+{
+  "source_parsfile": "D:\\Program Files (x86)\\CarSim2024_Date\\Results\\Run_14350304-4914-4b7f-acd0-b80cafe5afcb\\Run_all.par",
+  "source_sha256": "9f2b97f7f570261df78c0d9eaf13b876a72ba224c6c42ec81a6e40dea89fa416",
+  "changes": [
+    "Source front-wheel imports already correct",
+    "Private station margin SSTOP 160; evaluation endpoint remains CG X=150",
+    "All solver output paths redirected under matlab/carsim/case"
+  ],
+  "reference": "DLC SYX; entire LTARG_TABLE preserved",
+  "exports": [
+    "Xcg_TM",
+    "Ycg_TM",
+    "Vx",
+    "Vy",
+    "Yaw",
+    "AVz",
+    "Ax",
+    "Ay",
+    "Steer_L1",
+    "Steer_R1",
+    "Beta",
+    "Rho_Road",
+    "AlphL_L1",
+    "AlphL_R1",
+    "AlphL_L2",
+    "AlphL_R2",
+    "Fy_L1",
+    "Fy_R1",
+    "Fy_L2",
+    "Fy_R2"
+  ]
+}

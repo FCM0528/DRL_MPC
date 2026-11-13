@@ -1,0 +1,2 @@
+controller,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,completed,end_x_m,end_time_s,samples
+training_td3_evaluation,0.0787282429988347,0.242616982352154,0.0131887409575541,0,1,150.591390431769,7.84,197

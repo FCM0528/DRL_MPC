@@ -1,0 +1,80 @@
+﻿#pragma once
+#include <array>
+#include <filesystem>
+#include <limits>
+#include <utility>
+#include <vector>
+
+// 轮胎数据表，提供侧向力与滑移角和载荷的关系
+class TireTable {
+public:
+    explicit TireTable(const std::filesystem::path& csv_file);
+
+    double corneringStiffness(double normal_load_n) const;
+    double peakLateralForce(double normal_load_n) const;
+    double peakLateralSlip(double normal_load_n) const; // rad
+    double lateralForce(double slip_rad, double normal_load_n) const;
+    double boundedLateralForce(double slip_rad, double normal_load_n) const;
+    double minLoad() const { return loads_.front(); }
+    double maxLoad() const { return loads_.back(); }
+
+private:
+    std::vector<double> loads_;
+    std::vector<double> slip_deg_;
+    std::vector<std::vector<double>> forces_;
+
+    double positiveForce(double slip_deg, double normal_load_n) const;
+    std::pair<double, double> lateralPeak(double normal_load_n) const;
+};
+
+// 车辆物理参数
+struct VehicleParameters {
+    double mass = 1500.0;       // kg
+    double iz = 3000.0;         // kg m^2
+    double a = 1.2;             // m: CG to front axle
+    double b = 1.6;             // m: CG to rear axle
+    double vx = 15.0;           // m/s: nominal cruise speed
+    double road_grip_scale = 1.0;      // assumed road/tire grip relative to measured table
+};
+// 车辆状态
+struct VehicleState {
+    double x = 0.0;             // global longitudinal position [m]
+    double y = 0.0;             // global lateral position [m]
+    double psi = 0.0;           // vehicle heading [rad]
+    double vx = 15.0;           // body-fixed longitudinal speed [m/s]
+    double ax = 0.0;            // measured body-vx rate from consecutive CarSim states [m/s^2]
+    double vy = 0.0;            // body-fixed lateral velocity [m/s]
+    double r = 0.0;             // yaw rate [rad/s]
+    double alpha_front = 0.0;   // measured axle-average lagged lateral slip [rad], positive Fy
+    double alpha_rear = 0.0;
+    double fy_front = std::numeric_limits<double>::quiet_NaN(); // observed axle tire force [N]
+    double fy_rear = std::numeric_limits<double>::quiet_NaN();
+    double steer_front_left = std::numeric_limits<double>::quiet_NaN();  // rad
+    double steer_front_right = std::numeric_limits<double>::quiet_NaN(); // rad
+};
+
+// Three-DOF vehicle with optional tire relaxation: [vy,vx,psi,r,Y,X,alpha_f,alpha_r].
+constexpr int prediction_state_count = 8;
+using PredictionState = std::array<double, prediction_state_count>;
+using PredictionMatrix = std::array<PredictionState, prediction_state_count>;
+
+std::pair<double, double> staticWheelLoads(const VehicleParameters& p);
+
+struct DiscreteErrorModel {
+    PredictionMatrix a{};
+    PredictionState b{};   // front-wheel steering angle
+    PredictionState c{};   // affine term around the measured CarSim operating point
+};
+
+DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
+                                        const TireTable& tires,
+                                        const VehicleState& operating_point,
+                                        double steering_angle,
+                                        double longitudinal_accel, double dt,
+                                        double tire_slope_floor = 0.15,
+                                        double front_relaxation_m = 0.0,
+                                        double rear_relaxation_m = 0.0,
+                                        double front_force_bias = 0.0,
+                                        double rear_force_bias = 0.0);
+PredictionState matrixTimesState(const PredictionMatrix& a, const PredictionState& x);
+double angleDifference(double a, double b);

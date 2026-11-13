@@ -1,0 +1,17 @@
+SIMFILE
+FILEBASE C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\carsim\case\LastRun
+INPUT C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\carsim\case\Run_all.par
+INPUTARCHIVE C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\carsim\case\LastRun_all.par
+ECHO C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\carsim\case\LastRun_echo.par
+FINAL C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\carsim\case\LastRun_end.par
+LOGFILE C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\carsim\case\LastRun_log.txt
+ERDFILE C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\carsim\case\LastRun.vs
+PROGDIR D:\Program Files (x86)\CarSim2024.1_Prog\
+DATADIR D:\Program Files (x86)\CarSim2024_Date\
+PRODUCT_ID CarSim
+PRODUCT_VER 2024.1
+VEHICLE_CODE i_i
+EXT_MODEL_STEP 0.00050000
+PORTS_IMP 1,2
+PORTS_EXP 1,20
+END

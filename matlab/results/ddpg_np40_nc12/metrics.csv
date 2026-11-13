@@ -1,0 +1,2 @@
+controller,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,completed,end_x_m,end_time_s,samples
+ddpg_np40_nc12,0.0819492923110398,0.258836921946343,0.0151223507780273,0,1,150.587085164898,7.84,197

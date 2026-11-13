@@ -1,0 +1,11 @@
+{
+  "model": "DRL_MPC",
+  "compiled": true,
+  "structure_healthy": true,
+  "matlab_version": "25.1.0.2943329 (R2025a)",
+  "matlab_pid": 2300,
+  "fixed_step_s": 0.0005,
+  "mpc_sample_s": 0.04,
+  "rl_sample_s": 0.08,
+  "native_stages": 7
+}
