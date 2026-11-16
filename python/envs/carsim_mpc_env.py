@@ -25,7 +25,7 @@ class CarSimMPCEnv(gym.Env):
         self.observation_profile = resolve_config_value(
             self.config, "rl", "observation_profile", "road_preview_v2"
         ).lower()
-        dimensions = {"road_preview": 12, "road_preview_v2": 14}
+        dimensions = {"road_preview": 12, "road_preview_v2": 14, "road_preview_joint": 20}
         if self.observation_profile not in dimensions:
             raise ValueError(f"Unknown observation profile: {self.observation_profile}")
         self._observation_size = dimensions[self.observation_profile]

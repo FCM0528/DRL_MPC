@@ -16,10 +16,10 @@ from stable_baselines3.common.noise import NormalActionNoise
 from algorithms import TRAINING_ALGORITHMS
 
 from envs.carsim_mpc_env import CarSimMPCEnv
-from evaluate import DEFAULT_FIXED_CONFIG, evaluate_models, fixed_episode, require_same_distance
+from evaluate import DEFAULT_FIXED_CONFIG, evaluate_models, fixed_episode, require_same_distance, _episode
 from parity import check_neutral_parity
 from report import control_trace
-from scenario import read_scenario, resolve_simfile, snapshot_config, snapshot_scenario
+from scenario import read_scenario, resolve_simfile, snapshot_config, snapshot_scenario, resolve_config_value
 
 REJECTED_LATERAL_SCORE = -1.0e6
 
@@ -245,12 +245,15 @@ def main():
     p.add_argument("--config", default="configs/carsim_python_rl.ini")
     p.add_argument("--train-config", default="configs/rl_training.ini")
     p.add_argument("--simfile", help="CarSim Simfile; defaults to carsim.simfile from config")
+    p.add_argument("--validation-simfile", help="Distinct frozen validation CarSim case for joint selection")
     p.add_argument("--episodes", type=int,
                    help="Number of completed training episodes in this run")
     p.add_argument("--seed", type=int)
     p.add_argument("--eval-frequency", type=int)
     p.add_argument("--training-only", action="store_true",
                    help="Save models and checkpoints; leave evaluation to the suite")
+    p.add_argument("--joint-selection", action="store_true",
+                   help="Deterministically validate each checkpoint and select dual-error candidates")
     p.add_argument("--select-lateral-rmse", action="store_true",
                    help="Select the best completed validation model by lateral RMSE")
     p.add_argument("--lateral-key-segment", nargs=2, type=float, metavar=("START_M", "END_M"),
@@ -289,6 +292,8 @@ def main():
     if args.fixed_config is not None:
         args.fixed_config = str(args.fixed_config.resolve(strict=True))
     args.simfile = str(resolve_simfile(args.config, args.simfile))
+    if args.validation_simfile:
+        args.validation_simfile = str(Path(args.validation_simfile).resolve(strict=True))
     scenario = read_scenario(args.simfile)
     run_name = (f"{args.algorithm}_{scenario['speed_token']}_{args.episodes}episodes_"
                 f"seed{args.seed}_{datetime.now():%Y%m%d_%H%M%S}")
@@ -298,7 +303,7 @@ def main():
     source_config = Path(args.config).resolve(strict=True)
     frozen_config = snapshot_config(source_config, root / "source_configs")
     fixed_config = None
-    if not args.training_only:
+    if not args.training_only or args.joint_selection:
         fixed_source = Path(args.fixed_config) if args.fixed_config else source_config.with_name("default.ini")
         if args.fixed_config is None and not fixed_source.is_file():
             fixed_source = DEFAULT_FIXED_CONFIG
@@ -311,6 +316,8 @@ def main():
                 "fixed_config": str(fixed_config) if fixed_config else None,
                 "simfile": str(Path(args.simfile).resolve()),
                 "snapshot_simfile": str(frozen_simfile)}
+    manifest["weight_action_mode"] = resolve_config_value(frozen_config, "rl", "weight_action_mode", "legacy").lower()
+    manifest["reward_mode"] = resolve_config_value(frozen_config, "rl_reward", "mode", "legacy").lower()
     manifest["algorithm_design"] = (tqc_design(args.tqc_profile, args.tqc_drop, settings)
                                     if args.algorithm == "tqc" else
                                     deterministic_design(args.algorithm, settings))
@@ -359,6 +366,9 @@ def main():
                 raise ValueError("Resume requires a run manifest with the current reward scheme")
             previous = json.loads(previous_manifest.read_text(encoding="utf-8"))
             if (previous.get("reward_scheme") != manifest["reward_scheme"] or
+                previous.get("weight_action_mode", "legacy") != manifest["weight_action_mode"] or
+                previous.get("reward_mode", "legacy") != manifest["reward_mode"] or
+                previous.get("observation_profile") != manifest["observation_profile"] or
                 previous.get("tire_model") != manifest["tire_model"] or
                 previous.get("algorithm_design") != manifest["algorithm_design"] or
                 not isinstance(previous.get("controller_config_sha256"), dict) or
@@ -413,6 +423,11 @@ def main():
         train_env.close()
         if validation is not None:
             validation.close()
+    if args.joint_selection:
+        from joint_selection import select_checkpoints
+        select_checkpoints(root, cls, args.bridge, args.controller, args.config,
+                           args.validation_simfile or args.simfile, fixed_config,
+                           args.seed, config_hashes)
     if args.training_only:
         print(f"Final model: {root / 'final_model.zip'}")
         return

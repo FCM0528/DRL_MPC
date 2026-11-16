@@ -446,6 +446,36 @@ void testRlModule() {
             config.rl.reward.tracking_v2,
             "Training must use the shared 120 m endpoint and current reward");
     const auto neutral = neutralRlAction(config.rl);
+    const auto joint_file = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/carsim_python_rl_joint.ini");
+    require(joint_file.rl.reward.mode == "joint_tracking" &&
+            joint_file.rl.weight_action_mode == "continuous_weights" &&
+            joint_file.rl.observation_profile == "road_preview_joint" &&
+            joint_file.mpc.q_y == config.mpc.q_y,
+            "Joint experiment must preserve the fixed MPC and use a distinct policy signature");
+    auto continuous = config.rl;
+    continuous.weight_action_mode = "continuous_weights";
+    const auto zero = advanceRlTuning({0, 0, 0, 0}, neutral, continuous);
+    require(zero.np == neutral.np && std::abs(zero.q_y - neutral.q_y) < 1e-9 &&
+            std::abs(zero.q_psi - neutral.q_psi) < 1e-9 &&
+            std::abs(zero.r_delta - neutral.r_delta) < 1e-9,
+            "Continuous zero action must match fixed MPC");
+    const auto small = advanceRlTuning({0, 0.01, 0, 0}, neutral, continuous);
+    const auto larger = advanceRlTuning({0, 0.02, 0, 0}, neutral, continuous);
+    require(neutral.q_y < small.q_y && small.q_y < larger.q_y,
+            "Continuous Qy action must preserve small changes");
+    auto joint = config.rl;
+    joint.reward.mode = "joint_tracking";
+    joint.reward.w_course = 0;
+    joint.reward.w_sideslip = 0;
+    const auto joint_reward = [&](double heading, double sideslip) {
+        return scalarizedRlReward(0.1, heading, 0, neutral.np, config.mpc,
+                                  joint, 0, neutral.np, neutral, neutral, 0, 0, sideslip);
+    };
+    require(joint_reward(0, 0) > joint_reward(0.035, 0) &&
+            joint_reward(0.035, 0) == joint_reward(0.035, 0.01) &&
+            std::abs(joint_reward(3.141592653589793 - 0.01, 0) -
+                     joint_reward(-3.141592653589793 + 0.01, 0)) < 1e-9,
+            "Joint reward must distinguish heading, ignore beta when course is disabled, and wrap angles");
     require(neutral.np == config.mpc.np &&
             std::abs(neutral.q_y - config.mpc.q_y) < 1e-12 &&
             std::abs(neutral.q_psi - config.mpc.q_psi) < 1e-12 &&
@@ -545,6 +575,12 @@ void testRlModule() {
             drop_obs[7] > 0.0 && drop_obs[7] < dry_obs[7] &&
             drop_obs[12] < dry_obs[12] && drop_obs[13] == dry_obs[13],
             "Distant grip loss must reach the preview without affecting immediate demand");
+    preview_config.observation_profile = "road_preview_joint";
+    const auto joint_obs = makeRoadPreviewObservation(state, reference, dry,
+        config.distance_m, config.mpc, preview_config, neutral.np, 0.0, &neutral);
+    require(joint_obs.size() == 20 && std::all_of(joint_obs.begin(), joint_obs.end(),
+                [](double x) { return std::isfinite(x); }),
+            "Joint preview must have 20 finite inputs");
     preview_config.observation_profile = "road_preview";
     require(makeRoadPreviewObservation(state, reference, dry, config.distance_m,
                 config.mpc, preview_config, neutral.np, 0.0).size() == 12,

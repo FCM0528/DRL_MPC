@@ -78,6 +78,11 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
         c.rl.reward.squared_lateral_reward = readBool(value, key);
         return;
     }
+    if (key == "rl.weight_action_mode") { c.rl.weight_action_mode = lower(value); return; }
+    if (key == "rl_reward.mode") { c.rl.reward.mode = lower(value); return; }
+    if (key == "rl_reward.w_heading") { c.rl.reward.w_heading = readDouble(value, key); return; }
+    if (key == "rl_reward.w_course") { c.rl.reward.w_course = readDouble(value, key); return; }
+    if (key == "rl_reward.heading_scale_rad") { c.rl.reward.heading_scale_rad = readDouble(value, key); return; }
     // Read archived INIs without restoring retired options.
     static const std::set<std::string> retired_rl_keys{
         "rl.algorithm", "rl.actor_learning_rate", "rl.np_exploration_scale",
@@ -414,8 +419,12 @@ void validateConfig(const AppConfig& c) {
     }
     if (rl.action_profile != "full" && rl.action_profile != "compact" && rl.action_profile != "np_only")
         throw std::invalid_argument("rl.action_profile must be full, compact or np_only");
-    if (rl.observation_profile != "road_preview" && rl.observation_profile != "road_preview_v2")
-        throw std::invalid_argument("rl.observation_profile must be road_preview or road_preview_v2");
+    if (rl.observation_profile != "road_preview" && rl.observation_profile != "road_preview_v2" && rl.observation_profile != "road_preview_joint")
+        throw std::invalid_argument("Invalid rl.observation_profile");
+    if (rl.weight_action_mode != "legacy" && rl.weight_action_mode != "continuous_weights")
+        throw std::invalid_argument("Invalid rl.weight_action_mode");
+    if (rl.reward.mode != "legacy" && rl.reward.mode != "joint_tracking")
+        throw std::invalid_argument("Invalid rl_reward.mode");
     if (rl.min_np < 2 ||
         rl.max_np > 150 || rl.max_np <= rl.min_np)
         throw std::invalid_argument("RL horizons require 2 <= min_np < max_np <= 150");
@@ -456,6 +465,9 @@ void validateConfig(const AppConfig& c) {
         throw std::invalid_argument("rl.road_preview_max_m must be zero or at least road_preview_min_m");
     positive(rl.reward.reward_scale, "rl_reward.reward_scale");
     positive(rl.reward.ey_scale_m, "rl_reward.ey_scale_m");
+    positive(rl.reward.heading_scale_rad, "rl_reward.heading_scale_rad");
+    nonnegative(rl.reward.w_heading, "rl_reward.w_heading");
+    nonnegative(rl.reward.w_course, "rl_reward.w_course");
     positive(rl.reward.epsi_scale_rad, "rl_reward.epsi_scale_rad");
     nonnegative(rl.reward.w_y, "rl_reward.w_y");
     nonnegative(rl.reward.w_peak, "rl_reward.w_peak");
@@ -598,6 +610,7 @@ std::string configToIni(const AppConfig& c) {
         << "\nroad_preview_min_m = " << c.rl.road_preview_min_m
         << "\nroad_preview_max_m = " << c.rl.road_preview_max_m
         << "\nobservation_profile = " << c.rl.observation_profile
+        << "\nweight_action_mode = " << c.rl.weight_action_mode
         << "\ngrip_demand_clip = " << c.rl.grip_demand_clip
         << "\npenalize_qp_failure = " << c.rl.penalize_qp_failure
         << std::setprecision(15)
@@ -613,6 +626,10 @@ std::string configToIni(const AppConfig& c) {
     write_choices("q_psi_values", 1);
     write_choices("r_delta_values", 5);
     out << "\n[rl_reward]\ntracking_v2 = " << c.rl.reward.tracking_v2
+        << "\nmode = " << c.rl.reward.mode
+        << "\nw_heading = " << c.rl.reward.w_heading
+        << "\nw_course = " << c.rl.reward.w_course
+        << "\nheading_scale_rad = " << c.rl.reward.heading_scale_rad
         << "\nsquared_lateral_reward = " << c.rl.reward.squared_lateral_reward
         << "\nreward_scale = " << c.rl.reward.reward_scale
         << "\ney_scale_m = " << c.rl.reward.ey_scale_m

@@ -26,6 +26,8 @@ def main():
     parser.add_argument("--fixed-config", help="Fixed MPC baseline, such as the one written by sweep.py")
     parser.add_argument("--train-config", default="configs/rl_training.ini")
     parser.add_argument("--simfile")
+    parser.add_argument("--validation-simfile", help="Distinct validation case; selection never uses a final test case")
+    parser.add_argument("--test-simfile", help="Held-out CarSim case used only after all models are selected")
     parser.add_argument("--bridge", default="out/python-rl-build/Release/MPC_RL_Bridge.exe")
     parser.add_argument("--controller", default=DEFAULT_CONTROLLER)
     parser.add_argument("--segments", nargs="+", type=float, default=[],
@@ -46,6 +48,9 @@ def main():
     controller = Path(args.controller).resolve(strict=True)
     simfile = resolve_simfile(config, args.simfile)
     scenario = read_scenario(simfile)
+    if args.test_simfile and Path(args.test_simfile).resolve() in {
+            Path(simfile).resolve(), Path(args.validation_simfile).resolve() if args.validation_simfile else Path(simfile).resolve()}:
+        parser.error("--test-simfile must differ from training and validation cases")
     fixed_source = Path(args.fixed_config) if args.fixed_config else config.with_name("default.ini")
     if args.fixed_config is None and not fixed_source.is_file():
         fixed_source = DEFAULT_FIXED_CONFIG
@@ -60,7 +65,8 @@ def main():
     shutil.copy2(train_config, frozen_train_config)
     info = {"scenario": scenario, "seed": args.seed, "episodes_per_algorithm": args.episodes,
             "training_data_source": "online_carsim_closed_loop",
-            "model_selection": "final_models",
+            "model_selection": "joint_validation",
+            "comparison_split": "held_out_test" if args.test_simfile else "training_case_repeat",
             "segment_cuts_m": args.segments,
             "fixed_config": str(fixed_config),
             "source_config": str(config), "frozen_config": str(frozen_config),
@@ -82,7 +88,10 @@ def main():
                        "--parity-blocks", str(args.parity_blocks), "--bridge", str(bridge),
                        "--controller", str(controller), "--config", str(frozen_config),
                        "--train-config", str(frozen_train_config),
-                       "--simfile", str(frozen), "--out", str(output), "--training-only"]
+                       "--simfile", str(frozen), "--out", str(output), "--training-only",
+                       "--joint-selection", "--fixed-config", str(fixed_config)]
+            if args.validation_simfile:
+                command.extend(("--validation-simfile", str(Path(args.validation_simfile).resolve(strict=True))))
             print(f"Starting {algorithm.upper()}: {args.episodes} episodes. Log: {output / 'training.log'}", flush=True)
             environment = os.environ.copy()
             environment["PYTHONIOENCODING"] = "utf-8"
@@ -95,7 +104,10 @@ def main():
             runs = [p for p in output.iterdir() if p.is_dir() and (p / "final_model.zip").is_file()]
             if len(runs) != 1:
                 raise RuntimeError(f"Expected exactly one completed {algorithm.upper()} run in {output}")
-            info["models"][algorithm] = str(runs[0] / "final_model.zip")
+            selection = json.loads((runs[0] / "checkpoint_selection.json").read_text(encoding="utf-8"))
+            info["models"][algorithm] = str(runs[0] / "best_joint_model.zip" if selection["qualified"]
+                                            else runs[0] / "final_model.zip")
+            info.setdefault("selection", {})[algorithm] = selection
             training_run = json.loads((runs[0] / "manifest.json").read_text(encoding="utf-8"))
             info.setdefault("training_data", {})[algorithm] = training_run["training_data"]
             monitors[algorithm] = runs[0] / "train_monitor.csv"
@@ -104,7 +116,8 @@ def main():
         info["training_summary"] = str(render_training_summary(root, monitors, args.episodes, args.seed))
         info["status"] = "evaluating"
         save()
-        report = compare_four(info["models"], bridge, frozen_config, frozen,
+        comparison_case = Path(args.test_simfile).resolve(strict=True) if args.test_simfile else frozen
+        report = compare_four(info["models"], bridge, frozen_config, comparison_case,
                               root / "comparison", args.seed, controller, fixed_config,
                               segments=args.segments)
         info["status"] = "complete"

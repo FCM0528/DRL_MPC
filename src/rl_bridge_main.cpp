@@ -125,13 +125,13 @@ public:
                << "step,x_m,y_m,vx_mps,ey_m,epsi_rad,steer_rad,np,q_y,q_psi,r_delta,qp_failed,vy_mps,psi_rad,yaw_rate_radps,sideslip_rad,"
                   "time_s,body_ax_mps2,body_ay_mps2,measured_beta_rad,driver_curvature_inv_m,"
                   "front_lateral_force_n,rear_lateral_force_n,actual_steer_rad,reference_curvature_inv_m,"
-                  "front_lagged_slip_rad,rear_lagged_slip_rad\n";
+                  "front_lagged_slip_rad,rear_lagged_slip_rad,e_heading_rad,e_course_rad,e_yaw_rate_radps,reward_y_loss,reward_heading_loss,reward_course_loss,requested_np,requested_q_y,requested_q_psi,requested_r_delta\n";
     }
 
     RoadPreviewObservation observation() const {
         return makeRoadPreviewObservation(state_, *reference_,
             [this](double x) { return model_.road_grip.at(x); }, cfg_.distance_m,
-            cfg_.mpc, cfg_.rl, current_.np, previous_steer_);
+            cfg_.mpc, cfg_.rl, current_.np, previous_steer_, &current_);
     }
 
     void sendReset() const {
@@ -221,7 +221,16 @@ public:
                        << ',' << state_.fy_rear << ','
                        << 0.5 * (state_.steer_front_left + state_.steer_front_right)
                        << ',' << next.curvature << ',' << state_.alpha_front
-                       << ',' << state_.alpha_rear << '\n';
+                       << ',' << state_.alpha_rear << ',' << epsi << ','
+                       << angleDifference(epsi + sideslip, 0.0) << ','
+                       << state_.r - state_.vx * next.curvature << ','
+                       << (cfg_.rl.reward.mode == "joint_tracking" ? cfg_.rl.reward.w_y *
+                           std::pow(std::clamp(ey / cfg_.rl.reward.ey_scale_m, -20.0, 20.0), 2) : 0.0) << ','
+                       << (cfg_.rl.reward.mode == "joint_tracking" ? cfg_.rl.reward.w_heading *
+                           std::pow(std::clamp(epsi / cfg_.rl.reward.heading_scale_rad, -20.0, 20.0), 2) : 0.0) << ','
+                       << (cfg_.rl.reward.mode == "joint_tracking" ? cfg_.rl.reward.w_course *
+                           std::pow(std::clamp(angleDifference(epsi + sideslip, 0.0) / cfg_.rl.reward.heading_scale_rad, -20.0, 20.0), 2) : 0.0) << ','
+                       << action[0] << ',' << action[1] << ',' << action[2] << ',' << action[3] << '\n';
             } catch (const std::exception& e) {
                 std::cerr << "BRIDGE_STEP_FAILURE " << e.what() << '\n';
                 failed = true;

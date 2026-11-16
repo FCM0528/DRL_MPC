@@ -3,6 +3,7 @@
 #include <cmath>
 #include <numeric>
 #include <stdexcept>
+#include <utility>
 
 namespace {
 double clip(double x, double lo, double hi) { return std::clamp(x, lo, hi); }
@@ -29,6 +30,22 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           const MpcTuningAction& previous_action,
                           double vy, double yaw_error, double sideslip, double ey_dot) {
     const auto& r = config.reward;
+    if (r.mode == "joint_tracking") {
+        const double heading = angleDifference(epsi, 0.0);
+        const double course = angleDifference(heading + sideslip, 0.0);
+        const double ey_loss = r.w_y * std::pow(clip(ey / r.ey_scale_m, -20.0, 20.0), 2);
+        const double heading_loss = r.w_heading * std::pow(clip(heading / r.heading_scale_rad, -20.0, 20.0), 2);
+        const double course_loss = r.w_course * std::pow(clip(course / r.heading_scale_rad, -20.0, 20.0), 2);
+        const double steer_rate = (steer - previous_steer) / (r.steer_rate_scale_rad_s * mpc.dt);
+        const double slip_excess = std::max(0.0, std::abs(sideslip) / r.sideslip_threshold_rad - 1.0);
+        const double peak_excess = std::max(0.0, std::abs(ey) - r.peak_threshold_m) / r.peak_threshold_m;
+        const double loss = ey_loss + heading_loss + course_loss +
+            r.w_peak * peak_excess * peak_excess +
+            r.w_steer * std::pow(steer / mpc.max_steer, 2) +
+            r.w_steer_rate * std::pow(clip(steer_rate, -5.0, 5.0), 2) +
+            r.w_sideslip * slip_excess * slip_excess;
+        return -r.reward_scale * loss;
+    }
     const double normalized_ey = ey / r.ey_scale_m;
     if (r.tracking_v2 && mpc.track_course)
         epsi = angleDifference(epsi + sideslip, 0.0);
@@ -99,7 +116,7 @@ double rlDecisionReward(double step_reward_sum, int steps, int qp_failures,
                         bool failed, bool incomplete, const RlConfig& config) {
     const auto& r = config.reward;
     const int penalized_qp = config.penalize_qp_failure ? qp_failures : 0;
-    if (r.tracking_v2) {
+    if (r.tracking_v2 || r.mode == "joint_tracking") {
         const int valid_steps = steps - static_cast<int>(failed);
         const double mean = step_reward_sum / (std::max(1, valid_steps) * r.reward_scale);
         const double terminal = failed ? r.failure_penalty
@@ -145,13 +162,16 @@ MpcTuningAction advanceRlTuning(const std::array<double, 4>& action,
     const double max_step = std::log(config.max_weight_ratio_per_decision);
     const auto weight = [&](std::size_t k, double request, double last) {
         const auto& choices = config.weight_choices[k];
-        if (!choices.empty()) {
+        if (config.weight_action_mode == "legacy" && !choices.empty()) {
             const auto index = std::lround((request + 1.0) * (choices.size() - 1) / 2.0);
             return choices[static_cast<std::size_t>(index)];
         }
-        const double lo = std::log(config.weight_min[k]);
-        const double hi = std::log(config.weight_max[k]);
-        const double target = 0.5 * ((1.0 - request) * lo + (1.0 + request) * hi);
+        const double center = neutralWeight(config, k);
+        const double lo = std::log(config.minWeight(k) / center);
+        const double hi = std::log(config.maxWeight(k) / center);
+        const double target = std::log(center) + request * (request >= 0.0 ? hi : -lo);
+        if (config.weight_action_mode == "continuous_weights")
+            return std::exp(clip(target, std::log(last) - max_step, std::log(last) + max_step));
         if (!config.smooth_tuning) return std::exp(target);
         const double current = std::log(last);
         const double error = target - current;
@@ -185,7 +205,8 @@ double roadPreviewDistance(const RlConfig& config, double mpc_dt, double x_speed
 RoadPreviewObservation makeRoadPreviewObservation(
     const VehicleState& state, const DoubleLaneChange& reference,
     const std::function<double(double)>& grip_at_x, double distance_m,
-    const MpcParameters& mpc, const RlConfig& config, int current_np, double previous_steer) {
+    const MpcParameters& mpc, const RlConfig& config, int current_np, double previous_steer,
+    const MpcTuningAction* executed) {
     constexpr double gravity = 9.80665;
     constexpr double demand_threshold = 1.0;
     constexpr int samples = 32;
@@ -240,9 +261,21 @@ RoadPreviewObservation makeRoadPreviewObservation(
             clip(previous_steer / mpc.max_steer, -1.0, 1.0),
             clip(2.0 * (current_np - config.min_np) /
                 static_cast<double>(config.max_np - config.min_np) - 1.0, -1.0, 1.0)};
-    if (config.observation_profile == "road_preview_v2") {
+    if (config.observation_profile == "road_preview_v2" || config.observation_profile == "road_preview_joint") {
         obs.push_back(clip(min_grip / 1.5, 0.0, 1.0));
         obs.push_back(clip(near_demand / config.grip_demand_clip, 0.0, 1.0));
+    }
+    if (config.observation_profile == "road_preview_joint") {
+        const auto& current = executed ? *executed : neutralRlAction(config);
+        obs.push_back(clip(angleDifference(state.psi, point.psi) / config.reward.heading_scale_rad, -4.0, 4.0));
+        obs.push_back(clip(vehicleSideslip(state) / config.reward.sideslip_threshold_rad, -4.0, 4.0));
+        obs.push_back(clip((state.r - state.vx * point.curvature) / 0.25, -4.0, 4.0));
+        for (const auto pair : {std::pair<double, std::size_t>{current.q_y, 0}, {current.q_psi, 1}, {current.r_delta, 5}}) {
+            const double center = neutralWeight(config, pair.second);
+            const double span = std::max(std::log(config.maxWeight(pair.second) / center),
+                                         std::log(center / config.minWeight(pair.second)));
+            obs.push_back(clip(std::log(pair.first / center) / span, -1.0, 1.0));
+        }
     }
     return obs;
 }

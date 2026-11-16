@@ -13,7 +13,7 @@ from algorithms import ALGORITHMS
 
 from envs.carsim_mpc_env import CarSimMPCEnv
 from report import control_trace, render_report
-from scenario import resolve_simfile, read_scenario, snapshot_scenario
+from scenario import resolve_simfile, read_scenario, snapshot_scenario, resolve_config_value
 from diagnostics import sensor_metrics
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -24,16 +24,38 @@ DEFAULT_CONTROLLER = PROJECT_ROOT / "out/python-rl-build/Release/MPC_DoubleLaneC
 def _tracking_metrics(trace):
     data = control_trace(trace)
     ey, epsi = data["ey_m"], data["epsi_rad"]
+    course = np.arctan2(np.sin(epsi + data["sideslip_rad"]),
+                        np.cos(epsi + data["sideslip_rad"]))
     config = configparser.ConfigParser(interpolation=None)
     config.read(Path(trace).with_name("effective_config.ini"), encoding="utf-8-sig")
     vehicle = {key: config.getfloat("vehicle", key)
                for key in ("mass_kg", "iz_kgm2", "a_m", "b_m")} if config.has_section("vehicle") else None
+    losses = {prefix + key: "" for prefix in ("mean_", "share_")
+              for key in ("reward_y_loss", "reward_heading_loss", "reward_course_loss")}
+    jumps = {}
+    for key in ("np", "q_y", "q_psi", "r_delta"):
+        values = data[key]
+        jumps["change_fraction_" + key] = float(np.mean(np.abs(np.diff(values)) >
+            (0 if key == "np" else 0.01 * np.maximum(np.abs(values[:-1]), 1)))) if len(values) > 1 else 0.0
+    if "reward_y_loss" in data:
+        for key in ("reward_y_loss", "reward_heading_loss", "reward_course_loss"):
+            losses["mean_" + key] = float(np.mean(data[key]))
+        total = sum(losses["mean_" + key] for key in
+                    ("reward_y_loss", "reward_heading_loss", "reward_course_loss"))
+        for key in ("reward_y_loss", "reward_heading_loss", "reward_course_loss"):
+            losses["share_" + key] = losses["mean_" + key] / total if total > 0 else 0.0
     return dict(distance_m=float(data["x_m"][-1]),
                 mae_y_m=float(np.mean(np.abs(ey))),
                 rmse_y_m=float(np.sqrt(np.mean(ey ** 2))),
                 peak_y_m=float(np.max(np.abs(ey))),
+                p95_y_m=float(np.percentile(np.abs(ey), 95)),
+                mae_heading_deg=float(np.rad2deg(np.mean(np.abs(epsi)))),
                 rmse_heading_deg=float(np.rad2deg(np.sqrt(np.mean(epsi ** 2)))),
-                qp_failures=int(data["qp_failed"].sum()), trace=trace,
+                peak_heading_deg=float(np.rad2deg(np.max(np.abs(epsi)))),
+                p95_heading_deg=float(np.rad2deg(np.percentile(np.abs(epsi), 95))),
+                rmse_course_deg=float(np.rad2deg(np.sqrt(np.mean(course ** 2)))),
+                steering_command_rms_deg=float(np.rad2deg(np.sqrt(np.mean(data["steer_rad"] ** 2)))),
+                qp_failures=int(data["qp_failed"].sum()), trace=trace, **losses, **jumps,
                 **sensor_metrics(data, vehicle))
 
 
@@ -115,6 +137,18 @@ def evaluate_models(algorithm, models, bridge, config, simfile, seeds, output,
     traces = {}
     for index, seed in enumerate(seeds):
         model_path = Path(models[index if len(models) > 1 else 0]).resolve()
+        manifest_path = next((parent / "manifest.json" for parent in model_path.parents
+                              if (parent / "manifest.json").is_file()), None)
+        if manifest_path:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for key, section, option, default in (
+                ("weight_action_mode", "rl", "weight_action_mode", "legacy"),
+                ("reward_mode", "rl_reward", "mode", "legacy"),
+                ("observation_profile", "rl", "observation_profile", "road_preview_v2")):
+                expected = resolve_config_value(config, section, option, default).lower()
+                recorded = manifest.get(key, "legacy" if key != "observation_profile" else None)
+                if recorded is not None and recorded != expected:
+                    raise ValueError(f"Policy {key}={recorded} differs from evaluation {expected}")
         model = cls.load(model_path, device="cpu")
         fixed = fixed_episode(controller, frozen_simfile, output / f"seed_{seed}_fixed_mpc",
                               fixed_config)

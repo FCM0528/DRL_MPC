@@ -11,6 +11,10 @@
 using RoadPreviewObservation = std::vector<double>;
 
 struct RlRewardConfig {
+    std::string mode = "legacy"; // legacy | joint_tracking
+    double w_heading = 1.0;
+    double w_course = 0.0;
+    double heading_scale_rad = 0.035;
     bool tracking_v2 = false;
     bool squared_lateral_reward = false; // quadratic lateral error and uncompressed loss
     double reward_scale = 10.0; // scale the scalar reward and failure penalties
@@ -39,6 +43,7 @@ struct RlRewardConfig {
 };
 
 struct RlConfig {
+    std::string weight_action_mode = "legacy"; // legacy | continuous_weights
     std::string mode = "fixed";       // C++ defaults to MPC control
     std::string action_profile = "full"; // full | compact | np_only
     int min_np = 10;
@@ -93,7 +98,7 @@ RoadPreviewObservation makeRoadPreviewObservation(
     const VehicleState& state, const DoubleLaneChange& reference,
     const std::function<double(double)>& grip_at_x, double distance_m,
     const MpcParameters& mpc, const RlConfig& config, int current_np,
-    double previous_steer);
+    double previous_steer, const MpcTuningAction* executed = nullptr);
 MpcParameters applyRlAction(const MpcParameters& base, const MpcTuningAction& action,
                             const RlConfig& config);
 double scalarizedRlReward(double ey, double epsi, double steer, int np,
