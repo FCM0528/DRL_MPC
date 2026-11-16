@@ -441,6 +441,19 @@ void testCarSimMpcModel() {
     std::cout << "PASS: CarSim solver echo supplies the MPC vehicle and tire model\n";
 }
 void testRlModule() {
+    const auto reward_base = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/strong_actions3.ini");
+    for (int wy : {2, 4}) {
+        const auto variant = loadConfig(std::string(PROJECT_SOURCE_DIR) +
+            "/configs/strong_actions3_wy" + std::to_string(wy) + ".ini");
+        const auto a = neutralRlAction(variant.rl);
+        const double base_reward = scalarizedRlReward(.1, .02, .01, 36,
+            reward_base.mpc, reward_base.rl, 0, 36, a, a);
+        const double variant_reward = scalarizedRlReward(.1, .02, .01, 36,
+            variant.mpc, variant.rl, 0, 36, a, a);
+        require(std::abs(variant_reward - base_reward +
+            variant.rl.reward.reward_scale * (wy - 1) * .25) < 1e-12,
+            "Reward ablation must change only the weighted lateral quadratic loss");
+    }
     for (int dims : {2, 3, 4}) {
         const auto strong = loadConfig(std::string(PROJECT_SOURCE_DIR) +
             "/configs/strong_actions" + std::to_string(dims) + ".ini");

@@ -30,6 +30,8 @@ class TrainingEnv(CarSimMPCEnv):
         previous = self.output_root / f"episode_{self._episode_id:06d}"
         log = previous.with_suffix(".log")
         result = super().reset(seed=seed, options=options)
+        if getattr(self, 'keep_training_traces', False):
+            return result
         if previous.is_dir():
             shutil.rmtree(previous)
         if log.is_file():
@@ -249,6 +251,8 @@ def main():
     p.add_argument("--scenario-set", help="JSON train/validation/test collections of real Simfiles")
     p.add_argument("--total-decisions", type=int, help="Exact interaction budget; overrides episode stopping")
     p.add_argument("--strong-config", default="configs/mpc_strong.ini")
+    p.add_argument("--keep-training-traces", action="store_true",
+                   help="Preserve every real CarSim training episode and its solver log")
     p.add_argument("--episodes", type=int,
                    help="Number of completed training episodes in this run")
     p.add_argument("--seed", type=int)
@@ -373,6 +377,7 @@ def main():
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     train_env = Monitor(TrainingEnv(args.bridge, args.config, args.simfile, root / "solver_train"),
                         filename=str(root / "train_monitor.csv"))
+    train_env.unwrapped.keep_training_traces = args.keep_training_traces
     if sets:
         train_env.unwrapped.scenario_pool = [Path(c['frozen_simfile']) for c in sets['train']]
         manifest['scenario_sets'] = sets
