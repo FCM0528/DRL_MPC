@@ -39,6 +39,7 @@ class CarSimMPCEnv(gym.Env):
         self._bridge = None
         self._episode_id = 0
         self._done = False
+        self.scenario_pool = [self.simfile]
         for file in (self.executable, self.config, self.simfile):
             if not file.is_file():
                 raise FileNotFoundError(file)
@@ -56,6 +57,12 @@ class CarSimMPCEnv(gym.Env):
         super().reset(seed=seed)
         self.close()
         self._episode_id += 1
+        selected = int(self.np_random.integers(len(self.scenario_pool)))
+        self.simfile = Path(self.scenario_pool[selected]).resolve(strict=True)
+        import json
+        with (self.output_root / "episode_scenarios.jsonl").open("a", encoding="utf-8") as log:
+            log.write(json.dumps(dict(episode=self._episode_id, case_index=selected,
+                                      simfile=str(self.simfile), seed=seed)) + "\n")
         base = self.output_root / f"episode_{self._episode_id:06d}"
         self._bridge = BridgeClient(
             self.executable, self.config, self.simfile,

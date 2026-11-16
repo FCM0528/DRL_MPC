@@ -26,6 +26,9 @@ def main():
     parser.add_argument("--fixed-config", help="Fixed MPC baseline, such as the one written by sweep.py")
     parser.add_argument("--train-config", default="configs/rl_training.ini")
     parser.add_argument("--simfile")
+    parser.add_argument("--scenario-set")
+    parser.add_argument("--total-decisions", type=int)
+    parser.add_argument("--strong-config", default="configs/mpc_strong.ini")
     parser.add_argument("--validation-simfile", help="Distinct validation case; selection never uses a final test case")
     parser.add_argument("--test-simfile", help="Held-out CarSim case used only after all models are selected")
     parser.add_argument("--bridge", default="out/python-rl-build/Release/MPC_RL_Bridge.exe")
@@ -99,6 +102,11 @@ def main():
                        "--train-config", str(frozen_train_config),
                        "--simfile", str(frozen), "--out", str(output), "--training-only",
                        "--joint-selection", "--fixed-config", str(fixed_config)]
+            command.extend(("--strong-config", str(Path(args.strong_config).resolve(strict=True))))
+            if args.scenario_set:
+                command.extend(("--scenario-set", str(Path(args.scenario_set).resolve(strict=True))))
+            if args.total_decisions:
+                command.extend(("--total-decisions", str(args.total_decisions)))
             if args.validation_simfile:
                 command.extend(("--validation-simfile", str(frozen_validation)))
             print(f"Starting {algorithm.upper()}: {args.episodes} episodes. Log: {output / 'training.log'}", flush=True)
@@ -125,6 +133,11 @@ def main():
             save()
             print(f"{algorithm.upper()} complete; qualified={selection['qualified']}", flush=True)
         info["training_summary"] = str(render_training_summary(root, monitors, args.episodes, args.seed))
+        if args.scenario_set:
+            info['status'] = 'validation_complete_test_not_run'
+            info['test_instruction'] = 'Lock selected model hashes and use evaluate_dual.py on the held-out test set'
+            save()
+            return
         if len(info["models"]) != len(ALGORITHMS):
             info["status"] = "no_joint_qualified_model"
             save()

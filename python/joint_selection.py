@@ -17,7 +17,16 @@ def rank_candidate(row, baseline):
 
 
 def select_checkpoints(root, cls, bridge, controller, config, simfile, fixed_config,
-                       seed, config_hashes):
+                       seed, config_hashes, *, strong_config=None, validation_cases=None):
+    if strong_config is not None or validation_cases is not None:
+        from joint_validation import JointValidator
+        validator = JointValidator(root, bridge, controller, config,
+            validation_cases or [simfile], fixed_config, strong_config or fixed_config,
+            seed, config_hashes)
+        for path in sorted((Path(root) / 'checkpoints').glob('*.zip')) + [Path(root) / 'final_model.zip']:
+            validator.evaluate(cls.load(path, device='cpu'), path,
+                               diagnostic=path.name == 'final_model.zip')
+        return json.loads((Path(root)/'checkpoint_selection.json').read_text())
     root = Path(root)
     baseline = fixed_episode(controller, simfile, root / "joint_validation_fixed", fixed_config)
     if baseline["qp_failures"] or not baseline["terminated"]:

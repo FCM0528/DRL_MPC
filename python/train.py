@@ -246,6 +246,9 @@ def main():
     p.add_argument("--train-config", default="configs/rl_training.ini")
     p.add_argument("--simfile", help="CarSim Simfile; defaults to carsim.simfile from config")
     p.add_argument("--validation-simfile", help="Distinct frozen validation CarSim case for joint selection")
+    p.add_argument("--scenario-set", help="JSON train/validation/test collections of real Simfiles")
+    p.add_argument("--total-decisions", type=int, help="Exact interaction budget; overrides episode stopping")
+    p.add_argument("--strong-config", default="configs/mpc_strong.ini")
     p.add_argument("--episodes", type=int,
                    help="Number of completed training episodes in this run")
     p.add_argument("--seed", type=int)
@@ -272,6 +275,8 @@ def main():
                    help="Highest target quantiles removed per critic (paper tests 0..5)")
     args = p.parse_args()
     settings = load_training_settings(args.train_config)
+    if args.total_decisions is not None and args.total_decisions % settings['train_freq']:
+        p.error("--total-decisions must be a multiple of train_freq for an exact budget")
     for arg, key in (("episodes", "episodes"), ("seed", "seed"),
                      ("eval_frequency", "eval_frequency"),
                      ("tqc_profile", "tqc_profile"), ("tqc_drop", "tqc_drop")):
@@ -305,10 +310,15 @@ def main():
                 f"seed{args.seed}_{datetime.now():%Y%m%d_%H%M%S}")
     root = Path(args.out).resolve() / run_name
     root.mkdir(parents=True, exist_ok=False)
+    sets = None
+    if args.scenario_set:
+        from scenario_sets import freeze_sets
+        sets = freeze_sets(args.scenario_set, root / "scenario_sets")
     frozen_simfile = snapshot_scenario(scenario, root / "source_case")
     frozen_validation = snapshot_scenario(validation_scenario, root / "validation_case") if validation_scenario else None
     source_config = Path(args.config).resolve(strict=True)
     frozen_config = snapshot_config(source_config, root / "source_configs")
+    strong_config = snapshot_config(args.strong_config, root / "strong_configs")
     fixed_config = None
     if not args.training_only or args.joint_selection:
         fixed_source = Path(args.fixed_config) if args.fixed_config else source_config.with_name("default.ini")
@@ -363,6 +373,10 @@ def main():
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     train_env = Monitor(TrainingEnv(args.bridge, args.config, args.simfile, root / "solver_train"),
                         filename=str(root / "train_monitor.csv"))
+    if sets:
+        train_env.unwrapped.scenario_pool = [Path(c['frozen_simfile']) for c in sets['train']]
+        manifest['scenario_sets'] = sets
+    manifest['selection_split'] = ('validation' if sets or frozen_validation else 'training_case_diagnostic')
     validation = None
     cls = TRAINING_ALGORITHMS[args.algorithm]
     try:
@@ -400,6 +414,8 @@ def main():
                 kwargs["action_noise"] = NormalActionNoise(np.zeros(dims), np.full(dims, sigma))
             model = cls("MlpPolicy", train_env, **kwargs)
         prepare_online_training(model, settings["learning_starts"])
+        from stable_baselines3.common.logger import configure
+        model.set_logger(configure(str(root / "training_logs"), ["csv", "tensorboard"]))
         manifest["training_start_timesteps"] = int(model.num_timesteps)
         start_updates = int(model._n_updates)
         manifest["training_data"].update(
@@ -407,9 +423,22 @@ def main():
             warmup_decisions=settings["learning_starts"])
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         callbacks = [CheckpointCallback(save_freq=args.eval_frequency,
-                                        save_path=str(root / "checkpoints")),
-                     StopTrainingOnMaxEpisodes(max_episodes=args.episodes, verbose=1)]
-        if not args.training_only:
+                                        save_path=str(root / "checkpoints"))]
+        if args.total_decisions is None:
+            callbacks.append(StopTrainingOnMaxEpisodes(max_episodes=args.episodes, verbose=1))
+        elif args.total_decisions < 1:
+            p.error("--total-decisions must be positive")
+        joint_validator = None
+        if args.joint_selection:
+            from joint_validation import JointValidator, JointValidationCallback
+            validation_cases = ([c['frozen_simfile'] for c in sets['validation']] if sets else
+                                [str(frozen_validation) if frozen_validation else args.simfile])
+            if not validation_cases:
+                raise ValueError("Scenario set requires real validation cases for joint selection")
+            joint_validator = JointValidator(root, args.bridge, args.controller, args.config,
+                validation_cases, fixed_config, strong_config, args.seed, config_hashes)
+            callbacks.append(JointValidationCallback(joint_validator, args.eval_frequency))
+        if not args.training_only and not args.joint_selection:
             validation_args = (args.bridge, args.config, args.simfile, root / "solver_validation")
             validation = Monitor(
                 LateralValidationEnv(*validation_args, key_segment=args.lateral_key_segment,
@@ -422,9 +451,11 @@ def main():
             if args.select_lateral_rmse:
                 evaluator.best_mean_reward = REJECTED_LATERAL_SCORE
             callbacks.insert(1, evaluator)
-        model.learn(total_timesteps=2_147_483_647, callback=callbacks,
+        model.learn(total_timesteps=args.total_decisions or 2_147_483_647, callback=callbacks,
                     reset_num_timesteps=not bool(args.resume))
         model.save(root / "final_model")
+        if joint_validator is not None:
+            joint_validator.evaluate(model, root / "final_model.zip", diagnostic=True)
         manifest["training_data"].update(
             collected_decisions=int(model.num_timesteps) - manifest["training_start_timesteps"],
             final_replay_decisions=int(model.replay_buffer.size()),
@@ -435,11 +466,6 @@ def main():
         train_env.close()
         if validation is not None:
             validation.close()
-    if args.joint_selection:
-        from joint_selection import select_checkpoints
-        select_checkpoints(root, cls, args.bridge, args.controller, args.config,
-                           str(frozen_validation) if frozen_validation else args.simfile, fixed_config,
-                           args.seed, config_hashes)
     if args.training_only:
         print(f"Final model: {root / 'final_model.zip'}")
         return

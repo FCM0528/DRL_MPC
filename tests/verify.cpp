@@ -441,6 +441,15 @@ void testCarSimMpcModel() {
     std::cout << "PASS: CarSim solver echo supplies the MPC vehicle and tire model\n";
 }
 void testRlModule() {
+    for (int dims : {2, 3, 4}) {
+        const auto strong = loadConfig(std::string(PROJECT_SOURCE_DIR) +
+            "/configs/strong_actions" + std::to_string(dims) + ".ini");
+        const auto zero = neutralRlAction(strong.rl);
+        require(zero.np == 36 && zero.q_y == 18400 && zero.q_psi == 8960 &&
+                zero.r_delta == 10800 && strong.mpc.nc == 13 &&
+                strong.rl.policy_action_dims == dims,
+                "Strong policy neutral action must match verified strong MPC");
+    }
     auto config = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/carsim_python_rl.ini");
     require(!config.stop_at_reference_end && config.distance_m == 120.0 &&
             config.rl.reward.tracking_v2,
