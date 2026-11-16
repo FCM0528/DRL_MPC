@@ -1,0 +1,71 @@
+[
+  {
+    "algorithm": "ddpg",
+    "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\best_legal_model.zip",
+    "sha256": "b5fe60505e9adbdb0de3bca64e7dd9859823dd58b64ff0db0e0905b9f9a5c095",
+    "config": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_configs\\strong_weights3.ini",
+    "config_chain_sha256": {
+      "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+      "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+      "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+      "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+    },
+    "final_model_sha256": "eb2f63635b66fddb454c53f3b9ff038f473b782c37ebc799b85a49fe51c412e8",
+    "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\checkpoints\\joint_2370_steps.zip",
+    "source_simfile_sha256": "c677b4c89981a6f5febd4244a9232296a54283c6ece2ecdd1dad3f628b221e4c",
+    "source_parsfile_sha256": "bb878204652e1351e0fa30e7c6c66654ff61539475e4d06846acbacfc198be7e",
+    "experiment_signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7",
+    "policy_action_names": [
+      "q_y",
+      "q_psi",
+      "r_delta"
+    ],
+    "action_mapping_version": "named_actions_v1"
+  },
+  {
+    "algorithm": "td3",
+    "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_td3_20261116_v1\\td3_v70kmh_100episodes_seed42_20261116_184139\\best_legal_model.zip",
+    "sha256": "ea445194ca595e01cadabceae8144a249b88f1805ae344e18931c38fd672474b",
+    "config": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_td3_20261116_v1\\td3_v70kmh_100episodes_seed42_20261116_184139\\source_configs\\strong_weights3.ini",
+    "config_chain_sha256": {
+      "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+      "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+      "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+      "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+    },
+    "final_model_sha256": "f7cd3979865d2da9715424cf1c06d1a9fd278482323dd7fffcb3e91541f9da27",
+    "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_td3_20261116_v1\\td3_v70kmh_100episodes_seed42_20261116_184139\\checkpoints\\joint_6320_steps.zip",
+    "source_simfile_sha256": "015cf350d389154ff91e391d75c2435a1eb62ddd02e72577f68f0339143079be",
+    "source_parsfile_sha256": "bb878204652e1351e0fa30e7c6c66654ff61539475e4d06846acbacfc198be7e",
+    "experiment_signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7",
+    "policy_action_names": [
+      "q_y",
+      "q_psi",
+      "r_delta"
+    ],
+    "action_mapping_version": "named_actions_v1"
+  },
+  {
+    "algorithm": "tqc",
+    "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_tqc_20261116_v1\\tqc_v70kmh_100episodes_seed42_20261116_184412\\best_legal_model.zip",
+    "sha256": "7d2cb8b2878c0da553890ace245d2d5c50dbef0cdfbbf0b68150f96925811cf4",
+    "config": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_tqc_20261116_v1\\tqc_v70kmh_100episodes_seed42_20261116_184412\\source_configs\\strong_weights3.ini",
+    "config_chain_sha256": {
+      "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+      "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+      "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+      "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+    },
+    "final_model_sha256": "ef0db83fe6f9b18ec59129a2deb2081381a8ff019eafcc070fa6357e2f242759",
+    "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_tqc_20261116_v1\\tqc_v70kmh_100episodes_seed42_20261116_184412\\checkpoints\\joint_4740_steps.zip",
+    "source_simfile_sha256": "df7a5c05e80fc5311ade596e7f8296ad0b67fdceed6944078d2b10c36a073554",
+    "source_parsfile_sha256": "bb878204652e1351e0fa30e7c6c66654ff61539475e4d06846acbacfc198be7e",
+    "experiment_signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7",
+    "policy_action_names": [
+      "q_y",
+      "q_psi",
+      "r_delta"
+    ],
+    "action_mapping_version": "named_actions_v1"
+  }
+]

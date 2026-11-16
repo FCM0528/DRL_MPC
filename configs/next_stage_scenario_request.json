@@ -1,0 +1,18 @@
+{
+  "status": "design_only_requires_native_CarSim_export_not_a_runnable_scenario_set",
+  "reference": "Unchanged LTARG_TABLE and vehicle/tire/I/O contract from the verified 70 km/h mu=0.8 case",
+  "cases": [
+    {"id": "dev_65_mu08", "split": "validation", "speed_kmh": 65, "mu": 0.8, "simfile": null},
+    {"id": "dev_75_mu08", "split": "validation", "speed_kmh": 75, "mu": 0.8, "simfile": null},
+    {"id": "heldout_70_mu06", "split": "test", "speed_kmh": 70, "mu": 0.6, "simfile": null}
+  ],
+  "inputs": ["IMP_STEER_L1", "IMP_STEER_R1"],
+  "input_mode": "Replace",
+  "input_angle_unit": "deg",
+  "exports": ["Xcg_TM", "Ycg_TM", "Vx", "Vy", "Yaw", "AVz", "Ax", "Ay", "Steer_L1", "Steer_R1", "Beta", "Rho_Road", "AlphL_L1", "AlphL_R1", "AlphL_L2", "AlphL_R2", "Fy_L1", "Fy_R1", "Fy_L2", "Fy_R2"],
+  "controller_dt_s": 0.04,
+  "rl_decision_dt_s": 0.08,
+  "end_station_m": 120,
+  "safety_gate": {"completed": true, "qp_failures": 0, "peak_ay_g_max": 0.85, "peak_beta_deg_max": 5},
+  "instructions": "See docs/DRL_MPC_Next_Stage_Analysis.md. Export full native Simfile/Run_all.par pairs, then build a separate train/validation/test list of their real paths. No hand-authored Simfiles; test is not for tuning."
+}

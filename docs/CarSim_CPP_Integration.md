@@ -10,13 +10,13 @@
 
 其中 `AlphL_*` 与 `Fy_*` 已用于 MPC 轮胎松弛状态和近端轴力残差；`Beta` 现优先用于策略航迹角观测与稳定性奖励，未导出时回退到 `atan2(vy,vx)`。Ax/Ay、Beta、Rho_Road、前后轴侧向力和实际轮角均以 SI 值写入固定与桥接日志。四组指标新增实测侧向加速度与侧偏峰值、轮角执行差、含旋转坐标项的速度/加速度一致性和轮胎力平衡残差；缺失的可选传感量留空，不当作零值。当前工况 `Rho_Road=0`，而双移线目标曲率非零，两者没有混用于预瞄。
 
-`MPC_RL_Bridge` 每个进程负责一个回合。Python 可先发送 `PARAMS` 获取中性动作对应的 Np、权重、控制周期、决策步数、折扣因子和奖励尺度。发送 `RESET` 后，桥接程序按配置返回 14 维 `road_preview_v2` 或 12 维 `road_preview` 观测。Python 随后发送 `STEP a_np a_qy a_qpsi a_rdelta`，四个动作均在 `[-1,1]`。C++ 按配置量化 Np 并为 Qy、Qψ 和 RΔ 选择数组元素。Qvy、Qr 和 Rsteer 取 `[weights]` 中的设置。每次 `STEP` 执行 `decision_steps` 个 MPC 控制周期，返回新观测、C++ 计算的奖励、终止标记及诊断字段。`CLOSE` 结束进程。新的 Gymnasium 回合启动新的桥接进程，以隔离 CarSim DLL 状态。
+`MPC_RL_Bridge` 每个进程负责一个回合。Python 可先发送 `PARAMS` 获取中性动作对应的 Np、权重、控制周期、决策步数、折扣因子和奖励尺度。发送 `RESET` 后，桥接按配置返回当前20维 `road_preview_joint` 或兼容的14维 `road_preview_v2`、12维 `road_preview`。Python按 `policy_action_names` 将低维策略动作补齐为 `STEP a_np a_qy a_qpsi a_rdelta`，未学习维度严格填零。C++按配置量化Np，并使用legacy五档或continuous_weights映射权重。Qvy、Qr和Rsteer维持配置值。每次STEP执行 `decision_steps` 个控制周期，返回观测、奖励、终止标记及诊断字段。CLOSE结束进程；新回合重启桥接以隔离DLL状态。
 
 默认配置为 `configs/carsim_python_rl.ini`，默认工况读取继承配置中的 `[carsim] simfile`，也可以显式指定。训练和评价启动时冻结 Simfile 和 Parsfile；桥接程序在每回合目录中复制快照并按目标车速设置停止时间，不修改源工况。车速不再固定为 60 km/h；模型只在训练工况得到验证，切换工况后应重新验证。当前参考轨迹解析、车辆和道路格式仍受 C++ 接口支持范围限制。
 
 固定 MPC 和桥接程序使用 `configs/default.ini` 中的同一终点 X = 120 m。两者在质心首次达到或越过该位置时结束，并按控制后的状态样本计算跟踪误差。对照评估核对两边 `effective_config.ini` 中的终点。
 
-默认配置将 Np 量化到 28 至 52 的整数，零动作对应 Np=40，固定 Nc=13。三个权重各有五个候选值，保留已验证 500 回合模型的训练时映射。每次决策直接应用请求对应的候选值。零动作选择中间项。MPC 在整个决策区间使用同一组已执行参数，观测、奖励和 `bridge_trace.csv` 均以这些参数为准。旧配置没有候选数组时，权重继续使用对数映射及其 `smooth_tuning` 设置。旧策略应与训练时保存的配置配对。
+旧 `carsim_python_rl.ini` 保留Np范围28–52、中性40及五档映射。当前强基线profile以Np36、Qy18400、Qpsi8960、Rdelta10800为中性点，Nc13；权重连续映射并限速1.08，full4另限制Np每决策变化2。桥接CSV的 `action_*_normalized`、`target_*` 和实际参数列含义不同，分别对应请求坐标、映射后的目标和限速后的执行值。旧模型必须使用其冻结配置；同维度策略不能据此跨动作语义或 `track_course` 目标加载。
 
 四组比较会同时冻结 CarSim 工况、固定 MPC 配置和 DRL 配置的完整继承链，避免回放期间修改源配置造成对比失真。Windows 下建议使用 `runs` 等较短输出根目录；CarSim 原生文件及训练套件嵌套目录过深时会触发路径长度限制。
 

@@ -2,7 +2,7 @@
 
 研究主线为三自由度车辆预测模型与增量式LTV-MPC，使用TQC自适应调节MPC参数，并与TD3、DDPG统一比较。CarSim提供真实车辆闭环状态；DRL输出Np、Qy、Qpsi、Rdelta参数请求，C++ MPC求解转向。三维权重方案是首个统一预实验，受限四维保留完整参数自适应研究位置，不预设算法排名。
 
-当前入口见[主线恢复报告](docs/DRL_MPC_Mainline_Recovery.md)。[固定Np实验](docs/TD3_Fixed_Np_Experiments.md)及一维TD3五种子结果作为动作消融保留；全部资料见[文档索引](docs/INDEX.md)。
+当前审计见[优化目标、三维动作与TQC下一阶段分析](docs/DRL_MPC_Next_Stage_Analysis.md)，前序统一预实验见[主线恢复报告](docs/DRL_MPC_Mainline_Recovery.md)。[固定Np实验](docs/TD3_Fixed_Np_Experiments.md)及一维TD3五种子结果作为动作消融保留；全部资料见[文档索引](docs/INDEX.md)。
 
 独立且兼容的验证/测试工况尚未就绪。formal_compare默认研究profile为weights3；--profile qy1保留原一维复现，weights2与full4分别对应二维权重和受限四维。只生成预检计划，不自动执行15组训练。[一维稳定性与机制对照](docs/TD3_Qy_Stability_and_Generalization.md)及[当时的一维正式计划](docs/Formal_DRL_MPC_Comparison_Plan.md)保留为历史研究资料。
 

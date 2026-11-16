@@ -3,6 +3,7 @@ import argparse
 import csv
 import json
 import time
+from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 
@@ -12,7 +13,8 @@ from envs.carsim_mpc_env import CarSimMPCEnv
 from scenario import resolve_simfile, read_scenario
 
 
-def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, *, export_report=False):
+def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, *, export_report=False,
+               record_observations=False):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     from action_mapping import check_model_contract
@@ -30,7 +32,9 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, 
     inference_ms = []
     try:
         obs, _ = env.reset(seed=seed)
-        with (output / "applied_actions.csv").open("w", newline="", encoding="utf-8") as file:
+        with ExitStack() as stack:
+            file=stack.enter_context((output / "applied_actions.csv").open("w", newline="", encoding="utf-8"))
+            observations=stack.enter_context((output/'observations.jsonl').open('w',encoding='utf-8')) if record_observations else None
             writer = csv.writer(file)
             writer.writerow(["decision", *['a_'+name for name in env.policy_action_names],
                              "executed_np", "x_m", "ey_m", "reward", "terminated", "truncated", "failed",
@@ -42,7 +46,11 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, 
                 action = np.asarray(action, dtype=np.float64)
                 if action.shape != env.action_space.shape or not np.all(np.isfinite(action)):
                     raise ValueError("Policy returned an invalid tuning action")
+                previous_obs=obs.copy()
                 obs, reward, terminated, truncated, info = env.step(action)
+                if observations is not None:
+                    observations.write(json.dumps(dict(observation=previous_obs.tolist(),action=action.tolist(),
+                        next_observation=obs.tolist(),reward=reward,terminated=terminated,truncated=truncated))+'\n')
                 decisions += 1
                 total_reward += reward
                 writer.writerow([decisions, *action.tolist(), info["np"], info["x_m"],
@@ -73,12 +81,14 @@ def main():
     p.add_argument("--out", help="Policy output directory")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument('--export-report',action='store_true',help='Export full C++ trajectory and QP timing diagnostics')
+    p.add_argument('--record-observations',action='store_true',help='Save actual decision transitions for frozen-model diagnostics; no training')
     args = p.parse_args()
     simfile = resolve_simfile(args.config, args.simfile)
     output = args.out or str(Path("runs/python_policy_run") /
         f"{args.algorithm}_{read_scenario(simfile)['speed_token']}_{datetime.now():%Y%m%d_%H%M%S}")
     print(json.dumps(run_policy(args.algorithm, args.model, args.bridge, args.config,
-                                simfile, output, args.seed, export_report=args.export_report), indent=2))
+                                simfile, output, args.seed, export_report=args.export_report,
+                                record_observations=args.record_observations), indent=2))
 
 
 if __name__ == "__main__":

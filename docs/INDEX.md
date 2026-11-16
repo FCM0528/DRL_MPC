@@ -2,6 +2,7 @@
 
 ## 当前入口
 
+- [当前优化目标、三维动作、TQC训练审计与独立工况待办](DRL_MPC_Next_Stage_Analysis.md)
 - [TQC-MPC主线恢复、三算法统一预实验与受限四维](DRL_MPC_Mainline_Recovery.md)
 - [一维Qy五种子动作消融与反馈归因](TD3_Qy_Stability_and_Generalization.md)
 - [一维profile的历史公平比较计划与阻塞预检](Formal_DRL_MPC_Comparison_Plan.md)

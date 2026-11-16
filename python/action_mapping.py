@@ -2,7 +2,7 @@
 from pathlib import Path
 import json
 import numpy as np
-from scenario import resolve_config_value
+from scenario import resolve_config_value, controller_policy_signature
 
 BRIDGE_NAMES = ('np', 'q_y', 'q_psi', 'r_delta')
 SUPPORTED = {('q_y',), ('q_y','q_psi'), ('q_y','q_psi','r_delta'), BRIDGE_NAMES[:2], BRIDGE_NAMES[:3], BRIDGE_NAMES}
@@ -42,3 +42,9 @@ def check_model_contract(model_path, config):
     prior_version=manifest.get('action_mapping_version','legacy_prefix_v1')
     if prior!=names or prior_version!=version:
         raise ValueError('Model action names/mapping version differ from evaluation config')
+    frozen=manifest.get('frozen_config')
+    if frozen and Path(frozen).is_file():
+        if controller_policy_signature(frozen)!=controller_policy_signature(config):
+            raise ValueError('Model controller/reward/observation contract differs from evaluation config (including track_course)')
+    elif version=='named_actions_v1':
+        raise ValueError('Named policy requires its frozen controller configuration')

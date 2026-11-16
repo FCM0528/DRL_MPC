@@ -4,9 +4,11 @@
 
 ## 控制任务
 
-每次决策读取 C++ 的 14 维 `road_preview_v2` 观测，策略输出四个 [-1, 1] 动作，依次控制预测时域 Np、横向误差权重 Qy、航向误差权重 Qψ、转角增量权重 RΔ。C++ 映射并执行四个动作。其他 MPC 权重维持配置值。每个决策块包含配置的 `decision_steps` 个 MPC 周期；折扣系数从 C++ 的 `discount_gamma` 读取。
+当前主线读取 C++ 的20维 `road_preview_joint` 观测。首个统一预实验采用 `configs/strong_weights3.ini`：策略输出 `[Qy,Qpsi,Rdelta]` 三个归一化权重动作；`strong_full4.ini` 另加入Np。1维Qy和2维Qy+Qpsi保留为动作消融；历史3维Np+Qy+Qpsi保持原义。`policy_action_names` 明确排列，Python补齐未学习维度的零动作，C++桥接始终接收 `[Np,Qy,Qpsi,Rdelta]` 四维协议。DRL不直接输出转向指令。旧14维 `road_preview_v2`、旧模型及旧配置继续配套使用，不能与新策略混用。
 
-环境奖励由 C++ 统一计算，TQC 的熵项由算法内部处理。当前环境奖励包含横向误差、超阈值横向误差、速度方向误差、转角与变化率、超阈值侧偏和调参变化。桥接对有效控制步取平均，再扣除求解与回合失败罚值。默认回合终点为 `default.ini` 中的 X = 120 m。具体配置见 [训练参数](RL_Training_Parameters.md#奖励与曲线)。
+零动作对应强MPC的Np=36、Qy=18400、Qpsi=8960、Rdelta=10800。权重采用有界连续对数映射，每决策变化比例上限1.08；完整4维profile将Np每决策变化限制为2。控制周期0.04s，决策包含2个控制周期。折扣系数仍从C++的 `discount_gamma` 读取。默认 `track_course=true` 时，Qpsi控制航迹角误差 `wrap(psi+beta-psi_ref)`，不等同于车身航向误差 `wrap(psi-psi_ref)`；联合奖励分别记录两者。
+
+环境采用C++的 `joint_tracking` 奖励，横向、车身航向、航迹角、横向峰值/增长、转向、参数切换和安全项分别记录，桥接按有效控制步平均并扣除事件失败罚值。当前候选参数wy=1、w_heading=1、w_course=0.05，横向尺度0.2m、角度尺度0.035rad；本轮不改变它们。TQC的熵项只由算法内部处理，不伪装成环境回报。终点保持X=120m。实现与最新实测审计见 [下一阶段分析](DRL_MPC_Next_Stage_Analysis.md)。
 
 ## TQC 更新
 
@@ -14,15 +16,18 @@
 
 `practical` 配置为 N=3、每层 256 单元的两层网络，供当前 CPU 上的 CarSim 训练使用。`paper` 配置为论文实验的 N=5、每层 512 单元的三层网络。两种配置均保留 M=25；论文消融显示评论家数量增加到约 3 后收益趋缓，因此 CPU 配置是计算量与表达能力之间的工程选择，并非论文原实验复现。
 
-默认训练参数由 `configs/rl_training.ini` 提供：经验回放容量 100000、预热 550 决策、批量 256，Actor、Critic 和熵系数学习率分别可调，默认分别为 1e-4、3e-4、1e-4；每个环境决策进行一次梯度更新，默认每 550 决策保存检查点，独立训练同时进行无探索验证。TQC 的随机策略负责探索，不额外叠加 DDPG/TD3 的动作噪声。完整的逐项参数表见 `docs/RL_Training_Parameters.md`。
+训练参数由 `configs/rl_training.ini` 提供，已完成的统一预实验使用 `configs/rl_training_pilot.ini`：回放容量100000、预热550决策、批量256，Actor/Critic/熵优化器学习率为1e-4/3e-4/1e-4；每决策一次梯度更新。三算法各7900决策，每790决策确定性验证。TQC随机策略负责探索，不另加DDPG/TD3的动作噪声。自动熵目标随实际动作维数确定，当前3维为−3，4维为−4，不能照搬旧4维目标。已保存模型确认最终7350次梯度更新。
 
 ```powershell
-python python/train.py --algorithm tqc --episodes 500 --seed 42 --eval-frequency 1000 --tqc-profile practical --tqc-drop 2
+# 复现单工况技术预实验；使用新输出目录，本轮不执行训练。
+python python/train.py --algorithm tqc --config configs/strong_weights3.ini --train-config configs/rl_training_pilot.ini --simfile <真实冻结Simfile> --episodes 100 --total-decisions 7900 --seed 42 --eval-frequency 790 --tqc-profile practical --tqc-drop 2 --training-only --joint-selection --keep-training-traces --out runs/tqc_weights3_NEW
 ```
 
 ## 判断训练是否有效
 
-训练回报曲线只说明同一工况下的学习过程。训练脚本分别输出 `evaluation/`（最终模型）和 `best_evaluation/`（验证最佳模型）。比较中性 MPC、最终模型和验证最佳模型时，应同时检查横向 RMSE、峰值误差、航向 RMSE、QP 失败与附着保护步数。当前 CarSim 环境的随机种子不改变源工况，因此单次验证不是独立道路泛化测试；跨车速、道路或附着系数的结论需要另选工况复测。
+训练回报不能替代双误差验证。`joint_validation.csv`、`checkpoint_selection.json` 保存全部周期检查点及Pareto候选；完赛、QP零失败、Ay≤0.85g、Beta≤5°才合法，强MPC双指标达标另要求两项RMSE均降低。`best_legal_model.zip` 可合法但未双指标达标；`best_joint_model.zip` 仅在达标时存在，`final_model.zip` 单独保留且不自动升级为最优模型。当前三算法结果均为70km/h、mu=0.8、seed42同工况诊断，不能用于算法正式排名。真实独立开发验证工况就绪前，不开展截断数0/2/3消融或正式多种子大训练。
+
+2026-11-16审计确认：TQC最佳合法4740步的两项RMSE为0.078770m/0.918247°，最终为0.079435m/0.907356°；最终横向退化。没有证据要求TQC领先。自动熵、探索量级、critic分位数及动作弱效问题应结合真实跨工况结果研究，不能仅凭单次loss曲线判定算法结构失效。
 
 ## 2026-11-02 旧奖励版本的首轮试跑
 
