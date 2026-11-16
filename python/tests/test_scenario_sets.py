@@ -36,3 +36,17 @@ def test_reset_seed_reproduces_case_sequence(tmp_path,monkeypatch):
         return values
     assert sequence()==sequence()
     env.close()
+
+
+def test_semantic_duplicate_ignores_labels_numeric_format_and_inline_comments(tmp_path):
+    from scenario_sets import describe_case
+    for i in (1,2):
+        pars=tmp_path/f'{i}.par'
+        pars.write_text('ENTER_PARSFILE Vehicles\\Assembly\\vehicle.par\nM_SU 1270\nEXIT_PARSFILE Vehicles\\Assembly\\vehicle.par\n'
+            + f'SPEED_TARGET_CONSTANT {70 if i==1 else "70.0"} ! label {i}\n'
+            + 'IMPORT IMP_STEER_L1 Replace 0\nMU_ROAD_CONSTANT 0.8\nLTARG_TABLE SPLINE_FLAT\n0,0\n1,1\n2,0\nENDTABLE\n')
+        (tmp_path/f'{i}.sim').write_text(f'INPUT {i}.par\n')
+    a,b=[describe_case(tmp_path/f'{i}.sim') for i in (1,2)]
+    assert a['experiment_signature']==b['experiment_signature']
+    manifest=tmp_path/'sets.json';manifest.write_text(json.dumps(dict(train=['1.sim'],validation=['2.sim'],test=[])))
+    with pytest.raises(ValueError,match='Physically identical'):freeze_sets(manifest,tmp_path/'frozen_semantic')

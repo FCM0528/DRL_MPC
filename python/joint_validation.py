@@ -12,13 +12,23 @@ from scenario_sets import describe_case
 
 
 def aggregate_cases(group, checkpoint, diagnostic):
-    return dict(checkpoint=str(checkpoint), diagnostic_only=diagnostic,
+    result = dict(checkpoint=str(checkpoint), diagnostic_only=diagnostic,
         legal=all(r['legal'] for r in group),
         original_dual=all(r['original_dual'] for r in group),
         strong_dual=all(r['strong_dual'] for r in group),
         score=min(min(r['strong_iy'],r['strong_ih']) for r in group),
         rmse_y_m=float(np.mean([r['rmse_y_m'] for r in group])),
-        rmse_heading_deg=float(np.mean([r['rmse_heading_deg'] for r in group])))
+        rmse_heading_deg=float(np.mean([r['rmse_heading_deg'] for r in group])),
+        legal_case_fraction=float(np.mean([r['legal'] for r in group])),
+        case_improvements=[{k:r[k] for k in ('case','legal','rmse_y_m','rmse_heading_deg','strong_iy','strong_ih') if k in r} for r in group])
+    for baseline in ('original','strong'):
+        result[baseline+'_dual_case_fraction']=float(np.mean([r[baseline+'_dual'] for r in group]))
+        for axis in ('iy','ih'):
+            key=baseline+'_'+axis
+            if all(key in r for r in group):
+                result[key+'_mean']=float(np.mean([r[key] for r in group]))
+                result[key+'_worst']=float(min(r[key] for r in group))
+    return result
 
 
 class JointValidator:
@@ -76,8 +86,8 @@ class JointValidator:
         if best: shutil.copy2(best['checkpoint'],self.root/'best_legal_model.zip')
         if chosen: shutil.copy2(chosen['checkpoint'],self.root/'best_joint_model.zip')
         pareto=[r for r in legal if not any(
-            o['rmse_y_m']<=r['rmse_y_m'] and o['rmse_heading_deg']<=r['rmse_heading_deg'] and
-            (o['rmse_y_m']<r['rmse_y_m'] or o['rmse_heading_deg']<r['rmse_heading_deg']) for o in legal)]
+            all(oc[k]<=rc[k] for oc,rc in zip(o['case_improvements'],r['case_improvements']) for k in ('rmse_y_m','rmse_heading_deg')) and
+            any(oc[k]<rc[k] for oc,rc in zip(o['case_improvements'],r['case_improvements']) for k in ('rmse_y_m','rmse_heading_deg')) for o in legal)]
         result=dict(qualified=bool(chosen), selected=chosen['checkpoint'] if chosen else None,
                     original_qualified=any(r['original_dual'] for r in legal),
                     best_legal=best['checkpoint'] if best else None,
@@ -86,6 +96,9 @@ class JointValidator:
                     validation_cases=[describe_case(c) for c in self.cases], seed=self.seed,
                     config_sha256=self.hashes, rule='complete, zero QP, peak ay<=0.85g, beta<=5deg; maximize worst strong relative improvement across all cases')
         (self.root/'checkpoint_selection.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
+        with (self.root/'checkpoint_aggregate_metrics.csv').open('w',newline='',encoding='utf-8') as f:
+            fields=[k for k in self.summary[0] if k!='case_improvements']
+            writer=csv.DictWriter(f,fieldnames=fields,extrasaction='ignore');writer.writeheader();writer.writerows(self.summary)
         import matplotlib.pyplot as plt
         fig,ax=plt.subplots(figsize=(6,4))
         ax.scatter([r['rmse_y_m'] for r in self.summary],[r['rmse_heading_deg'] for r in self.summary],label='checkpoints')

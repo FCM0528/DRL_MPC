@@ -4,6 +4,8 @@ CarSim提供真实车辆状态，C++增量式LTV-MPC求解转向，Python Stable
 
 当前结果见[固定Np实验](docs/TD3_Fixed_Np_Experiments.md)，工程整理见[清理审计](docs/PROJECT_CLEANUP_AUDIT.md)，全部资料见[文档索引](docs/INDEX.md)。旧入口全文保存在[历史快照](docs/archive/README_legacy_20261114.md)。
 
+2026-11-16新增[一维Qy五种子稳定性与机制对照](docs/TD3_Qy_Stability_and_Generalization.md)，以及[正式比较计划](docs/Formal_DRL_MPC_Comparison_Plan.md)。目前独立且兼容的验证/测试工况尚未就绪；正式脚本默认一维Qy，只生成预检计划，不自动执行15组训练。
+
 ## 构建和检查
 
 在项目根目录PowerShell运行，需要CarSim许可、64位Solver DLL和已导出的完整工况。运行使用私有工况副本。

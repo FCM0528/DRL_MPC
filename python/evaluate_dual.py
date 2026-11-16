@@ -42,11 +42,12 @@ def main():
             if manifest.get('scenario',{}).get('parsfile_sha256')==case['parsfile_sha256']:
                 raise ValueError('Test source was used in training')
             for source in (manifest.get('snapshot_simfile'), manifest.get('frozen_validation_simfile')):
-                if source and describe_case(source)['physical_sha256']==case['physical_sha256']:
+                if source and describe_case(source)['experiment_signature']==case['experiment_signature']:
                     raise ValueError('Test physical contents were used in training or validation')
             for split in ('train','validation'):
                 for prior in manifest.get('scenario_sets',{}).get(split,[]):
-                    if prior['physical_sha256']==case['physical_sha256']: raise ValueError('Test physical signature leaked into model selection')
+                    signature=describe_case(prior.get('frozen_simfile') or prior['simfile'])['experiment_signature']
+                    if signature==case['experiment_signature']: raise ValueError('Test physical signature leaked into model selection')
             for label,ini in [('original_mpc','configs/default.ini'),('strong_mpc','configs/mpc_strong.ini')]:
                 result=fixed_episode(args.controller,case['frozen_simfile'],root/f'{model_path.parent.name}_{i}_{label}',ini,require_complete=False)
                 rows.append(dict(model=str(model_path),seed=manifest['seed'],case=i,controller=label,**result))

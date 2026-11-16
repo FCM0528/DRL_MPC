@@ -306,8 +306,16 @@ def main():
     scenario = read_scenario(args.simfile)
     if args.validation_simfile:
         validation_scenario = read_scenario(args.validation_simfile)
-        if same_scenario_content(scenario, validation_scenario):
+        from scenario_sets import describe_case
+        train_physics=describe_case(args.simfile)
+        validation_physics=describe_case(args.validation_simfile)
+        if (same_scenario_content(scenario, validation_scenario) or
+            train_physics['experiment_signature']==validation_physics['experiment_signature']):
             p.error("Validation Simfile/Parsfile contents match training")
+        if train_physics['vehicle_sha256'] and validation_physics['vehicle_sha256'] and (
+            train_physics['vehicle_sha256'],train_physics['io_sha256']) != (
+            validation_physics['vehicle_sha256'],validation_physics['io_sha256']):
+            p.error('Training and validation vehicle/I/O contracts differ')
     else:
         validation_scenario = None
     run_name = (f"{args.algorithm}_{scenario['speed_token']}_{args.episodes}episodes_"
