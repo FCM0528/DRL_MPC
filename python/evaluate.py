@@ -137,6 +137,8 @@ def evaluate_models(algorithm, models, bridge, config, simfile, seeds, output,
     traces = {}
     for index, seed in enumerate(seeds):
         model_path = Path(models[index if len(models) > 1 else 0]).resolve()
+        from action_mapping import check_model_contract
+        check_model_contract(model_path, config)
         manifest_path = next((parent / "manifest.json" for parent in model_path.parents
                               if (parent / "manifest.json").is_file()), None)
         if manifest_path:

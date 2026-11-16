@@ -1,5 +1,7 @@
 # DDPG、TD3、TQC 训练参数
 
+当前实验入口见[固定Np试验](TD3_Fixed_Np_Experiments.md)与[文档索引](INDEX.md)。本文后部保留历史实验口径；当前模型选择使用双MPC基线及周期检查点，不以final模型替代验证选择。
+
 以下是当前项目的实际默认值，修改入口是 `configs/rl_training.ini`。表中的采样周期、决策周期、折扣因子与四维动作范围由 `configs/carsim_python_rl.ini`（继承 `default.ini`）提供；Python 训练配置不会覆盖 MPC 的物理采样时间。所有学习率均实际应用于相应优化器。
 
 ## 三种算法共有的环境与训练设置
@@ -23,7 +25,7 @@
 | 随机小批量 | 256 | `batch_size` |
 | 更新间隔 | 每 1 个决策 | `train_freq` |
 | 每次更新的梯度步数 | 1 | `gradient_steps` |
-| 无探索验证及检查点间隔 | 550 个决策 | `eval_frequency`；三算法套件只保存检查点，主报告使用最终模型 |
+| 无探索验证及检查点间隔 | 550 个决策 | `eval_frequency`；当前joint-selection周期评价全部验证工况并保存合法及双指标最佳模型；小试覆盖为790步 |
 
 ### 离散候选动作
 

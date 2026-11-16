@@ -8,6 +8,7 @@ from gymnasium import spaces
 
 from bridge.client import BridgeClient, BridgeError
 from scenario import resolve_config_value
+from action_mapping import action_contract, bridge_action
 
 
 class CarSimMPCEnv(gym.Env):
@@ -21,10 +22,8 @@ class CarSimMPCEnv(gym.Env):
         self.simfile = Path(simfile).resolve()
         self.output_root = Path(output_root).resolve()
         self.output_root.mkdir(parents=True, exist_ok=True)
-        self.policy_action_dims = int(resolve_config_value(
-            self.config, "rl", "policy_action_dims", "4"))
-        if self.policy_action_dims not in (2, 3, 4):
-            raise ValueError("policy_action_dims must be 2, 3 or 4")
+        self.policy_action_names, self.action_mapping_version = action_contract(self.config)
+        self.policy_action_dims = len(self.policy_action_names)
         self.action_space = spaces.Box(-1.0, 1.0, shape=(self.policy_action_dims,), dtype=np.float32)
         self.observation_profile = resolve_config_value(
             self.config, "rl", "observation_profile", "road_preview_v2"
@@ -85,9 +84,8 @@ class CarSimMPCEnv(gym.Env):
             raise ValueError(f"Action must be {self.policy_action_dims} finite numbers")
         if np.any(a < -1.0) or np.any(a > 1.0):
             raise ValueError("Action is outside [-1, 1]")
-        bridge_action = np.zeros(4, dtype=np.float64)
-        bridge_action[:self.policy_action_dims] = a
-        data = self._bridge.exchange("STEP " + " ".join(format(x, ".17g") for x in bridge_action),
+        mapped = bridge_action(a, self.policy_action_names)
+        data = self._bridge.exchange("STEP " + " ".join(format(x, ".17g") for x in mapped),
                                      "BRIDGE_STEP")
         n = self._observation_size
         if len(data) != n + 12:

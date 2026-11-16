@@ -80,6 +80,7 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     }
     if (key == "rl.weight_action_mode") { c.rl.weight_action_mode = lower(value); return; }
     if (key == "rl.policy_action_dims") { c.rl.policy_action_dims = readInt(value, key); return; }
+    if (key == "rl.policy_action_names") { c.rl.policy_action_names = lower(value); return; }
     if (key == "rl_reward.mode") { c.rl.reward.mode = lower(value); return; }
     if (key == "rl_reward.w_heading") { c.rl.reward.w_heading = readDouble(value, key); return; }
     if (key == "rl_reward.w_course") { c.rl.reward.w_course = readDouble(value, key); return; }
@@ -424,8 +425,18 @@ void validateConfig(const AppConfig& c) {
         throw std::invalid_argument("Invalid rl.observation_profile");
     if (rl.weight_action_mode != "legacy" && rl.weight_action_mode != "continuous_weights")
         throw std::invalid_argument("Invalid rl.weight_action_mode");
-    if (rl.policy_action_dims < 2 || rl.policy_action_dims > 4)
-        throw std::invalid_argument("rl.policy_action_dims must be 2, 3 or 4");
+    if (rl.policy_action_names.empty()) {
+        if (rl.policy_action_dims < 2 || rl.policy_action_dims > 4)
+            throw std::invalid_argument("Legacy policy_action_dims must be 2, 3 or 4");
+    } else {
+        std::string compact;
+        for (char ch : rl.policy_action_names)
+            if (!std::isspace(static_cast<unsigned char>(ch)) && ch != '[' && ch != ']' && ch != '\'' && ch != '"') compact += ch;
+        const std::set<std::string> supported{"q_y", "q_y,q_psi", "np,q_y", "np,q_y,q_psi", "np,q_y,q_psi,r_delta"};
+        const int dims = 1 + static_cast<int>(std::count(compact.begin(), compact.end(), ','));
+        if (!supported.count(compact) || dims != rl.policy_action_dims)
+            throw std::invalid_argument("Invalid policy_action_names or dimension mismatch");
+    }
     if (rl.reward.mode != "legacy" && rl.reward.mode != "joint_tracking")
         throw std::invalid_argument("Invalid rl_reward.mode");
     if (rl.min_np < 2 ||
@@ -615,6 +626,7 @@ std::string configToIni(const AppConfig& c) {
         << "\nobservation_profile = " << c.rl.observation_profile
         << "\nweight_action_mode = " << c.rl.weight_action_mode
         << "\npolicy_action_dims = " << c.rl.policy_action_dims
+        << "\npolicy_action_names = " << c.rl.policy_action_names
         << "\ngrip_demand_clip = " << c.rl.grip_demand_clip
         << "\npenalize_qp_failure = " << c.rl.penalize_qp_failure
         << std::setprecision(15)

@@ -14,6 +14,8 @@ from scenario import resolve_simfile, read_scenario
 def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
+    from action_mapping import check_model_contract
+    check_model_contract(model_path, config)
     model = ALGORITHMS[algorithm].load(model_path, device="cpu")
     inputs = {"algorithm": algorithm, "model": str(Path(model_path).resolve()),
               "bridge": str(Path(bridge).resolve()), "config": str(Path(config).resolve()),
@@ -28,12 +30,12 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42):
         obs, _ = env.reset(seed=seed)
         with (output / "applied_actions.csv").open("w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
-            writer.writerow(["decision", "a_np", "a_q_y", "a_q_psi", "a_r_delta",
+            writer.writerow(["decision", *['a_'+name for name in env.policy_action_names],
                              "executed_np", "x_m", "ey_m", "reward", "terminated", "truncated", "failed"])
             while True:
                 action, _ = model.predict(obs, deterministic=True)
                 action = np.asarray(action, dtype=np.float64)
-                if action.shape != (4,) or not np.all(np.isfinite(action)):
+                if action.shape != env.action_space.shape or not np.all(np.isfinite(action)):
                     raise ValueError("Policy returned an invalid tuning action")
                 obs, reward, terminated, truncated, info = env.step(action)
                 decisions += 1

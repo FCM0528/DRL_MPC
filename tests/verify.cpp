@@ -441,6 +441,15 @@ void testCarSimMpcModel() {
     std::cout << "PASS: CarSim solver echo supplies the MPC vehicle and tire model\n";
 }
 void testRlModule() {
+    for (const auto& item : {std::pair<const char*, int>{"strong_qy_only.ini", 1}, {"strong_qy_qpsi.ini", 2}}) {
+        const auto named = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/" + item.first);
+        const auto a = neutralRlAction(named.rl);
+        require(named.rl.policy_action_dims == item.second && !named.rl.policy_action_names.empty() &&
+                a.np == 36 && a.q_y == 18400 && a.q_psi == 8960 && a.r_delta == 10800,
+                "Named fixed-Np policies must retain strong-MPC neutral parameters");
+        require(configToIni(named).find("policy_action_names = ") != std::string::npos,
+                "Effective config must retain named action metadata");
+    }
     const auto reward_base = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/strong_actions3.ini");
     for (int wy : {2, 4}) {
         const auto variant = loadConfig(std::string(PROJECT_SOURCE_DIR) +

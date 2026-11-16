@@ -43,7 +43,8 @@ struct RlRewardConfig {
 };
 
 struct RlConfig {
-    int policy_action_dims = 4; // Python policy uses first 2, 3, or 4 bridge actions
+    std::string policy_action_names; // empty retains historical prefix mapping
+    int policy_action_dims = 4; // Named mapping supports 1..4; empty names retain legacy 2..4 prefix
     std::string weight_action_mode = "legacy"; // legacy | continuous_weights
     std::string mode = "fixed";       // C++ defaults to MPC control
     std::string action_profile = "full"; // full | compact | np_only

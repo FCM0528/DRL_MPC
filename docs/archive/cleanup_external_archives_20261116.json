@@ -1,0 +1,30 @@
+[
+  {
+    "directory": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\strong_slew_response_20261116_v1",
+    "backup": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL_MPC_cleanup_backup_20261116_v1\\strong_slew_response_20261116_v1.zip",
+    "files": {
+      "ratio_1.08.ini": "0315d58b97a26d41af12a81ca4c71e23f137ce26d783ba52405c2ffc43f0755f",
+      "ratio_1.08/episode_000001.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ratio_1.08/episode_scenarios.jsonl": "11597cca7336be21b736fe924532bf90b2aa083f9ce2db540ca55e6e216c0e6d"
+    },
+    "repaired_evidence": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\strong_slew_response_20261116_v3\\response_metrics.csv",
+    "archive_sha256": "15c32bd893ebdd4b8c73dc1e667a177d1a2039eb56382b6a0844f06a7da91f4f"
+  },
+  {
+    "directory": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\td3_lateral_audit_20261116_v1",
+    "backup": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL_MPC_cleanup_backup_20261116_v1\\td3_lateral_audit_20261116_v1.zip",
+    "files": {
+      "parameter_behavior.csv": "cab649737770ba5f5a4ec2098fd1cd751aa8b3a1e799e927d159daac520ddaf1",
+      "reward_loss_means.csv": "2948b87946dfa89f7562dacb44a31b96b50c4a9b39bf4be563c87150c31c16a0"
+    },
+    "repaired_evidence": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\td3_lateral_audit_20261116_v2\\reward_reconstruction_residuals.csv",
+    "archive_sha256": "dfd6f611321da4d89515bcf973be23a0daae0a5e9fd7d1d0ace774a29ea933be"
+  },
+  {
+    "directory": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\td3_reward_comparison_20261116_v1",
+    "backup": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL_MPC_cleanup_backup_20261116_v1\\td3_reward_comparison_20261116_v1.zip",
+    "files": {},
+    "repaired_evidence": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\td3_reward_comparison_20261116_v2\\reward_ablation_metrics.csv",
+    "archive_sha256": "8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85"
+  }
+]

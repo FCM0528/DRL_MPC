@@ -386,8 +386,12 @@ def main():
     cls = TRAINING_ALGORITHMS[args.algorithm]
     try:
         manifest["observation_profile"] = train_env.unwrapped.observation_profile
+        manifest['policy_action_names'] = list(train_env.unwrapped.policy_action_names)
+        manifest['action_mapping_version'] = train_env.unwrapped.action_mapping_version
         manifest["observation_dim"] = train_env.observation_space.shape[0]
         if args.resume:
+            from action_mapping import check_model_contract
+            check_model_contract(args.resume, args.config)
             model_path = Path(args.resume).resolve()
             previous_manifest = next((parent / "manifest.json" for parent in model_path.parents
                                       if (parent / "manifest.json").is_file()), None)
