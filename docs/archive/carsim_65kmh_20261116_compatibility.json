@@ -1,0 +1,258 @@
+{
+  "based_on": "116a15e",
+  "scope": "65 km/h mu=0.8 development validation; no training and no final test",
+  "discovery": {
+    "search_roots": [
+      "D:\\Program Files (x86)\\CarSim2024_Date",
+      "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC",
+      "C:\\Users\\fengchengmin\\Desktop\\C++\\myfcm\\MPC_DoubleLaneChange_Tunable_VisualStudio\\MPC_DoubleLaneChange_Tunable"
+    ],
+    "listed_simfiles": 10056,
+    "skipped_episode_clones": 2909,
+    "scanned_static_sources": 7140,
+    "unreadable_sources": 7,
+    "candidates": [
+      {
+        "simfile": "D:\\Program Files (x86)\\CarSim2024_Date\\simfile.sim",
+        "speed": 65.0,
+        "grip": [
+          "MU_ROAD_COMBINE ADD",
+          "MU_ROAD_CONSTANT 0.8",
+          "MU_ROAD_L_CONSTANT 0"
+        ],
+        "matches": {
+          "vehicle_sha256": true,
+          "io_sha256": true,
+          "reference_numeric_sha256": true,
+          "grip_sha256": true
+        },
+        "qualified": true
+      },
+      {
+        "simfile": "C:\\Users\\fengchengmin\\Desktop\\C++\\myfcm\\MPC_DoubleLaneChange_Tunable_VisualStudio\\MPC_DoubleLaneChange_Tunable\\results\\current_mu04_td3_heldout\\ddpg_adaptive_carsim_Np13_Nc7_20261027-214620\\training_solver\\simfile.sim",
+        "speed": 65.0,
+        "grip": [
+          "MU_ROAD_COMBINE ADD",
+          "MU_ROAD_CONSTANT 0.4"
+        ],
+        "matches": {
+          "vehicle_sha256": false,
+          "io_sha256": false,
+          "reference_numeric_sha256": false,
+          "grip_sha256": false
+        },
+        "qualified": false
+      },
+      {
+        "simfile": "C:\\Users\\fengchengmin\\Desktop\\C++\\myfcm\\MPC_DoubleLaneChange_Tunable_VisualStudio\\MPC_DoubleLaneChange_Tunable\\policies\\audit\\current100_family\\v65\\simfile.sim",
+        "speed": 65.0,
+        "grip": [
+          "MU_ROAD_COMBINE ADD",
+          "MU_ROAD_TABLE STEP",
+          "0, 0.9",
+          "100, 0.6",
+          "200, 0.8",
+          "ENDTABLE"
+        ],
+        "matches": {
+          "vehicle_sha256": false,
+          "io_sha256": false,
+          "reference_numeric_sha256": false,
+          "grip_sha256": false
+        },
+        "qualified": false
+      },
+      {
+        "simfile": "C:\\Users\\fengchengmin\\Desktop\\C++\\myfcm\\MPC_DoubleLaneChange_Tunable_VisualStudio\\MPC_DoubleLaneChange_Tunable\\policies\\audit\\blend62_td3_v65\\td3_eval_carsim_Nc8_20261030-151749\\carsim_native\\simfile.sim",
+        "speed": 65.0,
+        "grip": [
+          "MU_ROAD_COMBINE ADD",
+          "MU_ROAD_TABLE STEP",
+          "0, 0.9",
+          "100, 0.6",
+          "200, 0.8",
+          "ENDTABLE"
+        ],
+        "matches": {
+          "vehicle_sha256": false,
+          "io_sha256": false,
+          "reference_numeric_sha256": false,
+          "grip_sha256": false
+        },
+        "qualified": false
+      }
+    ]
+  },
+  "source65": {
+    "simfile": "D:\\Program Files (x86)\\CarSim2024_Date\\simfile.sim",
+    "parsfile": "D:\\Program Files (x86)\\CarSim2024_Date\\Results\\Run_6cb07365-85a3-4a3b-95f9-c5c844687601\\Run_all.par",
+    "simfile_sha256": "9b2f81682b4e350e69d2c820923265faabcfc5f3a9157756d00c884716f3ab6e",
+    "parsfile_sha256": "4f8836368263906abe771c65100d69ef80425ed3d8df32189ea9665e293aa0bc",
+    "target_speed_kmh": 65.0,
+    "grip_description": [
+      "MU_ROAD_COMBINE ADD",
+      "MU_ROAD_CONSTANT 0.8",
+      "MU_ROAD_L_CONSTANT 0"
+    ],
+    "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+    "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+    "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+    "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+    "reference_station_bounds_m": [
+      0.0,
+      120.0
+    ],
+    "reference_max_abs_curvature_inv_m": 0.027043638827130487,
+    "experiment_signature": "34db60360e2714ac115dc734d7e701a8a2b986f9b42fd7f58edbb995d3b083dd"
+  },
+  "frozen65": {
+    "simfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\validation_65_mu08_20261116_195607\\source_65\\simfile.sim",
+    "parsfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\validation_65_mu08_20261116_195607\\source_65\\Run_all.par",
+    "simfile_sha256": "b57b9372d5d14e5bb7c856697f0627df10866f9de4f57671945327f35263a38d",
+    "parsfile_sha256": "4f8836368263906abe771c65100d69ef80425ed3d8df32189ea9665e293aa0bc",
+    "target_speed_kmh": 65.0,
+    "grip_description": [
+      "MU_ROAD_COMBINE ADD",
+      "MU_ROAD_CONSTANT 0.8",
+      "MU_ROAD_L_CONSTANT 0"
+    ],
+    "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+    "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+    "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+    "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+    "reference_station_bounds_m": [
+      0.0,
+      120.0
+    ],
+    "reference_max_abs_curvature_inv_m": 0.027043638827130487,
+    "experiment_signature": "34db60360e2714ac115dc734d7e701a8a2b986f9b42fd7f58edbb995d3b083dd"
+  },
+  "training70": {
+    "simfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\simfile.sim",
+    "parsfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\Run_all.par",
+    "simfile_sha256": "c677b4c89981a6f5febd4244a9232296a54283c6ece2ecdd1dad3f628b221e4c",
+    "parsfile_sha256": "bb878204652e1351e0fa30e7c6c66654ff61539475e4d06846acbacfc198be7e",
+    "target_speed_kmh": 70.0,
+    "grip_description": [
+      "MU_ROAD_COMBINE ADD",
+      "MU_ROAD_CONSTANT 0.8",
+      "MU_ROAD_L_CONSTANT 0"
+    ],
+    "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+    "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+    "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+    "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+    "reference_station_bounds_m": [
+      0.0,
+      120.0
+    ],
+    "reference_max_abs_curvature_inv_m": 0.027043638827130487,
+    "experiment_signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7"
+  },
+  "source_times": {
+    "simfile_mtime": "2026-11-16T19:48:22.403889",
+    "parsfile_mtime": "2026-11-16T19:48:22.391548"
+  },
+  "numerical_content_diff": "--- frozen70\n+++ native65\n@@ -3542,7 +3542,7 @@\n SPEED_TARGET_COMBINE ADD\n SPEED_TARGET_S_CONSTANT 0\n set_description SPEED_TARGET_ID Procedure: steer001\n-SPEED_TARGET_CONSTANT 70\n+SPEED_TARGET_CONSTANT 65\n OPT_SC_ENGINE_BRAKING 0\n SET_ILTARG_FOR_ID 0\n set_description LTARG_ID DLC SYX",
+  "native_units_and_model_gate": {
+    "validation_baselines_pass": true,
+    "overall_ready": false,
+    "models": [
+      {
+        "algorithm": "ddpg",
+        "sha256": "b5fe60505e9adbdb0de3bca64e7dd9859823dd58b64ff0db0e0905b9f9a5c095",
+        "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\best_legal_model.zip",
+        "contract_pass": true
+      },
+      {
+        "algorithm": "td3",
+        "sha256": "ea445194ca595e01cadabceae8144a249b88f1805ae344e18931c38fd672474b",
+        "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_td3_20261116_v1\\td3_v70kmh_100episodes_seed42_20261116_184139\\best_legal_model.zip",
+        "contract_pass": true
+      },
+      {
+        "algorithm": "tqc",
+        "sha256": "7d2cb8b2878c0da553890ace245d2d5c50dbef0cdfbbf0b68150f96925811cf4",
+        "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_tqc_20261116_v1\\tqc_v70kmh_100episodes_seed42_20261116_184412\\best_legal_model.zip",
+        "contract_pass": true
+      }
+    ],
+    "lock_sha256": "4bd8d231db479a88101e1a06736d2cdec3fe2ed7829344ab8503621679528385",
+    "solver_echo": "runs\\validation_65_mu08_20261116_195607\\preflight\\validation_0_original\\mpc_fixed_carsim_Np40_Nc13_20261116-195924\\carsim_native\\LastRun_echo.par",
+    "echo_imports": [
+      "IMPORT IMP_STEER_L1 REPLACE 0 ; deg ! #1. Road wheel L1 steer due to steering",
+      "IMPORT IMP_STEER_R1 REPLACE 0 ; deg ! #2. Road wheel R1 steer due to steering"
+    ],
+    "echo_exports": [
+      "EXPORT XCG_TM -1.051792525 ! #1. X coordinate, inst. CG, vehicle (m)",
+      "EXPORT YCG_TM       0 ! #2. Y coordinate, inst. CG, vehicle (m)",
+      "EXPORT VX          65 ! #3. Long. speed, inst. CG, vehicle (km/h)",
+      "EXPORT VY           0 ! #4. Lat. speed, inst. CG, vehicle (km/h)",
+      "EXPORT YAW          0 ! #5. Yaw, vehicle (deg)",
+      "EXPORT AVZ          0 ! #6. Yaw rate (body-fixed), vehicle (deg/s)",
+      "EXPORT AX -0.008735167664 ! #7. Long. accel., inst. CG, vehicle (g)",
+      "EXPORT AY 1.469485061e-21 ! #8. Lat. accel., inst. CG, vehicle (g)",
+      "EXPORT STEER_L1     0 ! #9. Wheel steer L1 (deg)",
+      "EXPORT STEER_R1     0 ! #10. Wheel steer R1 (deg)",
+      "EXPORT BETA         0 ! #11. Slip angle, vehicle (deg)",
+      "EXPORT RHO_ROAD     0 ! #12. Curvature of driver ref. path (1/m)",
+      "EXPORT ALPHL_L1     0 ! #13. Lateral slip (lagged), tire L1 (deg)",
+      "EXPORT ALPHL_R1     0 ! #14. Lateral slip (lagged), tire R1 (deg)",
+      "EXPORT ALPHL_L2     0 ! #15. Lateral slip (lagged), tire L2 (deg)",
+      "EXPORT ALPHL_R2     0 ! #16. Lateral slip (lagged), tire R2 (deg)",
+      "EXPORT FY_L1 -1.681480088e-18 ! #17. Lateral force, tire L1 (N)",
+      "EXPORT FY_R1 1.681480088e-18 ! #18. Lateral force, tire R1 (N)",
+      "EXPORT FY_L2       -0 ! #19. Lateral force, tire L2 (N)",
+      "EXPORT FY_R2       -0 ! #20. Lateral force, tire R2 (N)"
+    ]
+  },
+  "post_run_verification": {
+    "native_source_unchanged": true,
+    "model_and_checkpoint_hashes_unchanged": true,
+    "configs_unchanged": true,
+    "fixed_np36_and_neutral_np_wire_action": true,
+    "evaluation_echoes_checked": 9,
+    "echo_contract_pass": true,
+    "no_training": true,
+    "model_lock_sha256": "4bd8d231db479a88101e1a06736d2cdec3fe2ed7829344ab8503621679528385",
+    "bridge_sha256": "3626a45d29efe8d225b7f6f4b5cf8c7c6f4a6c33e5473573aea06887a789cb3e",
+    "controller_sha256": "ea3d88a9217c85d6af02c5ce522fe203855c91eaeba384217c7a1a2d6eaf01f3"
+  },
+  "neutral_parity": {
+    "original": {
+      "passed": true,
+      "control_steps": 169,
+      "decision_steps": 2,
+      "decision_duration_s": 0.08,
+      "gamma_per_decision": 0.995967610541,
+      "reward_scheme": "tracking_v2_squared_lateral_lateral_growth"
+    },
+    "strong_weights3": {
+      "passed": true,
+      "control_steps": 169,
+      "decision_steps": 2,
+      "decision_duration_s": 0.08,
+      "gamma_per_decision": 0.995967610541,
+      "reward_scheme": "joint_tracking_v1"
+    }
+  },
+  "execution_environment": {
+    "git_base": "116a15e",
+    "python": "3.14.7 (main, Aug  5 2026, 16:11:39) [MSC v.1944 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "packages": {
+      "numpy": "2.5.5",
+      "matplotlib": "3.11.2",
+      "gymnasium": "1.4.0",
+      "torch": "2.15.0",
+      "stable-baselines3": "2.9.2",
+      "sb3-contrib": "2.9.2",
+      "tensorboard": "2.21.0"
+    },
+    "thread_environment": {
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    },
+    "torch_cpu_threads": 1
+  }
+}

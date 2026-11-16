@@ -299,11 +299,120 @@ th{{background:#e4eef8}}section{{margin:20px 0;padding:10px;background:white}}im
     (output / "training_and_control_report.html").write_text(page, encoding="utf-8")
 
 
+def unique_validation_rows(rows, case=0):
+    """Deduplicate paired MPC baselines without selecting favorable repetitions."""
+    selected=[r for r in rows if int(r['case'])==case]
+    if len({r['seed'] for r in selected})!=1:
+        raise ValueError('This trajectory report requires one explicit seed and case')
+    by_controller={}
+    for row in selected:
+        label=row['controller']
+        if label in by_controller:
+            prior=by_controller[label]
+            if label not in ('original_mpc','strong_mpc'):
+                raise ValueError('Duplicate policy rows would hide an evaluation')
+            for key in ('rmse_y_m','rmse_heading_deg','rmse_course_deg','peak_y_m','peak_heading_deg','distance_m','qp_failures'):
+                if not np.isclose(float(prior[key]),float(row[key]),rtol=0,atol=1e-8):
+                    raise ValueError('Repeated fixed baseline metrics differ')
+            if any(prior[k]!=row[k] for k in ('terminated','truncated','failed','legal','experiment_signature')):
+                raise ValueError('Repeated fixed baseline status/physical signature differs')
+        else:by_controller[label]=dict(row)
+    order=('original_mpc','strong_mpc','ddpg','td3','tqc')
+    if set(by_controller)!=set(order):raise ValueError('Five completed controller records are required')
+    return [by_controller[k] for k in order]
+
+
+def render_locked_validation(evaluation, reference_models, reference_baselines, destination, case=0):
+    """Paper figures from existing locked validation traces; no solver or learning calls."""
+    import json
+    import hashlib
+    from matplotlib import font_manager
+    evaluation=Path(evaluation).resolve();destination=Path(destination).resolve()
+    with (evaluation/'dual_baseline_metrics.csv').open() as file:rows=unique_validation_rows(list(csv.DictReader(file)),case)
+    cases=json.loads((evaluation/'cases/scenario_sets.json').read_text())
+    split=rows[0]['split'];scenario=cases[split][case]
+    if any(r['experiment_signature']!=scenario['experiment_signature'] for r in rows):
+        raise ValueError('Metric rows and frozen scenario differ')
+    locks=json.loads((evaluation/'locked_models.json').read_text())
+    with Path(reference_models).open() as file:references={r['algorithm']:r for r in csv.DictReader(file) if r['model']=='best_legal_model'}
+    with Path(reference_baselines).open() as file:
+        references.update({{'original_course':'original_mpc','strong_course':'strong_mpc'}[r['controller']]:r
+            for r in csv.DictReader(file) if r['controller'] in ('original_course','strong_course')})
+    destination.mkdir(parents=True,exist_ok=False)
+    strong=next(r for r in rows if r['controller']=='strong_mpc')
+    grip=[line.split()[1] for line in scenario['grip_description'] if line.startswith('MU_ROAD_CONSTANT ')]
+    if len(grip)!=1:raise ValueError('This report requires one verified constant road friction')
+    for row in rows:
+        label=row['controller'];baseline=label in ('original_mpc','strong_mpc')
+        row.update(evaluation_speed_kmh=scenario['target_speed_kmh'],evaluation_mu=float(grip[0]),
+            training_source='not_trained_original_fixed_MPC' if label=='original_mpc' else
+                '70kmh_mu0.8_static_development_tuning' if label=='strong_mpc' else '70kmh_mu0.8_seed'+row['seed'],
+            strong_iy_percent=100*(1-float(row['rmse_y_m'])/float(strong['rmse_y_m'])),
+            strong_ih_percent=100*(1-float(row['rmse_heading_deg'])/float(strong['rmse_heading_deg'])),
+            reference70_rmse_y_m=float(references[label]['rmse_y_m']),
+            reference70_rmse_heading_deg=float(references[label]['rmse_heading_deg']))
+        row.update(model_sha256='' if baseline else next(item['sha256'] for item in locks if item['algorithm']==label))
+        if baseline:row['model']=''
+    with (destination/'validation_summary.csv').open('w',newline='',encoding='utf-8') as file:
+        writer=csv.DictWriter(file,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+    fonts={name:font_manager.findfont(name,fallback_to_default=False) for name in ('Times New Roman','SimHei')}
+    styles=['-','--','-.',':',(0,(5,1,1,1))];markers=['s','o','^','D','v']
+    labels=['Original MPC','Strong MPC','DDPG-MPC','TD3-MPC','TQC-MPC']
+    traces=[control_trace(row['trace']) for row in rows]
+    pictures=[]
+    with plt.rc_context({'font.family':['Times New Roman','SimHei'],'font.size':11,'axes.unicode_minus':False}):
+        def curves(ax,key,factor=1):
+            for d,label,style,marker in zip(traces,labels,styles,markers):
+                ax.plot(d['x_m'],d[key]*factor,label=label,color='black',linestyle=style,
+                    marker=marker,markersize=4,markevery=max(1,len(d['x_m'])//12),markerfacecolor='white',linewidth=1.25)
+            ax.set(xlabel='X (m)',xlim=(0,120));ax.grid(alpha=.2)
+        def save(fig,name):
+            fig.tight_layout();fig.savefig(destination/(name+'.png'),dpi=220)
+            fig.savefig(destination/(name+'.pdf'));plt.close(fig);pictures.append(name+'.png')
+        for key,factor,name,ylabel in [('ey_m',1,'ey_x','Lateral error (m)'),
+                ('epsi_rad',180/np.pi,'heading_x','Body heading error (deg)')]:
+            fig,ax=plt.subplots(figsize=(8.4,4.3));curves(ax,key,factor)
+            ax.set_ylabel(ylabel);ax.legend(ncol=3,loc='lower center',bbox_to_anchor=(.5,1.02),fontsize=9);save(fig,name)
+        fig,ax=plt.subplots(figsize=(8.4,4.6));curves(ax,'y_m')
+        points=np.array([[float(v) for v in line.split(',')[:2]] for line in scenario['reference_table'][1:-1]])
+        ax.plot(points[:,0],points[:,1],color='.6',linewidth=2,label='Reference (native table)',zorder=0)
+        ax.set_ylabel('Y (m)');ax.legend(ncol=3,loc='lower center',bbox_to_anchor=(.5,1.02),fontsize=9);save(fig,'trajectories')
+        fig,axes=plt.subplots(3,1,figsize=(8.4,9),sharex=True)
+        for ax,key in zip(axes,('q_y','q_psi','r_delta')):curves(ax,key);ax.set_ylabel({'q_y':'Qy','q_psi':'Qpsi','r_delta':'Rdelta'}[key])
+        axes[0].legend(ncol=3,loc='lower center',bbox_to_anchor=(.5,1.02),fontsize=9);save(fig,'weights_x')
+        fig,axes=plt.subplots(1,2,figsize=(10,4.6))
+        for row,label,style,marker in zip(rows,labels,styles,markers):
+            for ax,key,prior in zip(axes,('rmse_y_m','rmse_heading_deg'),('reference70_rmse_y_m','reference70_rmse_heading_deg')):
+                ax.plot([scenario['target_speed_kmh'],70],[float(row[key]),row[prior]],color='black',
+                    linestyle=style,marker=marker,label=label,markerfacecolor='white')
+        for ax,ylabel in zip(axes,('Lateral RMSE (m)','Body heading RMSE (deg)')):
+            ax.set(xlabel='Case speed (km/h)',ylabel=ylabel,xticks=[scenario['target_speed_kmh'],70]);ax.grid(alpha=.2)
+        axes[0].legend(fontsize=8);save(fig,'rmse_speed_comparison')
+    metadata=dict(scope='Development validation only; locked 70 km/h models, no retraining or checkpoint reselection',
+        case=scenario,fonts=fonts,figures=pictures,
+        source_sha256={str(p):hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in
+            (evaluation/'dual_baseline_metrics.csv',Path(reference_models),Path(reference_baselines),evaluation/'locked_models.json')},
+        baseline_deduplication='First identical repetition; timing from that same repetition, no favorable selection',
+        metric_sampling='Native post-control time samples; curves plotted against X; no metric resampling',
+        reference_note='70 km/h historical best_legal models only; final models excluded')
+    (destination/'report_sources.json').write_text(json.dumps(metadata,indent=2),encoding='utf-8')
+    return destination
+
+
 def main():
     parser = argparse.ArgumentParser(description="Rebuild training and comparison charts")
     parser.add_argument("evaluation_dir", type=Path)
+    parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
+    parser.add_argument('--reference-models',type=Path)
+    parser.add_argument('--reference-baselines',type=Path)
+    parser.add_argument('--out',type=Path,help='New figure directory for locked validation')
+    parser.add_argument('--case',type=int,default=0)
     args = parser.parse_args()
     output = args.evaluation_dir.resolve()
+    if args.locked_validation:
+        if not all((args.reference_models,args.reference_baselines,args.out)):
+            parser.error('Locked validation needs --reference-models, --reference-baselines and --out')
+        print(render_locked_validation(output,args.reference_models,args.reference_baselines,args.out,args.case));return
     with (output / "metrics.csv").open(newline="", encoding="utf-8") as file:
         results = list(csv.DictReader(file))
     if not results:

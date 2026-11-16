@@ -1,0 +1,9 @@
+{
+  "train": [
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\simfile.sim"
+  ],
+  "validation": [
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\validation_65_mu08_20261116_195607\\source_65\\simfile.sim"
+  ],
+  "test": []
+}

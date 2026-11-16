@@ -2,6 +2,7 @@
 
 ## 当前入口
 
+- [65km/h真实工况、双MPC预检与冻结三算法跨速度验证](CarSim_65kmh_Validation.md)
 - [当前优化目标、三维动作、TQC训练审计与独立工况待办](DRL_MPC_Next_Stage_Analysis.md)
 - [TQC-MPC主线恢复、三算法统一预实验与受限四维](DRL_MPC_Mainline_Recovery.md)
 - [一维Qy五种子动作消融与反馈归因](TD3_Qy_Stability_and_Generalization.md)
