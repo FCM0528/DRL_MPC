@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cctype>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
@@ -58,6 +59,46 @@ bool sameFileContents(const std::filesystem::path& left,
 }
 
 }  // namespace
+
+std::vector<double> readCarSimImports(const std::filesystem::path& native_dir,
+                                      const CarSimConfig& config, int count) {
+    std::ifstream echo(native_dir / "LastRun_echo.par");
+    if (!echo) throw std::runtime_error("CarSim IMPORT validation requires the current solver echo");
+    if (config.steering_left_index < 0 || config.steering_left_index >= count ||
+        config.steering_right_index < -1 || config.steering_right_index >= count ||
+        config.steering_left_index == config.steering_right_index ||
+        (config.steering_wheel_input && config.steering_right_index != -1))
+        throw std::runtime_error("Steering IMPORT index is outside the CarSim channel array or duplicated");
+    std::vector<double> initial;
+    for (std::string line; std::getline(echo, line);) {
+        std::istringstream fields(line.substr(0, line.find('!')));
+        std::string key, name, mode, separator, unit;
+        double value;
+        fields >> key;
+        if (key != "IMPORT") continue;
+        if (!(fields >> name >> mode >> value >> separator >> unit) ||
+            separator != ";" || !std::isfinite(value))
+            throw std::runtime_error("Unsupported CarSim IMPORT declaration: " + line);
+        for (auto* token : {&name, &mode})
+            std::transform(token->begin(), token->end(), token->begin(),
+                [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
+        const int index = static_cast<int>(initial.size());
+        if (index == config.steering_left_index || index == config.steering_right_index) {
+            const std::string expected = config.steering_wheel_input ? "IMP_STEER_SW" :
+                (index == config.steering_left_index ? "IMP_STEER_L1" : "IMP_STEER_R1");
+            const double gain = unit == "deg" ? 180.0 / std::acos(-1.0) :
+                unit == "rad" ? 1.0 : 0.0;
+            if (name != expected || mode != "REPLACE" || gain == 0.0 ||
+                !std::isfinite(config.steering_gain) || std::abs(config.steering_gain - gain) > 1e-9)
+                throw std::runtime_error("CarSim steering IMPORT #" + std::to_string(index) +
+                    " must be " + expected + " REPLACE with steering_gain matching its units");
+        }
+        initial.push_back(value);
+    }
+    if (static_cast<int>(initial.size()) != count)
+        throw std::runtime_error("CarSim IMPORT declarations differ from the solver channel count");
+    return initial;
+}
 
 void extendCarSimStationStop(const std::filesystem::path& parsfile, double distance_m) {
     if (!std::isfinite(distance_m) || distance_m <= 0.0)
@@ -544,32 +585,14 @@ std::filesystem::path stageCarSimSimfile(const std::filesystem::path& source,
 
     const auto dir = std::filesystem::absolute(output_dir).lexically_normal();
     std::filesystem::create_directories(dir);
-    // Keep the complete generated run data for VS Visualizer. The solver-only
-    // copy below drops unsupported SDK EXPORT channels but retains animation
-    // and plot settings.
+    // Keep the complete generated run data for VS Visualizer and the solver.
+    // Preserve the Run Control's IMPORT/EXPORT declarations and port layout.
     const auto visualizer_parsfile = dir / "Run_visualizer.par";
     std::filesystem::copy_file(parsfile, visualizer_parsfile,
                                std::filesystem::copy_options::overwrite_existing);
-    // The SDK run exports only the two actual front-wheel angles. State
-    // variables needed by the controller are read through vs_get_var_ptr.
     const auto staged_parsfile = dir / "Run_all.par";
-    {
-        std::ifstream pars_input(visualizer_parsfile);
-        std::ofstream pars_output(staged_parsfile, std::ios::binary);
-        if (!pars_input || !pars_output)
-            throw std::runtime_error("Cannot stage CarSim Parsfile");
-        std::string pars_line;
-        while (std::getline(pars_input, pars_line)) {
-            std::istringstream fields(pars_line);
-            std::string keyword;
-            fields >> keyword;
-            if (keyword == "EXPORT" || keyword == "PORTS_EXP") continue;
-            if (keyword == "END")
-                pars_output << "EXPORT Steer_L1\nEXPORT Steer_R1\nPORTS_EXP 1,2\n";
-            pars_output << pars_line << '\n';
-        }
-        if (!pars_output) throw std::runtime_error("Cannot finish staged CarSim Parsfile");
-    }
+    std::filesystem::copy_file(visualizer_parsfile, staged_parsfile,
+                               std::filesystem::copy_options::overwrite_existing);
     const auto prefix = dir / "LastRun";
     const std::map<std::string, std::filesystem::path> replacements{
         {"FILEBASE", prefix}, {"INPUT", staged_parsfile},
@@ -585,8 +608,6 @@ std::filesystem::path stageCarSimSimfile(const std::filesystem::path& source,
         std::istringstream fields(original);
         std::string keyword;
         fields >> keyword;
-        if (keyword == "PORTS_EXP") continue;
-        if (keyword == "END") output << "PORTS_EXP 1,2\n";
         const auto found = replacements.find(keyword);
         if (found == replacements.end()) output << original << '\n';
         else output << keyword << ' ' << found->second.string() << '\n';
@@ -746,15 +767,14 @@ CarSimPlant::CarSimPlant(CarSimConfig config, bool read_tire_states, bool read_s
         initialize_(time_, nullptr, nullptr);
         initialized_ = true;
         if (error_occurred_()) throw std::runtime_error(solverError());
-        if (!(solver_dt_ > 0.0) || n_import < 1 || n_import > 4096 || n_export != 2)
+        if (!std::isfinite(solver_dt_) || !(solver_dt_ > 0.0) ||
+            n_import < 1 || n_import > 4096 || n_export < 0 || n_export > 4096)
             throw std::runtime_error("Invalid CarSim integration step or I/O channel counts");
-        if (config_.steering_left_index < 0 ||
-            config_.steering_left_index >= n_import ||
-            config_.steering_right_index >= n_import)
-            throw std::runtime_error("Steering IMPORT index is outside the CarSim channel array");
-        imports_.assign(n_import, 0.0);
-        exports_.assign(n_export, 0.0);
-        copy_export_vars(exports_.data());
+        imports_ = readCarSimImports(config_.simfile.parent_path(), config_, n_import);
+        // The SDK still needs an output buffer; feedback is bound by keyword in SI,
+        // independently of the number/order/display units of the Run Control exports.
+        exports_.assign(std::max(1, n_export), 0.0);
+        if (n_export > 0) copy_export_vars(exports_.data());
         if (read_steering_model || config_.steering_wheel_input)
             steering_ = readCarSimSteeringModel(config_.simfile.parent_path(), config_);
         for (std::size_t i = 0; i < state_ptrs_.size(); ++i) {
@@ -762,6 +782,29 @@ CarSimPlant::CarSimPlant(CarSimConfig config, bool read_tire_states, bool read_s
             state_ptrs_[i] = get_var_ptr_(keyword.data());
             if (!state_ptrs_[i])
                 throw std::runtime_error("CarSim state variable unavailable: " + keyword);
+        }
+        std::array<std::string, 2> steering_keywords{"STEER_L1", "STEER_R1"};
+        for (std::size_t i = 0; i < steering_keywords.size(); ++i) {
+            steering_ptrs_[i] = get_var_ptr_(steering_keywords[i].data());
+            if (!steering_ptrs_[i])
+                throw std::runtime_error("CarSim wheel angle unavailable: " + steering_keywords[i]);
+        }
+        // Only require optional telemetry when the selected Run Control exports it.
+        // Legacy two-angle cases still work, with missing telemetry marked NaN.
+        {
+            const std::array<std::string, 4> keywords{"AX", "AY", "BETA", "RHO_ROAD"};
+            std::ifstream echo(config_.simfile.parent_path() / "LastRun_echo.par");
+            for (std::string line; std::getline(echo, line);) {
+                std::istringstream fields(line);
+                std::string key, name;
+                if (!(fields >> key >> name) || key != "EXPORT") continue;
+                for (std::size_t i = 0; i < keywords.size(); ++i) {
+                    if (name != keywords[i]) continue;
+                    telemetry_ptrs_[i] = get_var_ptr_(name.data());
+                    if (!telemetry_ptrs_[i])
+                        throw std::runtime_error("CarSim exported telemetry unavailable: " + name);
+                }
+            }
         }
         if (read_tire_states) {
             std::array<std::string, 4> keywords{"ALPHL_L1", "ALPHL_R1", "ALPHL_L2", "ALPHL_R2"};
@@ -805,9 +848,16 @@ VehicleState CarSimPlant::initialState() const {
     state.vx = *state_ptrs_[3];
     state.vy = *state_ptrs_[4];
     state.r = *state_ptrs_[5];
-    constexpr double deg_to_rad = 3.14159265358979323846 / 180.0;
-    state.steer_front_left = exports_[0] * deg_to_rad;
-    state.steer_front_right = exports_[1] * deg_to_rad;
+    state.steer_front_left = *steering_ptrs_[0];
+    state.steer_front_right = *steering_ptrs_[1];
+    std::array<double*, 4> telemetry{&state.body_ax, &state.body_ay,
+                                    &state.measured_beta, &state.driver_curvature};
+    for (std::size_t i = 0; i < telemetry.size(); ++i) {
+        if (!telemetry_ptrs_[i]) continue;
+        *telemetry[i] = *telemetry_ptrs_[i];
+        if (!std::isfinite(*telemetry[i]))
+            throw std::runtime_error("CarSim returned nonfinite exported telemetry");
+    }
     if (lagged_slip_ptrs_[0]) {
         // CarSim tire slip has the opposite sign to this model's force convention.
         state.alpha_front = -0.5 * (*lagged_slip_ptrs_[0] + *lagged_slip_ptrs_[1]);
@@ -818,20 +868,22 @@ VehicleState CarSimPlant::initialState() const {
             throw std::runtime_error("CarSim returned a nonfinite tire force");
     }
     for (double value : {state.x, state.y, state.psi, state.vx, state.vy, state.r,
-                         state.alpha_front, state.alpha_rear})
+                         state.alpha_front, state.alpha_rear,
+                         state.steer_front_left, state.steer_front_right})
         if (!std::isfinite(value)) throw std::runtime_error("CarSim returned a nonfinite state");
     return state;
 }
 
 double CarSimPlant::step(VehicleState& state, double delta_front, double dt, double stop_x) const {
-    if (!std::isfinite(delta_front) || !(dt > 0.0))
+    if (!std::isfinite(delta_front) || !std::isfinite(dt) || !(dt > 0.0))
         throw std::invalid_argument("Invalid CarSim steering command or control step");
     const double ratio = dt / solver_dt_;
+    if (!std::isfinite(ratio) || ratio > std::numeric_limits<int>::max())
+        throw std::invalid_argument("CarSim control step is outside the supported range");
     const auto count = static_cast<int>(std::llround(ratio));
     if (count < 1 || std::abs(ratio - count) > 1.0e-6)
         throw std::invalid_argument("MPC dt must be an integer multiple of CarSim solver step");
     const double previous_vx = state.vx;
-    std::fill(imports_.begin(), imports_.end(), 0.0);
     const double input = steering_.inputAngle(delta_front) * config_.steering_gain;
     imports_[config_.steering_left_index] = input;
     if (config_.steering_right_index >= 0)

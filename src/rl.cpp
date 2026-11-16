@@ -226,7 +226,7 @@ RoadPreviewObservation makeRoadPreviewObservation(
     }
     const double near_x = state.x + near_m;
     const double heading_change = angleDifference(reference.at(near_x).psi, point.psi);
-    const double course_error = angleDifference(state.psi + std::atan2(state.vy, state.vx), point.psi);
+    const double course_error = angleDifference(state.psi + vehicleSideslip(state), point.psi);
     RoadPreviewObservation obs{clip(speed / 30.0, 0.0, 2.0),
             clip(curvature * 25.0, -1.0, 1.0),
             clip(curvature_change * 25.0, -1.0, 1.0),

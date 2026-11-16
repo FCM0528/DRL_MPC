@@ -1,0 +1,18 @@
+{
+  "files_before": 752,
+  "active_files_after": 178,
+  "active_bytes_after": 972237073,
+  "original_bytes_before": 21541254994,
+  "retired_files": 586,
+  "retired_bytes": 20569387594,
+  "archive_bytes": 2698125566,
+  "archive_path": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\archives\\legacy_migration_20261113_211219.zip",
+  "retired_path": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\archives\\retired_20261113_211219",
+  "permanently_deleted_files": 0,
+  "disk_space_reclaimed_bytes": 0,
+  "current_model_count": 1,
+  "current_native_checkpoints": [
+    "Agent160.mat"
+  ],
+  "measurement_note": "Active tree excludes archives; disk reclamation is zero because originals were moved reversibly."
+}

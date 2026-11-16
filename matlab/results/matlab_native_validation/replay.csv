@@ -1,0 +1,5 @@
+fixture,samples,max_steer_difference_rad,convergence_mismatch,max_iteration_difference,max_reference_difference
+matched_fixed,158,5.92581539393677e-14,0,0,6.93889390390723e-18
+td3_global_and_step,158,1.1740608485411e-13,0,0,1.38777878078145e-17
+same_policy_lambda_zero,158,1.85712556444173e-13,0,0,1.73472347597681e-18
+selected_checkpoint,158,3.55548923636206e-14,0,0,6.93889390390723e-18

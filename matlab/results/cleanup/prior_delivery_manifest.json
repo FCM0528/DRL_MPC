@@ -1,0 +1,391 @@
+{
+  "model": "DRL_MPC_MATLAB",
+  "controller": "MATLAB/Simulink",
+  "files": [
+    {
+      "relative_to_matlab": "controllers/matlab/loadMatlabMpcParameters.m",
+      "bytes": 5829,
+      "sha256": "3efe2054ee7925c78417beae8b1d8518dba0ff8cdd56bd543742c48a6af50a83"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabAdmmQp.m",
+      "bytes": 1348,
+      "sha256": "22cad11979f58b643314d9ba66315e7b8ae56ed51bab8dbee10345b2c044af76"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabConstraintBounds.m",
+      "bytes": 270,
+      "sha256": "2e1a0f094b3243aaea432e85965e8f899e628b0834b9a3f465427b43b5b2e385"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabCostMatrices.m",
+      "bytes": 2067,
+      "sha256": "f2797ced0cdb95a03b513f39c463aee2cec795082f900bacec1ad2bd67f38f4e"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabGrip.m",
+      "bytes": 264,
+      "sha256": "7bcbcb22db15f47fb6d9c9570468fe1ef9011973db00f41d107d077cd08aaf99"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabMpcStep.m",
+      "bytes": 932,
+      "sha256": "2eb6b2d6bd35460d6515d62ca7371754d7544f37204db029a47d45322e3987bf"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabNominalPrediction.m",
+      "bytes": 1418,
+      "sha256": "b940fb5923fb6cfbb93acf3230fedf3c4eb1a214c8ea6e8007b890368d972830"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabOperatingPoint.m",
+      "bytes": 354,
+      "sha256": "96b22d2febedc8457fbc3fb88d1cb301c5886431dd35973c57e1d1b228853997"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabPredictionReference.m",
+      "bytes": 683,
+      "sha256": "bd2a71b1e9ebf5ef29526c8b54c3849bcf5fe275729b12a65e44e5d6b1b712e4"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabReference.m",
+      "bytes": 604,
+      "sha256": "92d1b06b9f11cd54d93eb6a22132620ddd3baa905e489b9d1cb40fe312d4b48b"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabReferencePreview.m",
+      "bytes": 336,
+      "sha256": "e607d52850329eccd8395d354b37c44cc89bf6af7aa2fd061977de02a80cfd17"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabSteeringCommand.m",
+      "bytes": 550,
+      "sha256": "1b0e5fd78470a0a72f9385dc62a368f08e7fab901e0b6009a86e51411c02b8dd"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabTireForce.m",
+      "bytes": 607,
+      "sha256": "36e112c4e1999f41021568ed6bf22ca48e34218cf16b6263eb3b0d0362d3e262"
+    },
+    {
+      "relative_to_matlab": "controllers/matlab/matlabVehicleModel.m",
+      "bytes": 3612,
+      "sha256": "1368b34cb7d821dfd8310aed42e0dd5e2b6b7f5f65d1b674e1f879d4b1f827be"
+    },
+    {
+      "relative_to_matlab": "README.md",
+      "bytes": 3342,
+      "sha256": "65ace83535ca1c8e83646bc9d4dca9ecf8f8ae0bb10a1c66cfc7917a88840675"
+    },
+    {
+      "relative_to_matlab": "models/DRL_MPC_MATLAB.slx",
+      "bytes": 362539,
+      "sha256": "9babfc0a90945951c3388a1bb1cc69f055ddf764d4770722b027e3130409d59e"
+    },
+    {
+      "relative_to_matlab": "setup_matlab_mpc.m",
+      "bytes": 894,
+      "sha256": "37ef1c0bc69277e780a89e4ce96b89dd8a0659aaed0c2dbba031c4dc92249a04"
+    },
+    {
+      "relative_to_matlab": "open_matlab_model.m",
+      "bytes": 454,
+      "sha256": "4ab3088e6f6fbcb9e5c9ecf7f8c468030ba5d9ad7bec2004c90ee08eeaa178c8"
+    },
+    {
+      "relative_to_matlab": "open_matlab_scopes.m",
+      "bytes": 454,
+      "sha256": "5f4a1c89c3214451f9d4eaeb452ac5707d1c9a65c4520cf88306fefb47a40818"
+    },
+    {
+      "relative_to_matlab": "run_matlab_preview.m",
+      "bytes": 1465,
+      "sha256": "5ad7ad3c0c6c99528adf7b58097dbd04dcfc88c90628ba439802231bf739237c"
+    },
+    {
+      "relative_to_matlab": "train_matlab_td3.m",
+      "bytes": 3034,
+      "sha256": "957d7333bb73be56f41d1013af4c9be3c5dc823b01c6970ce5b55dec312be573"
+    },
+    {
+      "relative_to_matlab": "compare_matlab_controllers.m",
+      "bytes": 4514,
+      "sha256": "fefe7b2e803dee8d53241a7348aa53a5f03fcd2bcfe7f5bb5d35a076383e3a26"
+    },
+    {
+      "relative_to_matlab": "open_paper_model.m",
+      "bytes": 129,
+      "sha256": "872173e97a1d3795e943db1f0eb77c0614802c20d4a291b039beca12b0ce0a16"
+    },
+    {
+      "relative_to_matlab": "open_paper_scopes.m",
+      "bytes": 169,
+      "sha256": "2fa59d75346603453871f755a47d12bb9dcb1729743618566476841dd5ebea0a"
+    },
+    {
+      "relative_to_matlab": "run_paper_preview.m",
+      "bytes": 185,
+      "sha256": "8f78a0000b10d3769e58ec8b03397cb3fc60056b9fba82cd68464ffdcee4741d"
+    },
+    {
+      "relative_to_matlab": "rl/create_paper_agent.m",
+      "bytes": 1587,
+      "sha256": "e619472e7275c2f1532e8931e96d0bfb884c313f113312075c114960c9bdc193"
+    },
+    {
+      "relative_to_matlab": "rl/paper_settings.m",
+      "bytes": 544,
+      "sha256": "a6d4a3fa2f0b5bef419284f18011b30f54df9c5e2af78ebca83251dc54fdf5de"
+    },
+    {
+      "relative_to_matlab": "rl/load_paper_agent.m",
+      "bytes": 610,
+      "sha256": "e571606cd701cb45891a1e4e2b015a6f0de8e17fbcb1d2d0452dadee5514c110"
+    },
+    {
+      "relative_to_matlab": "configs/default.ini",
+      "bytes": 2281,
+      "sha256": "2b3dbee2a0caaae5020ee57c61ffff17545e3e0979ad5e98bf3bcfa735c250cb"
+    },
+    {
+      "relative_to_matlab": "configs/paper_mpc.ini",
+      "bytes": 500,
+      "sha256": "c860ce76017a66b37eb4b60a643bda5891335fb88753529e65ba777cf845fa88"
+    },
+    {
+      "relative_to_matlab": "utils/build_matlab_controller.m",
+      "bytes": 9508,
+      "sha256": "093132c60f6a96ddccd493a4b88b3d5b19c5fc19bc8ce1d2dc9edf2da03e7437"
+    },
+    {
+      "relative_to_matlab": "utils/stage_matlab_model.py",
+      "bytes": 1172,
+      "sha256": "df39072006ee31a25dd9adc631da28756362a966353e910ab3575041625b248b"
+    },
+    {
+      "relative_to_matlab": "utils/validate_matlab_replay.m",
+      "bytes": 1533,
+      "sha256": "6552d1d468932626024f1093c361a2d8ae8f05bbf7de649216fa275243318fb4"
+    },
+    {
+      "relative_to_matlab": "utils/validate_matlab_closed_loop.m",
+      "bytes": 3292,
+      "sha256": "e1ae148d1688992a35d70d0674594806288856cc016a7a8207160ac3889037f1"
+    },
+    {
+      "relative_to_matlab": "utils/review_matlab_native.m",
+      "bytes": 2725,
+      "sha256": "738dabf47cbe414641f69bbf873a84f8dfd277ba76605d426b5905197f799d69"
+    },
+    {
+      "relative_to_matlab": "utils/finalize_matlab_delivery.m",
+      "bytes": 2702,
+      "sha256": "cd14e6594dbd8dbe8497cecaed97f352c0846c1b1c83df0f8eeb1421502360c7"
+    },
+    {
+      "relative_to_matlab": "utils/native_function_script.m",
+      "bytes": 1327,
+      "sha256": "7acda0cfb9bcdd190c19c74d7038ef57c0e89ff868d75c8b4baa7ce150be49fd"
+    },
+    {
+      "relative_to_matlab": "carsim/case/Run_all.par",
+      "bytes": 207433,
+      "sha256": "100ff10dbf6316af31eca765923c4bf6b90284e77484567249400303275861f5"
+    },
+    {
+      "relative_to_matlab": "carsim/case/source_Run_all.par",
+      "bytes": 207426,
+      "sha256": "9f2b97f7f570261df78c0d9eaf13b876a72ba224c6c42ec81a6e40dea89fa416"
+    },
+    {
+      "relative_to_matlab": "carsim/case/simfile.sim",
+      "bytes": 828,
+      "sha256": "90c7766b20fc4bb8be493c6d3f286306663b6dab20f71a9d8224f4f6b8bb0e7d"
+    },
+    {
+      "relative_to_matlab": "carsim/case/carsim_tire_fy.csv",
+      "bytes": 3703,
+      "sha256": "ed09a497978caf7d7ba5f2569abe7f6b1e27077bb02c658e874fb0fbd670d14e"
+    },
+    {
+      "relative_to_matlab": "carsim/case/LastRun_echo.par",
+      "bytes": 295715,
+      "sha256": "786afed0925ee380bb974e754c4bbc151e8cd2b67bb3b5bbbd845be38133efb0"
+    },
+    {
+      "relative_to_matlab": "carsim/case/manifest.json",
+      "bytes": 985,
+      "sha256": "6baec2ebc72cb854601d05456b9da5b884ba7d1f6b35ec8e2456b660ac605695"
+    },
+    {
+      "relative_to_matlab": "results/matlab_td3_ep300_seed42/final_agent.mat",
+      "bytes": 641757361,
+      "sha256": "d28ac03d9d8c8097aa6d076778f5b9d0ed3f97834a77b1bc1c8310060b097b34"
+    },
+    {
+      "relative_to_matlab": "results/matlab_td3_ep300_seed42/training.csv",
+      "bytes": 7981,
+      "sha256": "8eb73692a702a2cc832722471b0bebb2f7f5eefd8b4011da31ec92df5a752254"
+    },
+    {
+      "relative_to_matlab": "results/matlab_td3_ep300_seed42/summary.json",
+      "bytes": 234,
+      "sha256": "9427e8a7f351085b33fc6ab00e4f4201f6437d99783f27faba02e9a999c4e6dc"
+    },
+    {
+      "relative_to_matlab": "results/matlab_td3_ep300_seed42/checkpoints/Agent160.mat",
+      "bytes": 312883675,
+      "sha256": "f4ddfd713613e8ab4fb44956c69a0d10a14281a5ee4cbc3b241025474f955340"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/acceptance.json",
+      "bytes": 1033,
+      "sha256": "fa21380eebe2a56ba27e73d61cbef54ff1ba49ccfbb04efc8b0fbe6074b0db8f"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/closed_loop_120m.csv",
+      "bytes": 513,
+      "sha256": "e0024c9975fb61cd4f4180a817bc2e3fc8d5e8d3a3e2528d181a730b1fef8929"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/code_review.json",
+      "bytes": 399,
+      "sha256": "a91580893ae3892c4a4b28f9e583932f58a9ae29e227a445a2c11214d945aa54"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/delivery_audit.json",
+      "bytes": 1760,
+      "sha256": "47e7b52ce70168933bf9ad61ca8bde6e18b4d1e0bc6e68d63d8e7ced48250837"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/matched_fixed_raw.mat",
+      "bytes": 2179876,
+      "sha256": "2086b91c49cf902199ce265e4969008227a55903b6631656ac4ba3f12b510d05"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/matched_fixed_replay.mat",
+      "bytes": 20578,
+      "sha256": "f7ca4c9136503310b7e1f4822cc0d09615e742c4f15b9310c8b99a19cf83430a"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/matlab_controller.png",
+      "bytes": 89237,
+      "sha256": "a2c3e994a09e27c1643efecf5ebbc46ef967b05d1a411f44ac113a9a32780570"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/model_overview.png",
+      "bytes": 155740,
+      "sha256": "638d5b9f3301973b0c1aa9a8a5f85603f604fc5560a50670dd09c81ce10d7f07"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/native_parameters.mat",
+      "bytes": 7342,
+      "sha256": "9bd0c4fe87c8f8f9ab23cffdcb1b0f090985f71a401cd7267008ec7b8c7b7b00"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/replay.csv",
+      "bytes": 394,
+      "sha256": "a8a7d64fec2a4f323f7fc911eb83d3c26a57580b3b44ef53a30b35447fe3bbb5"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/same_policy_lambda_zero_raw.mat",
+      "bytes": 2180895,
+      "sha256": "6ae8d67d1087631db123904be50daa9f327f4b11f69f658959f30addcf0ea23c"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/same_policy_lambda_zero_replay.mat",
+      "bytes": 20823,
+      "sha256": "5969472292038cf9fdc695ee3393ca3d7031b731761415f24b235caf2f45bb52"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/scopes.png",
+      "bytes": 61988,
+      "sha256": "60ce93e9a21e2ec073e3b6f69eddc671f79eac2da6bb92275c6f4cc129105914"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/selected_checkpoint_raw.mat",
+      "bytes": 2178509,
+      "sha256": "893b071c90030dd58391622407de033af44cc3b14d56e99c0598dff13f9a3eb9"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/selected_checkpoint_replay.mat",
+      "bytes": 20675,
+      "sha256": "b825ad4697566066ad31d7b2bcc2ab21b5e82da617f83d8e0ed924a3660c23a1"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/td3_global_and_step_raw.mat",
+      "bytes": 2180159,
+      "sha256": "95c6f79063691df6b4bab3b95333497b99cf41d7eb73f7150c7dd230d99532eb"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/td3_global_and_step_replay.mat",
+      "bytes": 20770,
+      "sha256": "bce2843e5d291293f74921c2abdf64c980726ee0df62179d2b68dedaad721e05"
+    },
+    {
+      "relative_to_matlab": "results/matlab_native_validation/USER_GUIDE.md",
+      "bytes": 6580,
+      "sha256": "9c1ae9fd096320e8e155c7857f21dc309b37b5d80da9de1703ce821af5fe15db"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/checkpoint_selection.json",
+      "bytes": 805,
+      "sha256": "1eaca7573cf3907491af5d62a6b23c99b3938e0b11e677017d9df6cc964ab4c9"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/COMPARISON.md",
+      "bytes": 4629,
+      "sha256": "6a82d59074778e0d7a4f84e422a50ae58eee26df26447f459c107e53e312c2e5"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/comparison_120m.fig",
+      "bytes": 104597,
+      "sha256": "3cef589cbc9f0aae145be5fb695653b81cd7d6266630806c1869b52dab55178b"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/comparison_120m.png",
+      "bytes": 386257,
+      "sha256": "70ae5205b7041860425fa860f469ce8d1a41ff7324fcc86c8c1659406c0aaf50"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/matched_fixed_raw.mat",
+      "bytes": 2180660,
+      "sha256": "1301ec27fbcfa2be100a180e1d4f657e0e1c545a0f678ab06aa8932645b6ff7a"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/metrics_120m.csv",
+      "bytes": 749,
+      "sha256": "b3a91d7baf9c7bc6557aabc247f77908053e9ba0f88c018a550f0370b1dca833"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/native_td3_final_raw.mat",
+      "bytes": 2180801,
+      "sha256": "ce560ca3db3bf9ee49ae08e7b3ed9103a0870b6d3ff15157aad6923b5eff04ae"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/native_td3_reward_selected_raw.mat",
+      "bytes": 2179530,
+      "sha256": "7d3dfaca6802d06b47e8e23ca631278f640bc678eaa2339763e4a9c8a04bb517"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/provenance.mat",
+      "bytes": 1159,
+      "sha256": "d7a4035e90682fe3a46362835439eacbf70b4f6226daa245a01e8f3bc237d4af"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/same_final_policy_lambda_zero_raw.mat",
+      "bytes": 2181253,
+      "sha256": "05b4211d44d98a7d926c92df566cd754c4af4a5b0a12e2231467de861318b39c"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/training.fig",
+      "bytes": 17001,
+      "sha256": "8799eb8326bcd95f0acff58047307284bcd4ccc1987fd8aa96ed67daf35b888b"
+    },
+    {
+      "relative_to_matlab": "results/matlab_comparison/training.png",
+      "bytes": 99146,
+      "sha256": "b72adf2f9d37ef53f10595b181d8e030ffba7455b3575608818b38b82939422c"
+    }
+  ]
+}

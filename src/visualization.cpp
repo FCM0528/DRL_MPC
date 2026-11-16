@@ -378,7 +378,9 @@ SimulationMetrics exportResults(
                    "q_y_applied,q_psi_applied,q_vy_applied,"
                    "q_r_applied,r_steer_applied,r_delta_applied,road_grip_estimate,reward,"
                    "reference_curvature_inv_m,front_lagged_slip_rad,rear_lagged_slip_rad,"
-                   "front_left_wheel_steer_deg,front_right_wheel_steer_deg,feedforward_curvature_inv_m\n";
+                   "front_left_wheel_steer_deg,front_right_wheel_steer_deg,feedforward_curvature_inv_m,"
+                   "body_ax_mps2,body_ay_mps2,measured_beta_rad,driver_curvature_inv_m,"
+                   "front_lateral_force_n,rear_lateral_force_n\n";
         out << std::fixed << std::setprecision(9);
         for (const auto& p : rows) {
                 out << p.time << ',' << 3.6 * p.s.vx << ',' << 3.6 * std::hypot(p.s.vx, p.s.vy)
@@ -400,7 +402,9 @@ SimulationMetrics exportResults(
                 if (std::isfinite(p.s.steer_front_left)) out << p.s.steer_front_left * rad2deg;
                 out << ',';
                 if (std::isfinite(p.s.steer_front_right)) out << p.s.steer_front_right * rad2deg;
-                out << ',' << p.feedforward_curvature << '\n';
+                out << ',' << p.feedforward_curvature << ',' << p.s.body_ax << ',' << p.s.body_ay
+                    << ',' << p.s.measured_beta << ',' << p.s.driver_curvature
+                    << ',' << p.s.fy_front << ',' << p.s.fy_rear << '\n';
         }
     }
 

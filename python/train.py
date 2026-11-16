@@ -164,6 +164,15 @@ def common_design(settings: dict) -> dict:
                                            "batch_size", "train_freq", "gradient_steps")}
 
 
+def prepare_online_training(model, learning_starts):
+    """Collect a fresh interaction warmup, including when resuming saved weights."""
+    if model.replay_buffer is None or model.replay_buffer.size() != 0:
+        raise ValueError("Online training must start with an empty replay buffer")
+    # SB3's threshold uses lifetime timesteps. A resumed model has old timesteps
+    # but no saved replay samples, so its new warmup must start at this run.
+    model.learning_starts = int(model.num_timesteps) + learning_starts
+
+
 def deterministic_design(algorithm: str, settings: dict) -> dict:
     prefix = algorithm + "_"
     design = dict(**common_design(settings),
@@ -306,6 +315,17 @@ def main():
                                     if args.algorithm == "tqc" else
                                     deterministic_design(args.algorithm, settings))
     manifest["tire_model"] = "carsim_tire_carpet_from_zero_v2"
+    manifest["training_data"] = {
+        "source": "online_carsim_closed_loop",
+        "transition": "observation, requested_action, bridge_reward, next_observation, done",
+        "vehicle_feedback": "current CarSim solver state via C++ bridge",
+        "road_preview": "CarSim LTARG reference and road grip tables at current vehicle position",
+        "replay_prefilled": False,
+        "synthetic_rollouts": False,
+        "fixed_mpc_labels": False,
+        "validation_used_for_updates": False,
+        "weights_initialization": "resumed_model" if args.resume else "random",
+    }
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     shutil.copy2(args.train_config, root / "source_training.ini")
     args.simfile = str(frozen_simfile)
@@ -357,7 +377,12 @@ def main():
                 sigma = settings[f"{args.algorithm}_exploration_noise_sigma"]
                 kwargs["action_noise"] = NormalActionNoise(np.zeros(4), np.full(4, sigma))
             model = cls("MlpPolicy", train_env, **kwargs)
-        manifest["training_start_timesteps"] = int(model.num_timesteps) if args.resume else 0
+        prepare_online_training(model, settings["learning_starts"])
+        manifest["training_start_timesteps"] = int(model.num_timesteps)
+        start_updates = int(model._n_updates)
+        manifest["training_data"].update(
+            initial_replay_decisions=int(model.replay_buffer.size()),
+            warmup_decisions=settings["learning_starts"])
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         callbacks = [CheckpointCallback(save_freq=args.eval_frequency,
                                         save_path=str(root / "checkpoints")),
@@ -378,6 +403,11 @@ def main():
         model.learn(total_timesteps=2_147_483_647, callback=callbacks,
                     reset_num_timesteps=not bool(args.resume))
         model.save(root / "final_model")
+        manifest["training_data"].update(
+            collected_decisions=int(model.num_timesteps) - manifest["training_start_timesteps"],
+            final_replay_decisions=int(model.replay_buffer.size()),
+            gradient_updates=int(model._n_updates) - start_updates)
+        (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         best_model = root / "best" / "best_model.zip"
     finally:
         train_env.close()

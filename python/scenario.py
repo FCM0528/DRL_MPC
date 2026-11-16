@@ -98,6 +98,31 @@ def resolve_config_value(config, section, key, default=None):
     return read_file(config)
 
 
+def controller_policy_signature(config):
+    """Compare the control/observation/action contract, independently of paths and comments."""
+    active = set()
+    def read(path):
+        path = Path(path).resolve(strict=True)
+        if path in active:
+            raise ValueError("Cyclic config inheritance")
+        active.add(path)
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.read(path, encoding="utf-8-sig")
+        base = parser.get("inherit", "base", fallback=None)
+        result = read(path.parent / base) if base else {}
+        for section in ("mpc", "weights", "constraints", "solver", "rl", "rl_reward"):
+            if parser.has_section(section):
+                result.update({f"{section}.{key}": value for key, value in parser[section].items()})
+        active.remove(path)
+        return result
+    def canonical(value):
+        try:
+            return tuple(float(part.strip()) for part in value.split(","))
+        except ValueError:
+            return value.strip().lower()
+    return {key: canonical(value) for key, value in read(config).items()}
+
+
 def resolve_simfile(config, simfile=None):
     if simfile:
         return Path(simfile).resolve()

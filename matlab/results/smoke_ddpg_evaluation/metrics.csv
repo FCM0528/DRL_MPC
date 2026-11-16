@@ -1,2 +1,0 @@
-controller,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,completed,end_x_m,end_time_s,samples
-smoke_ddpg_evaluation,0.239347603765462,0.686937926601631,0.0359092591143804,0,1,150.658082698577,7.84,197

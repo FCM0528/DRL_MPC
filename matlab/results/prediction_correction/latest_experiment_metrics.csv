@@ -1,0 +1,2 @@
+controller,range_end_m,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,samples,reached_range,distance_grid_rmse_m,elapsed_s,min_speed_kmh,max_speed_kmh,max_abs_ay_mps2,max_ay_excess_mps2,max_abs_beta_deg,max_slack,max_reference_excess,max_steer_rate_deg_s
+corrected_planned,120,0.0351120311054565,0.116621050619267,0.017395336633808,0,171,1,0.0331068119820407,31.8946346,56.1051365248292,69.9352989470593,6.76764709689176,0,2.76632568845591,0,0.0553107552878807,13.1512851649386

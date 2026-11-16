@@ -1,0 +1,20 @@
+错误: 无法进行此赋值，因为维度 1 左侧是固定大小，而右侧是可变大小([13 x 1] 和 [:? x 1])。
+详细信息
+
+函数 'matlabSafetyQp.m' (#211.853.854)，行 14，列 44:
+"u"
+启动诊断报告。
+
+错误: 函数调用失败。
+
+函数 'LTV_MPC_Controller/ADMM_QP_Solver' (#107.121.242)，行 2，列 1:
+"[moves,status,valid,slack]=matlabSafetyQp(h,g,warm,low,high,op,nominal,sensitivi"
+启动诊断报告。
+
+错误: 解析 'DRL_MPC_MATLAB/LTV_MPC_Controller/ADMM_QP_Solver' 时出错。
+
+
+错误: 由于模块体中的错误或基础分析的限制，Simulink 无法确定模块 'DRL_MPC_MATLAB/LTV_MPC_Controller/ADMM_QP_Solver' 的输出大小和/或类型。错误可能不准确。请修复指示的错误，或显式指定所有模块输出的大小和/或类型。
+
+
+警告: 无法关闭模型 'DRL_MPC_MATLAB'，因为它已更改。要保存更改，请使用 close_system('DRL_MPC_MATLAB',1)。要放弃更改，请使用 close_system('DRL_MPC_MATLAB',0)。

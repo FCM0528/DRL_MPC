@@ -14,6 +14,7 @@ from algorithms import ALGORITHMS
 from envs.carsim_mpc_env import CarSimMPCEnv
 from report import control_trace, render_report
 from scenario import resolve_simfile, read_scenario, snapshot_scenario
+from diagnostics import sensor_metrics
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_FIXED_CONFIG = PROJECT_ROOT / "configs/default.ini"
@@ -23,12 +24,17 @@ DEFAULT_CONTROLLER = PROJECT_ROOT / "out/python-rl-build/Release/MPC_DoubleLaneC
 def _tracking_metrics(trace):
     data = control_trace(trace)
     ey, epsi = data["ey_m"], data["epsi_rad"]
+    config = configparser.ConfigParser(interpolation=None)
+    config.read(Path(trace).with_name("effective_config.ini"), encoding="utf-8-sig")
+    vehicle = {key: config.getfloat("vehicle", key)
+               for key in ("mass_kg", "iz_kgm2", "a_m", "b_m")} if config.has_section("vehicle") else None
     return dict(distance_m=float(data["x_m"][-1]),
                 mae_y_m=float(np.mean(np.abs(ey))),
                 rmse_y_m=float(np.sqrt(np.mean(ey ** 2))),
                 peak_y_m=float(np.max(np.abs(ey))),
                 rmse_heading_deg=float(np.rad2deg(np.sqrt(np.mean(epsi ** 2)))),
-                qp_failures=int(data["qp_failed"].sum()), trace=trace)
+                qp_failures=int(data["qp_failed"].sum()), trace=trace,
+                **sensor_metrics(data, vehicle))
 
 
 def require_same_distance(fixed_trace, learned_trace):

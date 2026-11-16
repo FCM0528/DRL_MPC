@@ -1,0 +1,2932 @@
+[
+  {
+    "relative_path": "build_model.m",
+    "status": "retired_reversibly",
+    "bytes": 6783
+  },
+  {
+    "relative_path": "compare_controllers.m",
+    "status": "retired_reversibly",
+    "bytes": 2735
+  },
+  {
+    "relative_path": "compare_observed_effect.m",
+    "status": "retired_reversibly",
+    "bytes": 2397
+  },
+  {
+    "relative_path": "run_fixed_mpc.m",
+    "status": "retired_reversibly",
+    "bytes": 415
+  },
+  {
+    "relative_path": "run_training_campaign.m",
+    "status": "retired_reversibly",
+    "bytes": 1398
+  },
+  {
+    "relative_path": "setup.m",
+    "status": "retired_reversibly",
+    "bytes": 1272
+  },
+  {
+    "relative_path": "setup_paper.m",
+    "status": "retired_reversibly",
+    "bytes": 1041
+  },
+  {
+    "relative_path": "train_ddpg.m",
+    "status": "retired_reversibly",
+    "bytes": 162
+  },
+  {
+    "relative_path": "train_td3.m",
+    "status": "retired_reversibly",
+    "bytes": 160
+  },
+  {
+    "relative_path": "train_observed_td3.m",
+    "status": "retired_reversibly",
+    "bytes": 2025
+  },
+  {
+    "relative_path": "train_paper_td3.m",
+    "status": "retired_reversibly",
+    "bytes": 2280
+  },
+  {
+    "relative_path": "build_native.cmd",
+    "status": "retired_reversibly",
+    "bytes": 883
+  },
+  {
+    "relative_path": "build_parity.cmd",
+    "status": "retired_reversibly",
+    "bytes": 450
+  },
+  {
+    "relative_path": "build_pipeline_test.cmd",
+    "status": "retired_reversibly",
+    "bytes": 591
+  },
+  {
+    "relative_path": "SOURCE_MAP.md",
+    "status": "retired_reversibly",
+    "bytes": 3751
+  },
+  {
+    "relative_path": "controllers/native/carsim_plant.cpp",
+    "status": "retired_reversibly",
+    "bytes": 42587
+  },
+  {
+    "relative_path": "controllers/native/carsim_plant.h",
+    "status": "retired_reversibly",
+    "bytes": 5272
+  },
+  {
+    "relative_path": "controllers/native/config.cpp",
+    "status": "retired_reversibly",
+    "bytes": 40400
+  },
+  {
+    "relative_path": "controllers/native/config.h",
+    "status": "retired_reversibly",
+    "bytes": 1408
+  },
+  {
+    "relative_path": "controllers/native/mpc.cpp",
+    "status": "retired_reversibly",
+    "bytes": 19192
+  },
+  {
+    "relative_path": "controllers/native/mpc.h",
+    "status": "retired_reversibly",
+    "bytes": 4710
+  },
+  {
+    "relative_path": "controllers/native/mpc_mex.cpp",
+    "status": "retired_reversibly",
+    "bytes": 8146
+  },
+  {
+    "relative_path": "controllers/native/mpc_pipeline.cpp",
+    "status": "retired_reversibly",
+    "bytes": 29533
+  },
+  {
+    "relative_path": "controllers/native/mpc_pipeline.h",
+    "status": "retired_reversibly",
+    "bytes": 3068
+  },
+  {
+    "relative_path": "controllers/native/reference.cpp",
+    "status": "retired_reversibly",
+    "bytes": 5620
+  },
+  {
+    "relative_path": "controllers/native/reference.h",
+    "status": "retired_reversibly",
+    "bytes": 1036
+  },
+  {
+    "relative_path": "controllers/native/rl.cpp",
+    "status": "retired_reversibly",
+    "bytes": 14398
+  },
+  {
+    "relative_path": "controllers/native/rl.h",
+    "status": "retired_reversibly",
+    "bytes": 4905
+  },
+  {
+    "relative_path": "controllers/native/vehicle.cpp",
+    "status": "retired_reversibly",
+    "bytes": 16427
+  },
+  {
+    "relative_path": "controllers/native/vehicle.h",
+    "status": "retired_reversibly",
+    "bytes": 3716
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison.fig",
+    "status": "retired_reversibly",
+    "bytes": 92770
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/COMPARISON.md",
+    "status": "retired_reversibly",
+    "bytes": 1541
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison.png",
+    "status": "retired_reversibly",
+    "bytes": 198894
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison_cn.fig",
+    "status": "retired_reversibly",
+    "bytes": 98863
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison_cn.pdf",
+    "status": "retired_reversibly",
+    "bytes": 58816
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison_cn.png",
+    "status": "retired_reversibly",
+    "bytes": 404125
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/training_comparison.fig",
+    "status": "retired_reversibly",
+    "bytes": 35944
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/training_comparison.pdf",
+    "status": "retired_reversibly",
+    "bytes": 31782
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/training_comparison.png",
+    "status": "retired_reversibly",
+    "bytes": 199040
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/ddpg_np40_nc12/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 81280
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/ddpg_np40_nc12/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 153311
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/fixed_np40_nc12/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 80001
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/fixed_np40_nc12/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 151479
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/td3_np40_nc12/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 81050
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/td3_np40_nc12/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 152329
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/training_ddpg_np40_nc12_ep300_seed42_evaluation/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 81291
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/training_ddpg_np40_nc12_ep300_seed42_evaluation/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 158731
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/training_td3_np40_nc12_ep300_seed42_evaluation/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 81128
+  },
+  {
+    "relative_path": "backups/before_120m_figures_20261113_020514/training_td3_np40_nc12_ep300_seed42_evaluation/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 158732
+  },
+  {
+    "relative_path": "backups/before_build_20261112_204244.slx",
+    "status": "retired_reversibly",
+    "bytes": 88222
+  },
+  {
+    "relative_path": "backups/before_build_20261112_204311.slx",
+    "status": "retired_reversibly",
+    "bytes": 88222
+  },
+  {
+    "relative_path": "backups/before_build_20261112_204644.slx",
+    "status": "retired_reversibly",
+    "bytes": 88222
+  },
+  {
+    "relative_path": "backups/before_final_layout_20261112_225938.slx",
+    "status": "retired_reversibly",
+    "bytes": 195216
+  },
+  {
+    "relative_path": "backups/before_final_layout_20261112_230151.slx",
+    "status": "retired_reversibly",
+    "bytes": 210152
+  },
+  {
+    "relative_path": "backups/before_final_layout_20261112_232057.slx",
+    "status": "retired_reversibly",
+    "bytes": 204179
+  },
+  {
+    "relative_path": "backups/before_light_truck_20261113_153029/DRL_MPC.slx",
+    "status": "retired_reversibly",
+    "bytes": 228813
+  },
+  {
+    "relative_path": "backups/before_light_truck_20261113_153029/migration_sfun.m",
+    "status": "retired_reversibly",
+    "bytes": 3497
+  },
+  {
+    "relative_path": "backups/before_light_truck_20261113_153029/mpc_mex.cpp",
+    "status": "retired_reversibly",
+    "bytes": 7769
+  },
+  {
+    "relative_path": "backups/before_light_truck_20261113_153029/mpc_mex.mexw64",
+    "status": "retired_reversibly",
+    "bytes": 258560
+  },
+  {
+    "relative_path": "backups/before_light_truck_20261113_153029/setup.m",
+    "status": "retired_reversibly",
+    "bytes": 1272
+  },
+  {
+    "relative_path": "backups/before_matlab_native/README_cpp_adapter.md",
+    "status": "retired_reversibly",
+    "bytes": 11359
+  },
+  {
+    "relative_path": "backups/before_native_scopes_20261113_164451/DRL_MPC_Paper.slx",
+    "status": "retired_reversibly",
+    "bytes": 228242
+  },
+  {
+    "relative_path": "backups/before_native_scopes_20261113_164451/open_paper_model.m",
+    "status": "retired_reversibly",
+    "bytes": 162
+  },
+  {
+    "relative_path": "backups/before_native_scopes_20261113_164451/train_paper_td3.m",
+    "status": "retired_reversibly",
+    "bytes": 2280
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/configs/carsim_python_rl.ini",
+    "status": "retired_reversibly",
+    "bytes": 1685
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/configs/default.ini",
+    "status": "retired_reversibly",
+    "bytes": 2297
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/configs/forced_qp_failure.ini",
+    "status": "retired_reversibly",
+    "bytes": 1756
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/configs/rl_training.ini",
+    "status": "retired_reversibly",
+    "bytes": 1205
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/delivery_sha256.json",
+    "status": "retired_reversibly",
+    "bytes": 300
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/DRL_MPC.slx",
+    "status": "retired_reversibly",
+    "bytes": 204596
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/mex_pipeline_failure_parity.csv",
+    "status": "retired_reversibly",
+    "bytes": 126
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/mex_pipeline_parity.csv",
+    "status": "retired_reversibly",
+    "bytes": 126
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/native_parity.csv",
+    "status": "retired_reversibly",
+    "bytes": 222
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/README.md",
+    "status": "retired_reversibly",
+    "bytes": 7832
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/reset_validation.mat",
+    "status": "retired_reversibly",
+    "bytes": 241
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/setup.m",
+    "status": "retired_reversibly",
+    "bytes": 796
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/test_results.txt",
+    "status": "retired_reversibly",
+    "bytes": 376
+  },
+  {
+    "relative_path": "backups/before_np40_nc12_300_20261112_234308/VALIDATION.md",
+    "status": "retired_reversibly",
+    "bytes": 3809
+  },
+  {
+    "relative_path": "backups/before_spacing_training300_20261113_002736/annotate_model_chinese.m",
+    "status": "retired_reversibly",
+    "bytes": 5916
+  },
+  {
+    "relative_path": "backups/before_spacing_training300_20261113_002736/DRL_MPC.slx",
+    "status": "retired_reversibly",
+    "bytes": 230464
+  },
+  {
+    "relative_path": "backups/before_spacing_training300_20261113_002736/refine_main_view.m",
+    "status": "retired_reversibly",
+    "bytes": 5547
+  },
+  {
+    "relative_path": "backups/before_spacing_training300_20261113_002736/route_monitor_signals.m",
+    "status": "retired_reversibly",
+    "bytes": 3317
+  },
+  {
+    "relative_path": "backups/initial_20261112_202749/DRL_MPC.slx",
+    "status": "retired_reversibly",
+    "bytes": 83469
+  },
+  {
+    "relative_path": "backups/initial_20261112_202749/git_status_before.txt",
+    "status": "retired_reversibly",
+    "bytes": 12
+  },
+  {
+    "relative_path": "backups/initial_20261112_202749/model_sha256.txt",
+    "status": "retired_reversibly",
+    "bytes": 185
+  },
+  {
+    "relative_path": "backups/legacy_mpc_mex.mexw64",
+    "status": "retired_reversibly",
+    "bytes": 230912
+  },
+  {
+    "relative_path": "backups/native_conversion_crash/DRL_MPC_Paper_Native.slx.disabled",
+    "status": "retired_reversibly",
+    "bytes": 228242
+  },
+  {
+    "relative_path": "backups/protected_src_hashes.json",
+    "status": "retired_reversibly",
+    "bytes": 2785
+  },
+  {
+    "relative_path": "models/DRL_MPC.slx",
+    "status": "retired_reversibly",
+    "bytes": 228813
+  },
+  {
+    "relative_path": "models/DRL_MPC.slx.autosave",
+    "status": "retired_reversibly",
+    "bytes": 200751
+  },
+  {
+    "relative_path": "models/DRL_MPC_Paper.slx",
+    "status": "retired_reversibly",
+    "bytes": 227546
+  },
+  {
+    "relative_path": "models/DRL_MPC_Paper_Observed.slx",
+    "status": "retired_reversibly",
+    "bytes": 291790
+  },
+  {
+    "relative_path": "configs/carsim_python_rl.ini",
+    "status": "retired_reversibly",
+    "bytes": 1685
+  },
+  {
+    "relative_path": "configs/rl_training.ini",
+    "status": "retired_reversibly",
+    "bytes": 1205
+  },
+  {
+    "relative_path": "configs/forced_qp_failure.ini",
+    "status": "retired_reversibly",
+    "bytes": 1756
+  },
+  {
+    "relative_path": "rl/add_rl_interface.m",
+    "status": "retired_reversibly",
+    "bytes": 2186
+  },
+  {
+    "relative_path": "rl/create_agent.m",
+    "status": "retired_reversibly",
+    "bytes": 2712
+  },
+  {
+    "relative_path": "rl/make_environment.m",
+    "status": "retired_reversibly",
+    "bytes": 465
+  },
+  {
+    "relative_path": "rl/paper_features.m",
+    "status": "retired_reversibly",
+    "bytes": 354
+  },
+  {
+    "relative_path": "rl/paper_map_action.m",
+    "status": "retired_reversibly",
+    "bytes": 264
+  },
+  {
+    "relative_path": "rl/read_training_config.m",
+    "status": "retired_reversibly",
+    "bytes": 483
+  },
+  {
+    "relative_path": "rl/train_controller.m",
+    "status": "retired_reversibly",
+    "bytes": 2537
+  },
+  {
+    "relative_path": "utils/add_steering_test_mode.m",
+    "status": "retired_reversibly",
+    "bytes": 1103
+  },
+  {
+    "relative_path": "utils/annotate_model_chinese.m",
+    "status": "retired_reversibly",
+    "bytes": 6027
+  },
+  {
+    "relative_path": "utils/apply_current_configuration.m",
+    "status": "retired_reversibly",
+    "bytes": 1227
+  },
+  {
+    "relative_path": "utils/archive_training_summary.m",
+    "status": "retired_reversibly",
+    "bytes": 1615
+  },
+  {
+    "relative_path": "utils/audit_sources.py",
+    "status": "retired_reversibly",
+    "bytes": 1545
+  },
+  {
+    "relative_path": "utils/build_matlab_controller.m",
+    "status": "retired_reversibly",
+    "bytes": 9508
+  },
+  {
+    "relative_path": "utils/build_observed_model.m",
+    "status": "retired_reversibly",
+    "bytes": 6960
+  },
+  {
+    "relative_path": "utils/build_paper_model.m",
+    "status": "retired_reversibly",
+    "bytes": 5248
+  },
+  {
+    "relative_path": "utils/check_observed_checkpoint.m",
+    "status": "retired_reversibly",
+    "bytes": 3343
+  },
+  {
+    "relative_path": "utils/convert_paper_native.m",
+    "status": "retired_reversibly",
+    "bytes": 5060
+  },
+  {
+    "relative_path": "utils/diagnose_drl.m",
+    "status": "retired_reversibly",
+    "bytes": 4210
+  },
+  {
+    "relative_path": "utils/expand_controller_pipeline.m",
+    "status": "retired_reversibly",
+    "bytes": 2434
+  },
+  {
+    "relative_path": "utils/export_run.m",
+    "status": "retired_reversibly",
+    "bytes": 2394
+  },
+  {
+    "relative_path": "utils/finalize_model.m",
+    "status": "retired_reversibly",
+    "bytes": 4156
+  },
+  {
+    "relative_path": "utils/finalize_observed_results.m",
+    "status": "retired_reversibly",
+    "bytes": 4820
+  },
+  {
+    "relative_path": "utils/finish_observed_delivery.m",
+    "status": "retired_reversibly",
+    "bytes": 1169
+  },
+  {
+    "relative_path": "utils/finish_paper_model.m",
+    "status": "retired_reversibly",
+    "bytes": 2458
+  },
+  {
+    "relative_path": "utils/fix_local_spacing.m",
+    "status": "retired_reversibly",
+    "bytes": 1000
+  },
+  {
+    "relative_path": "utils/generate_pipeline.py",
+    "status": "retired_reversibly",
+    "bytes": 4000
+  },
+  {
+    "relative_path": "utils/layout_paper_drl.m",
+    "status": "retired_reversibly",
+    "bytes": 3411
+  },
+  {
+    "relative_path": "utils/matlab_com.ps1",
+    "status": "retired_reversibly",
+    "bytes": 554
+  },
+  {
+    "relative_path": "utils/migration_id.m",
+    "status": "retired_reversibly",
+    "bytes": 511
+  },
+  {
+    "relative_path": "utils/migration_sfun.m",
+    "status": "retired_reversibly",
+    "bytes": 3497
+  },
+  {
+    "relative_path": "utils/paper_core_sfun.m",
+    "status": "retired_reversibly",
+    "bytes": 1160
+  },
+  {
+    "relative_path": "utils/paper_migration_sfun.m",
+    "status": "retired_reversibly",
+    "bytes": 3665
+  },
+  {
+    "relative_path": "utils/plot_current_comparison.m",
+    "status": "retired_reversibly",
+    "bytes": 7355
+  },
+  {
+    "relative_path": "utils/plot_drl_diagnosis.m",
+    "status": "retired_reversibly",
+    "bytes": 2939
+  },
+  {
+    "relative_path": "utils/plot_paper_verification.m",
+    "status": "retired_reversibly",
+    "bytes": 2261
+  },
+  {
+    "relative_path": "utils/plot_station_limit.m",
+    "status": "retired_reversibly",
+    "bytes": 132
+  },
+  {
+    "relative_path": "utils/probe_native_editing.m",
+    "status": "retired_reversibly",
+    "bytes": 825
+  },
+  {
+    "relative_path": "utils/read_mpc_settings.m",
+    "status": "retired_reversibly",
+    "bytes": 923
+  },
+  {
+    "relative_path": "utils/refine_drl_layout.m",
+    "status": "retired_reversibly",
+    "bytes": 2942
+  },
+  {
+    "relative_path": "utils/refine_main_view.m",
+    "status": "retired_reversibly",
+    "bytes": 5702
+  },
+  {
+    "relative_path": "utils/refresh_120m_plots.m",
+    "status": "retired_reversibly",
+    "bytes": 1054
+  },
+  {
+    "relative_path": "utils/route_monitor_signals.m",
+    "status": "retired_reversibly",
+    "bytes": 3324
+  },
+  {
+    "relative_path": "utils/run_drl_ablations.m",
+    "status": "retired_reversibly",
+    "bytes": 2238
+  },
+  {
+    "relative_path": "utils/run_extended_weight_probe.m",
+    "status": "retired_reversibly",
+    "bytes": 1488
+  },
+  {
+    "relative_path": "utils/run_observed_campaign.m",
+    "status": "retired_reversibly",
+    "bytes": 506
+  },
+  {
+    "relative_path": "utils/stage_matlab_model.py",
+    "status": "retired_reversibly",
+    "bytes": 1172
+  },
+  {
+    "relative_path": "utils/test_pipeline_replay.py",
+    "status": "retired_reversibly",
+    "bytes": 2685
+  },
+  {
+    "relative_path": "utils/tidy_mpc_view.m",
+    "status": "retired_reversibly",
+    "bytes": 1572
+  },
+  {
+    "relative_path": "utils/tidy_observed_views.m",
+    "status": "retired_reversibly",
+    "bytes": 3700
+  },
+  {
+    "relative_path": "utils/validate_paper_profile.m",
+    "status": "retired_reversibly",
+    "bytes": 2392
+  },
+  {
+    "relative_path": "utils/verify_observed_model.m",
+    "status": "retired_reversibly",
+    "bytes": 2796
+  },
+  {
+    "relative_path": "utils/write_current_configuration_report.m",
+    "status": "retired_reversibly",
+    "bytes": 3436
+  },
+  {
+    "relative_path": "utils/write_drl_diagnosis_report.py",
+    "status": "retired_reversibly",
+    "bytes": 9386
+  },
+  {
+    "relative_path": "utils/write_validation.py",
+    "status": "retired_reversibly",
+    "bytes": 5972
+  },
+  {
+    "relative_path": "tests/DRL_MPC.slxc",
+    "status": "retired_reversibly",
+    "bytes": 5117
+  },
+  {
+    "relative_path": "tests/parity_original.cpp",
+    "status": "retired_reversibly",
+    "bytes": 3622
+  },
+  {
+    "relative_path": "tests/run_all_tests.m",
+    "status": "retired_reversibly",
+    "bytes": 1757
+  },
+  {
+    "relative_path": "tests/test_mex_pipeline.m",
+    "status": "retired_reversibly",
+    "bytes": 1923
+  },
+  {
+    "relative_path": "tests/test_native_parity.m",
+    "status": "retired_reversibly",
+    "bytes": 1770
+  },
+  {
+    "relative_path": "tests/test_steering_interface.m",
+    "status": "retired_reversibly",
+    "bytes": 1509
+  },
+  {
+    "relative_path": "results/comparison/comparison.fig",
+    "status": "retired_reversibly",
+    "bytes": 92338
+  },
+  {
+    "relative_path": "results/comparison/comparison.mat",
+    "status": "retired_reversibly",
+    "bytes": 1448
+  },
+  {
+    "relative_path": "results/comparison/comparison.png",
+    "status": "retired_reversibly",
+    "bytes": 192036
+  },
+  {
+    "relative_path": "results/comparison/control_effort.csv",
+    "status": "retired_reversibly",
+    "bytes": 266
+  },
+  {
+    "relative_path": "results/comparison/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 385
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/comparison.fig",
+    "status": "retired_reversibly",
+    "bytes": 95146
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/comparison.mat",
+    "status": "retired_reversibly",
+    "bytes": 1480
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/COMPARISON.md",
+    "status": "retired_reversibly",
+    "bytes": 1662
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/comparison.png",
+    "status": "retired_reversibly",
+    "bytes": 204932
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/comparison_cn.fig",
+    "status": "retired_reversibly",
+    "bytes": 99576
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/comparison_cn.pdf",
+    "status": "retired_reversibly",
+    "bytes": 54632
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/comparison_cn.png",
+    "status": "retired_reversibly",
+    "bytes": 422576
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 415
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 358
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/training_comparison.fig",
+    "status": "retired_reversibly",
+    "bytes": 35942
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/training_comparison.pdf",
+    "status": "retired_reversibly",
+    "bytes": 31782
+  },
+  {
+    "relative_path": "results/comparison_np40_nc12/training_comparison.png",
+    "status": "retired_reversibly",
+    "bytes": 199040
+  },
+  {
+    "relative_path": "results/crash_diagnosis/CRASH_ANALYSIS.md",
+    "status": "retired_reversibly",
+    "bytes": 3121
+  },
+  {
+    "relative_path": "results/crash_diagnosis/crash_signatures.txt",
+    "status": "retired_reversibly",
+    "bytes": 3419
+  },
+  {
+    "relative_path": "results/ddpg/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 202
+  },
+  {
+    "relative_path": "results/ddpg/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2560966
+  },
+  {
+    "relative_path": "results/ddpg/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93627
+  },
+  {
+    "relative_path": "results/ddpg/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 81136
+  },
+  {
+    "relative_path": "results/ddpg/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 150132
+  },
+  {
+    "relative_path": "results/ddpg_np40_nc12/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 213
+  },
+  {
+    "relative_path": "results/ddpg_np40_nc12/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2551655
+  },
+  {
+    "relative_path": "results/ddpg_np40_nc12/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93432
+  },
+  {
+    "relative_path": "results/ddpg_np40_nc12/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 85119
+  },
+  {
+    "relative_path": "results/ddpg_np40_nc12/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 149105
+  },
+  {
+    "relative_path": "results/drl_diagnosis/ablations_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 1558
+  },
+  {
+    "relative_path": "results/drl_diagnosis/carsim_python_rl.ini",
+    "status": "retired_reversibly",
+    "bytes": 1685
+  },
+  {
+    "relative_path": "results/drl_diagnosis/ddpg_learning_audit.csv",
+    "status": "retired_reversibly",
+    "bytes": 13949
+  },
+  {
+    "relative_path": "results/drl_diagnosis/ddpg_np40_nc12_reward_alignment.csv",
+    "status": "retired_reversibly",
+    "bytes": 4537
+  },
+  {
+    "relative_path": "results/drl_diagnosis/ddpg_np40_nc12_reward_terms.csv",
+    "status": "retired_reversibly",
+    "bytes": 28697
+  },
+  {
+    "relative_path": "results/drl_diagnosis/default.ini",
+    "status": "retired_reversibly",
+    "bytes": 2281
+  },
+  {
+    "relative_path": "results/drl_diagnosis/DIAGNOSIS.md",
+    "status": "retired_reversibly",
+    "bytes": 7274
+  },
+  {
+    "relative_path": "results/drl_diagnosis/diagnosis_120m.fig",
+    "status": "retired_reversibly",
+    "bytes": 65124
+  },
+  {
+    "relative_path": "results/drl_diagnosis/diagnosis_120m.pdf",
+    "status": "retired_reversibly",
+    "bytes": 47286
+  },
+  {
+    "relative_path": "results/drl_diagnosis/diagnosis_120m.png",
+    "status": "retired_reversibly",
+    "bytes": 427216
+  },
+  {
+    "relative_path": "results/drl_diagnosis/diagnosis_summary.json",
+    "status": "retired_reversibly",
+    "bytes": 425
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy10.ini",
+    "status": "retired_reversibly",
+    "bytes": 172
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy10_low_r.ini",
+    "status": "retired_reversibly",
+    "bytes": 172
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy10_low_r_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2532605
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy10_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2532286
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy15.ini",
+    "status": "retired_reversibly",
+    "bytes": 172
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy15_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2534122
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy2.ini",
+    "status": "retired_reversibly",
+    "bytes": 172
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy2_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2539400
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy5.ini",
+    "status": "retired_reversibly",
+    "bytes": 172
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy5_low_r.ini",
+    "status": "retired_reversibly",
+    "bytes": 172
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy5_low_r_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2533182
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_qy5_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2533396
+  },
+  {
+    "relative_path": "results/drl_diagnosis/extended_weights_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 738
+  },
+  {
+    "relative_path": "results/drl_diagnosis/feedforward_penalty_zero.ini",
+    "status": "retired_reversibly",
+    "bytes": 84
+  },
+  {
+    "relative_path": "results/drl_diagnosis/feedforward_penalty_zero_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2539954
+  },
+  {
+    "relative_path": "results/drl_diagnosis/fixed_np40_nc12_reward_terms.csv",
+    "status": "retired_reversibly",
+    "bytes": 25470
+  },
+  {
+    "relative_path": "results/drl_diagnosis/high_y_high_psi.ini",
+    "status": "retired_reversibly",
+    "bytes": 88
+  },
+  {
+    "relative_path": "results/drl_diagnosis/high_y_high_psi_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2541335
+  },
+  {
+    "relative_path": "results/drl_diagnosis/high_y_high_r.ini",
+    "status": "retired_reversibly",
+    "bytes": 88
+  },
+  {
+    "relative_path": "results/drl_diagnosis/high_y_high_r_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2541784
+  },
+  {
+    "relative_path": "results/drl_diagnosis/local_action_deadband.csv",
+    "status": "retired_reversibly",
+    "bytes": 36
+  },
+  {
+    "relative_path": "results/drl_diagnosis/metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 358
+  },
+  {
+    "relative_path": "results/drl_diagnosis/nominal.ini",
+    "status": "retired_reversibly",
+    "bytes": 88
+  },
+  {
+    "relative_path": "results/drl_diagnosis/nominal_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2543038
+  },
+  {
+    "relative_path": "results/drl_diagnosis/np12.ini",
+    "status": "retired_reversibly",
+    "bytes": 88
+  },
+  {
+    "relative_path": "results/drl_diagnosis/np12_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2562534
+  },
+  {
+    "relative_path": "results/drl_diagnosis/np32.ini",
+    "status": "retired_reversibly",
+    "bytes": 88
+  },
+  {
+    "relative_path": "results/drl_diagnosis/np32_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2544305
+  },
+  {
+    "relative_path": "results/drl_diagnosis/np50.ini",
+    "status": "retired_reversibly",
+    "bytes": 88
+  },
+  {
+    "relative_path": "results/drl_diagnosis/np50_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2541098
+  },
+  {
+    "relative_path": "results/drl_diagnosis/rate_change_half.ini",
+    "status": "retired_reversibly",
+    "bytes": 88
+  },
+  {
+    "relative_path": "results/drl_diagnosis/rate_change_half_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2541741
+  },
+  {
+    "relative_path": "results/drl_diagnosis/rate_change_tenth.ini",
+    "status": "retired_reversibly",
+    "bytes": 87
+  },
+  {
+    "relative_path": "results/drl_diagnosis/rate_change_tenth_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2544439
+  },
+  {
+    "relative_path": "results/drl_diagnosis/rate_change_zero.ini",
+    "status": "retired_reversibly",
+    "bytes": 83
+  },
+  {
+    "relative_path": "results/drl_diagnosis/rate_change_zero_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2554743
+  },
+  {
+    "relative_path": "results/drl_diagnosis/rate_tenth_and_tracking_corner.ini",
+    "status": "retired_reversibly",
+    "bytes": 87
+  },
+  {
+    "relative_path": "results/drl_diagnosis/rate_tenth_and_tracking_corner_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2544084
+  },
+  {
+    "relative_path": "results/drl_diagnosis/reward_decomposition_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 669
+  },
+  {
+    "relative_path": "results/drl_diagnosis/td3_learning_audit.csv",
+    "status": "retired_reversibly",
+    "bytes": 14147
+  },
+  {
+    "relative_path": "results/drl_diagnosis/td3_np40_nc12_reward_alignment.csv",
+    "status": "retired_reversibly",
+    "bytes": 4523
+  },
+  {
+    "relative_path": "results/drl_diagnosis/td3_np40_nc12_reward_terms.csv",
+    "status": "retired_reversibly",
+    "bytes": 27474
+  },
+  {
+    "relative_path": "results/drl_diagnosis/tracking_corner.ini",
+    "status": "retired_reversibly",
+    "bytes": 88
+  },
+  {
+    "relative_path": "results/drl_diagnosis/tracking_corner_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2541338
+  },
+  {
+    "relative_path": "results/fixed/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 203
+  },
+  {
+    "relative_path": "results/fixed/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2575514
+  },
+  {
+    "relative_path": "results/fixed/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93192
+  },
+  {
+    "relative_path": "results/fixed/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 79931
+  },
+  {
+    "relative_path": "results/fixed/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 146765
+  },
+  {
+    "relative_path": "results/fixed_np40_nc12/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 212
+  },
+  {
+    "relative_path": "results/fixed_np40_nc12/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2552654
+  },
+  {
+    "relative_path": "results/fixed_np40_nc12/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93530
+  },
+  {
+    "relative_path": "results/fixed_np40_nc12/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 82765
+  },
+  {
+    "relative_path": "results/fixed_np40_nc12/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 149017
+  },
+  {
+    "relative_path": "results/native_build/build.log",
+    "status": "retired_reversibly",
+    "bytes": 621
+  },
+  {
+    "relative_path": "results/native_build/build2.log",
+    "status": "retired_reversibly",
+    "bytes": 133
+  },
+  {
+    "relative_path": "results/native_build/campaign.log",
+    "status": "retired_reversibly",
+    "bytes": 213184
+  },
+  {
+    "relative_path": "results/native_build/cleanup_prepare.log",
+    "status": "retired_reversibly",
+    "bytes": 3727
+  },
+  {
+    "relative_path": "results/native_build/delivery.log",
+    "status": "retired_reversibly",
+    "bytes": 1083
+  },
+  {
+    "relative_path": "results/native_build/finalize.log",
+    "status": "retired_reversibly",
+    "bytes": 1233
+  },
+  {
+    "relative_path": "results/native_build/finalize2.log",
+    "status": "retired_reversibly",
+    "bytes": 3025
+  },
+  {
+    "relative_path": "results/native_build/matlab_build.log",
+    "status": "retired_reversibly",
+    "bytes": 656
+  },
+  {
+    "relative_path": "results/native_build/matlab_build2.log",
+    "status": "retired_reversibly",
+    "bytes": 516
+  },
+  {
+    "relative_path": "results/native_build/matlab_build3.log",
+    "status": "retired_reversibly",
+    "bytes": 778
+  },
+  {
+    "relative_path": "results/native_build/matlab_build4.log",
+    "status": "retired_reversibly",
+    "bytes": 311
+  },
+  {
+    "relative_path": "results/native_build/matlab_build5.log",
+    "status": "retired_reversibly",
+    "bytes": 25
+  },
+  {
+    "relative_path": "results/native_build/matlab_campaign.log",
+    "status": "retired_reversibly",
+    "bytes": 217695
+  },
+  {
+    "relative_path": "results/native_build/matlab_delivery.log",
+    "status": "retired_reversibly",
+    "bytes": 1067
+  },
+  {
+    "relative_path": "results/native_build/matlab_replay.log",
+    "status": "retired_reversibly",
+    "bytes": 956
+  },
+  {
+    "relative_path": "results/native_build/matlab_review.log",
+    "status": "retired_reversibly",
+    "bytes": 207
+  },
+  {
+    "relative_path": "results/native_build/matlab_review2.log",
+    "status": "retired_reversibly",
+    "bytes": 57
+  },
+  {
+    "relative_path": "results/native_build/mpc_diagnosis.log",
+    "status": "retired_reversibly",
+    "bytes": 1354
+  },
+  {
+    "relative_path": "results/native_build/mpc_diagnosis2.log",
+    "status": "retired_reversibly",
+    "bytes": 1354
+  },
+  {
+    "relative_path": "results/native_build/NativeEditingProbe.slx",
+    "status": "retired_reversibly",
+    "bytes": 84542
+  },
+  {
+    "relative_path": "results/native_build/probe.log",
+    "status": "retired_reversibly",
+    "bytes": 23
+  },
+  {
+    "relative_path": "results/native_build/verification.log",
+    "status": "retired_reversibly",
+    "bytes": 957
+  },
+  {
+    "relative_path": "results/native_build/verification2.log",
+    "status": "retired_reversibly",
+    "bytes": 2788
+  },
+  {
+    "relative_path": "results/observed_comparison/all_metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 485
+  },
+  {
+    "relative_path": "results/observed_comparison/checkpoint_check_120m.fig",
+    "status": "retired_reversibly",
+    "bytes": 34240
+  },
+  {
+    "relative_path": "results/observed_comparison/checkpoint_check_120m.png",
+    "status": "retired_reversibly",
+    "bytes": 169999
+  },
+  {
+    "relative_path": "results/observed_comparison/checkpoint_selection.json",
+    "status": "retired_reversibly",
+    "bytes": 606
+  },
+  {
+    "relative_path": "results/observed_comparison/COMPARISON.md",
+    "status": "retired_reversibly",
+    "bytes": 7986
+  },
+  {
+    "relative_path": "results/observed_comparison/comparison_120m.fig",
+    "status": "retired_reversibly",
+    "bytes": 59009
+  },
+  {
+    "relative_path": "results/observed_comparison/comparison_120m.png",
+    "status": "retired_reversibly",
+    "bytes": 257572
+  },
+  {
+    "relative_path": "results/observed_comparison/diagnostics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 532
+  },
+  {
+    "relative_path": "results/observed_comparison/matched_fixed_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2180216
+  },
+  {
+    "relative_path": "results/observed_comparison/metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 513
+  },
+  {
+    "relative_path": "results/observed_comparison/path_weights_120m.fig",
+    "status": "retired_reversibly",
+    "bytes": 55061
+  },
+  {
+    "relative_path": "results/observed_comparison/path_weights_120m.png",
+    "status": "retired_reversibly",
+    "bytes": 241123
+  },
+  {
+    "relative_path": "results/observed_comparison/provenance.mat",
+    "status": "retired_reversibly",
+    "bytes": 1364056
+  },
+  {
+    "relative_path": "results/observed_comparison/same_policy_lambda_zero_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2181194
+  },
+  {
+    "relative_path": "results/observed_comparison/selected_checkpoint_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2178914
+  },
+  {
+    "relative_path": "results/observed_comparison/td3_global_and_step_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2180476
+  },
+  {
+    "relative_path": "results/observed_comparison/training_300.fig",
+    "status": "retired_reversibly",
+    "bytes": 17018
+  },
+  {
+    "relative_path": "results/observed_comparison/training_300.png",
+    "status": "retired_reversibly",
+    "bytes": 89496
+  },
+  {
+    "relative_path": "results/observed_preview/fixed_metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 191
+  },
+  {
+    "relative_path": "results/observed_preview/fixed_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2179584
+  },
+  {
+    "relative_path": "results/observed_preview/metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 191
+  },
+  {
+    "relative_path": "results/observed_preview/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2179296
+  },
+  {
+    "relative_path": "results/observed_preview/selected_metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 194
+  },
+  {
+    "relative_path": "results/observed_preview/selected_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2178370
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent10.mat",
+    "status": "retired_reversibly",
+    "bytes": 20313551
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent100.mat",
+    "status": "retired_reversibly",
+    "bytes": 195853890
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent110.mat",
+    "status": "retired_reversibly",
+    "bytes": 215344286
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent120.mat",
+    "status": "retired_reversibly",
+    "bytes": 234841623
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent130.mat",
+    "status": "retired_reversibly",
+    "bytes": 254343450
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent140.mat",
+    "status": "retired_reversibly",
+    "bytes": 273857859
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent150.mat",
+    "status": "retired_reversibly",
+    "bytes": 293374776
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent160.mat",
+    "status": "retired_reversibly",
+    "bytes": 312882784
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent170.mat",
+    "status": "retired_reversibly",
+    "bytes": 332384592
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent180.mat",
+    "status": "retired_reversibly",
+    "bytes": 351881685
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent190.mat",
+    "status": "retired_reversibly",
+    "bytes": 371382105
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent20.mat",
+    "status": "retired_reversibly",
+    "bytes": 39837802
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent200.mat",
+    "status": "retired_reversibly",
+    "bytes": 390888848
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent210.mat",
+    "status": "retired_reversibly",
+    "bytes": 410388623
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent220.mat",
+    "status": "retired_reversibly",
+    "bytes": 429899530
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent230.mat",
+    "status": "retired_reversibly",
+    "bytes": 449406111
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent240.mat",
+    "status": "retired_reversibly",
+    "bytes": 468923240
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent250.mat",
+    "status": "retired_reversibly",
+    "bytes": 488439714
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent260.mat",
+    "status": "retired_reversibly",
+    "bytes": 507946371
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent270.mat",
+    "status": "retired_reversibly",
+    "bytes": 527444257
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent280.mat",
+    "status": "retired_reversibly",
+    "bytes": 546948331
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent290.mat",
+    "status": "retired_reversibly",
+    "bytes": 566457190
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent30.mat",
+    "status": "retired_reversibly",
+    "bytes": 59356083
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent300.mat",
+    "status": "retired_reversibly",
+    "bytes": 585964875
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent40.mat",
+    "status": "retired_reversibly",
+    "bytes": 78871432
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent50.mat",
+    "status": "retired_reversibly",
+    "bytes": 98376754
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent60.mat",
+    "status": "retired_reversibly",
+    "bytes": 117877314
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent70.mat",
+    "status": "retired_reversibly",
+    "bytes": 137376093
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent80.mat",
+    "status": "retired_reversibly",
+    "bytes": 156867251
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent90.mat",
+    "status": "retired_reversibly",
+    "bytes": 176357539
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 641769199
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/summary.json",
+    "status": "retired_reversibly",
+    "bytes": 248
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 7981
+  },
+  {
+    "relative_path": "results/observed_td3_ep300_seed42/training.log",
+    "status": "retired_reversibly",
+    "bytes": 213157
+  },
+  {
+    "relative_path": "results/observed_validation/acceptance.json",
+    "status": "retired_reversibly",
+    "bytes": 458
+  },
+  {
+    "relative_path": "results/observed_validation/delivery_manifest.json",
+    "status": "retired_reversibly",
+    "bytes": 5772
+  },
+  {
+    "relative_path": "results/observed_validation/final_audit.json",
+    "status": "retired_reversibly",
+    "bytes": 355
+  },
+  {
+    "relative_path": "results/observed_validation/fixed_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2179280
+  },
+  {
+    "relative_path": "results/observed_validation/metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 263
+  },
+  {
+    "relative_path": "results/observed_validation/model_overview.png",
+    "status": "retired_reversibly",
+    "bytes": 155740
+  },
+  {
+    "relative_path": "results/observed_validation/mpc_core.png",
+    "status": "retired_reversibly",
+    "bytes": 15399
+  },
+  {
+    "relative_path": "results/observed_validation/same_agent_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2179076
+  },
+  {
+    "relative_path": "results/observed_validation/scopes.png",
+    "status": "retired_reversibly",
+    "bytes": 61988
+  },
+  {
+    "relative_path": "results/observed_validation/USER_GUIDE.md",
+    "status": "retired_reversibly",
+    "bytes": 6335
+  },
+  {
+    "relative_path": "results/paper_checked_smoke_ep4_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 11675771
+  },
+  {
+    "relative_path": "results/paper_checked_smoke_ep4_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 122
+  },
+  {
+    "relative_path": "results/paper_checked_smoke_ep4_seed42/verification.json",
+    "status": "retired_reversibly",
+    "bytes": 138
+  },
+  {
+    "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 240
+  },
+  {
+    "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2596788
+  },
+  {
+    "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93376
+  },
+  {
+    "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 82510
+  },
+  {
+    "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 150783
+  },
+  {
+    "relative_path": "results/paper_fixed_adapted/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 212
+  },
+  {
+    "relative_path": "results/paper_fixed_adapted/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 836049
+  },
+  {
+    "relative_path": "results/paper_fixed_adapted/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 22876
+  },
+  {
+    "relative_path": "results/paper_fixed_adapted/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 53452
+  },
+  {
+    "relative_path": "results/paper_fixed_adapted/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 110641
+  },
+  {
+    "relative_path": "results/paper_fixed_final/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 216
+  },
+  {
+    "relative_path": "results/paper_fixed_final/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2610640
+  },
+  {
+    "relative_path": "results/paper_fixed_final/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93442
+  },
+  {
+    "relative_path": "results/paper_fixed_final/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 82689
+  },
+  {
+    "relative_path": "results/paper_fixed_final/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 146640
+  },
+  {
+    "relative_path": "results/paper_fixed_verified/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 219
+  },
+  {
+    "relative_path": "results/paper_fixed_verified/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2578364
+  },
+  {
+    "relative_path": "results/paper_fixed_verified/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93376
+  },
+  {
+    "relative_path": "results/paper_fixed_verified/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 82503
+  },
+  {
+    "relative_path": "results/paper_fixed_verified/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 146332
+  },
+  {
+    "relative_path": "results/paper_functional_smoke_ep4_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 11681393
+  },
+  {
+    "relative_path": "results/paper_functional_smoke_ep4_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 121
+  },
+  {
+    "relative_path": "results/paper_functional_smoke_ep4_seed42/verification.json",
+    "status": "retired_reversibly",
+    "bytes": 138
+  },
+  {
+    "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 240
+  },
+  {
+    "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2598943
+  },
+  {
+    "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93393
+  },
+  {
+    "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 83110
+  },
+  {
+    "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 150373
+  },
+  {
+    "relative_path": "results/paper_smoke_ep4_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 4608635
+  },
+  {
+    "relative_path": "results/paper_smoke_ep4_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 118
+  },
+  {
+    "relative_path": "results/paper_smoke_ep4_seed42/verification.json",
+    "status": "retired_reversibly",
+    "bytes": 251
+  },
+  {
+    "relative_path": "results/paper_smoke_ep4_seed42_evaluation/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 226
+  },
+  {
+    "relative_path": "results/paper_smoke_ep4_seed42_evaluation/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 836081
+  },
+  {
+    "relative_path": "results/paper_smoke_ep4_seed42_evaluation/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 22876
+  },
+  {
+    "relative_path": "results/paper_smoke_ep4_seed42_evaluation/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 53460
+  },
+  {
+    "relative_path": "results/paper_smoke_ep4_seed42_evaluation/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 113902
+  },
+  {
+    "relative_path": "results/paper_validation/delivery_sha256.json",
+    "status": "retired_reversibly",
+    "bytes": 816
+  },
+  {
+    "relative_path": "results/paper_validation/lambda_qp_probe.csv",
+    "status": "retired_reversibly",
+    "bytes": 210
+  },
+  {
+    "relative_path": "results/paper_validation/metrics_120m.csv",
+    "status": "retired_reversibly",
+    "bytes": 533
+  },
+  {
+    "relative_path": "results/paper_validation/PAPER_IMPLEMENTATION.md",
+    "status": "retired_reversibly",
+    "bytes": 6347
+  },
+  {
+    "relative_path": "results/paper_validation/validation.json",
+    "status": "retired_reversibly",
+    "bytes": 723
+  },
+  {
+    "relative_path": "results/paper_validation/verification_120m.fig",
+    "status": "retired_reversibly",
+    "bytes": 58379
+  },
+  {
+    "relative_path": "results/paper_validation/verification_120m.png",
+    "status": "retired_reversibly",
+    "bytes": 204838
+  },
+  {
+    "relative_path": "results/paper_verified_smoke_ep4_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 11753211
+  },
+  {
+    "relative_path": "results/paper_verified_smoke_ep4_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 120
+  },
+  {
+    "relative_path": "results/paper_verified_smoke_ep4_seed42/verification.json",
+    "status": "retired_reversibly",
+    "bytes": 138
+  },
+  {
+    "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 241
+  },
+  {
+    "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2612560
+  },
+  {
+    "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93409
+  },
+  {
+    "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 83230
+  },
+  {
+    "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 148253
+  },
+  {
+    "relative_path": "results/td3/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 202
+  },
+  {
+    "relative_path": "results/td3/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2555547
+  },
+  {
+    "relative_path": "results/td3/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93539
+  },
+  {
+    "relative_path": "results/td3/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 81182
+  },
+  {
+    "relative_path": "results/td3/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 147534
+  },
+  {
+    "relative_path": "results/td3_np40_nc12/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 212
+  },
+  {
+    "relative_path": "results/td3_np40_nc12/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2548768
+  },
+  {
+    "relative_path": "results/td3_np40_nc12/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93431
+  },
+  {
+    "relative_path": "results/td3_np40_nc12/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 84972
+  },
+  {
+    "relative_path": "results/td3_np40_nc12/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 149712
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 755536404
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/summary.json",
+    "status": "retired_reversibly",
+    "bytes": 239
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 7680
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/training.fig",
+    "status": "retired_reversibly",
+    "bytes": 10659
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/training.log",
+    "status": "retired_reversibly",
+    "bytes": 14300
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/training.png",
+    "status": "retired_reversibly",
+    "bytes": 34843
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 246
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2551719
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93432
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 85217
+  },
+  {
+    "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 154192
+  },
+  {
+    "relative_path": "results/training_ddpg_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 182008689
+  },
+  {
+    "relative_path": "results/training_ddpg_seed42/summary.json",
+    "status": "retired_reversibly",
+    "bytes": 239
+  },
+  {
+    "relative_path": "results/training_ddpg_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 12868
+  },
+  {
+    "relative_path": "results/training_ddpg_seed42/training.fig",
+    "status": "retired_reversibly",
+    "bytes": 12633
+  },
+  {
+    "relative_path": "results/training_ddpg_seed42/training.log",
+    "status": "retired_reversibly",
+    "bytes": 23846
+  },
+  {
+    "relative_path": "results/training_ddpg_seed42/training.png",
+    "status": "retired_reversibly",
+    "bytes": 32273
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 755546339
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42/summary.json",
+    "status": "retired_reversibly",
+    "bytes": 239
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 7672
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42/training.fig",
+    "status": "retired_reversibly",
+    "bytes": 10656
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42/training.log",
+    "status": "retired_reversibly",
+    "bytes": 14304
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42/training.png",
+    "status": "retired_reversibly",
+    "bytes": 36043
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/metrics.csv",
+    "status": "retired_reversibly",
+    "bytes": 245
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2548832
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/trace.csv",
+    "status": "retired_reversibly",
+    "bytes": 93431
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/tracking.fig",
+    "status": "retired_reversibly",
+    "bytes": 85089
+  },
+  {
+    "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/tracking.png",
+    "status": "retired_reversibly",
+    "bytes": 155515
+  },
+  {
+    "relative_path": "results/training_td3_seed42/final_agent.mat",
+    "status": "retired_reversibly",
+    "bytes": 182454207
+  },
+  {
+    "relative_path": "results/training_td3_seed42/summary.json",
+    "status": "retired_reversibly",
+    "bytes": 238
+  },
+  {
+    "relative_path": "results/training_td3_seed42/training.csv",
+    "status": "retired_reversibly",
+    "bytes": 12852
+  },
+  {
+    "relative_path": "results/training_td3_seed42/training.fig",
+    "status": "retired_reversibly",
+    "bytes": 12707
+  },
+  {
+    "relative_path": "results/training_td3_seed42/training.log",
+    "status": "retired_reversibly",
+    "bytes": 23818
+  },
+  {
+    "relative_path": "results/training_td3_seed42/training.png",
+    "status": "retired_reversibly",
+    "bytes": 36861
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent10.mat",
+    "status": "retired_reversibly",
+    "bytes": 20313880
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent100.mat",
+    "status": "retired_reversibly",
+    "bytes": 195853085
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent110.mat",
+    "status": "retired_reversibly",
+    "bytes": 215342504
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent120.mat",
+    "status": "retired_reversibly",
+    "bytes": 234846080
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent130.mat",
+    "status": "retired_reversibly",
+    "bytes": 254347998
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent140.mat",
+    "status": "retired_reversibly",
+    "bytes": 273862566
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent150.mat",
+    "status": "retired_reversibly",
+    "bytes": 293373975
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent170.mat",
+    "status": "retired_reversibly",
+    "bytes": 332383049
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent180.mat",
+    "status": "retired_reversibly",
+    "bytes": 351877131
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent190.mat",
+    "status": "retired_reversibly",
+    "bytes": 371377133
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent20.mat",
+    "status": "retired_reversibly",
+    "bytes": 39839056
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent200.mat",
+    "status": "retired_reversibly",
+    "bytes": 390880855
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent210.mat",
+    "status": "retired_reversibly",
+    "bytes": 410382586
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent220.mat",
+    "status": "retired_reversibly",
+    "bytes": 429890015
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent230.mat",
+    "status": "retired_reversibly",
+    "bytes": 449398951
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent240.mat",
+    "status": "retired_reversibly",
+    "bytes": 468908244
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent250.mat",
+    "status": "retired_reversibly",
+    "bytes": 488421664
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent260.mat",
+    "status": "retired_reversibly",
+    "bytes": 507931511
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent270.mat",
+    "status": "retired_reversibly",
+    "bytes": 527429244
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent280.mat",
+    "status": "retired_reversibly",
+    "bytes": 546929534
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent290.mat",
+    "status": "retired_reversibly",
+    "bytes": 566439119
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent30.mat",
+    "status": "retired_reversibly",
+    "bytes": 59355807
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent300.mat",
+    "status": "retired_reversibly",
+    "bytes": 585946126
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent40.mat",
+    "status": "retired_reversibly",
+    "bytes": 78871226
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent50.mat",
+    "status": "retired_reversibly",
+    "bytes": 98376891
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent60.mat",
+    "status": "retired_reversibly",
+    "bytes": 117875856
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent70.mat",
+    "status": "retired_reversibly",
+    "bytes": 137375933
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent80.mat",
+    "status": "retired_reversibly",
+    "bytes": 156867424
+  },
+  {
+    "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent90.mat",
+    "status": "retired_reversibly",
+    "bytes": 176358335
+  },
+  {
+    "relative_path": "results/adaptive_pipeline_parity.json",
+    "status": "retired_reversibly",
+    "bytes": 200
+  },
+  {
+    "relative_path": "results/adaptive_replay_original.csv",
+    "status": "retired_reversibly",
+    "bytes": 114348
+  },
+  {
+    "relative_path": "results/adaptive_replay_pipeline.csv",
+    "status": "retired_reversibly",
+    "bytes": 114348
+  },
+  {
+    "relative_path": "results/adaptive_replay_states.csv",
+    "status": "retired_reversibly",
+    "bytes": 81059
+  },
+  {
+    "relative_path": "results/build.log",
+    "status": "retired_reversibly",
+    "bytes": 0
+  },
+  {
+    "relative_path": "results/code_analysis.txt",
+    "status": "retired_reversibly",
+    "bytes": 4285
+  },
+  {
+    "relative_path": "results/current_configuration.json",
+    "status": "retired_reversibly",
+    "bytes": 411
+  },
+  {
+    "relative_path": "results/CURRENT_CONFIGURATION.md",
+    "status": "retired_reversibly",
+    "bytes": 1210
+  },
+  {
+    "relative_path": "results/delivery_sha256.json",
+    "status": "retired_reversibly",
+    "bytes": 9037
+  },
+  {
+    "relative_path": "results/execution.log",
+    "status": "retired_reversibly",
+    "bytes": 1168842
+  },
+  {
+    "relative_path": "results/forced_qp_failure_original.csv",
+    "status": "retired_reversibly",
+    "bytes": 114577
+  },
+  {
+    "relative_path": "results/forced_qp_failure_parity.json",
+    "status": "retired_reversibly",
+    "bytes": 109
+  },
+  {
+    "relative_path": "results/forced_qp_failure_pipeline.csv",
+    "status": "retired_reversibly",
+    "bytes": 114577
+  },
+  {
+    "relative_path": "results/initial_zero.mat",
+    "status": "retired_reversibly",
+    "bytes": 77170
+  },
+  {
+    "relative_path": "results/interface_units.txt",
+    "status": "retired_reversibly",
+    "bytes": 1252
+  },
+  {
+    "relative_path": "results/layout_spacing_audit.json",
+    "status": "retired_reversibly",
+    "bytes": 340
+  },
+  {
+    "relative_path": "results/mex_pipeline_failure_parity.csv",
+    "status": "retired_reversibly",
+    "bytes": 126
+  },
+  {
+    "relative_path": "results/mex_pipeline_failure_parity.mat",
+    "status": "retired_reversibly",
+    "bytes": 72008
+  },
+  {
+    "relative_path": "results/mex_pipeline_parity.csv",
+    "status": "retired_reversibly",
+    "bytes": 126
+  },
+  {
+    "relative_path": "results/mex_pipeline_parity.mat",
+    "status": "retired_reversibly",
+    "bytes": 72866
+  },
+  {
+    "relative_path": "results/model_overview.png",
+    "status": "retired_reversibly",
+    "bytes": 110462
+  },
+  {
+    "relative_path": "results/model_overview_np40_nc12.png",
+    "status": "retired_reversibly",
+    "bytes": 173672
+  },
+  {
+    "relative_path": "results/model_structure.txt",
+    "status": "retired_reversibly",
+    "bytes": 2805
+  },
+  {
+    "relative_path": "results/model_validation.json",
+    "status": "retired_reversibly",
+    "bytes": 237
+  },
+  {
+    "relative_path": "results/mpc_subsystem_np40_nc12.png",
+    "status": "retired_reversibly",
+    "bytes": 33936
+  },
+  {
+    "relative_path": "results/native_parity.csv",
+    "status": "retired_reversibly",
+    "bytes": 222
+  },
+  {
+    "relative_path": "results/native_parity.mat",
+    "status": "retired_reversibly",
+    "bytes": 72706
+  },
+  {
+    "relative_path": "results/paper_drl_subsystem.png",
+    "status": "retired_reversibly",
+    "bytes": 68771
+  },
+  {
+    "relative_path": "results/paper_model_overview.png",
+    "status": "retired_reversibly",
+    "bytes": 157777
+  },
+  {
+    "relative_path": "results/parity_original.csv",
+    "status": "retired_reversibly",
+    "bytes": 116046
+  },
+  {
+    "relative_path": "results/parity_states.csv",
+    "status": "retired_reversibly",
+    "bytes": 71436
+  },
+  {
+    "relative_path": "results/pipeline_original.csv",
+    "status": "retired_reversibly",
+    "bytes": 115588
+  },
+  {
+    "relative_path": "results/pipeline_staged.csv",
+    "status": "retired_reversibly",
+    "bytes": 115588
+  },
+  {
+    "relative_path": "results/plot_validation_120m.json",
+    "status": "retired_reversibly",
+    "bytes": 136
+  },
+  {
+    "relative_path": "results/reset_validation.mat",
+    "status": "retired_reversibly",
+    "bytes": 241
+  },
+  {
+    "relative_path": "results/source_audit.json",
+    "status": "retired_reversibly",
+    "bytes": 1037
+  },
+  {
+    "relative_path": "results/steering_+0.mat",
+    "status": "retired_reversibly",
+    "bytes": 1131446
+  },
+  {
+    "relative_path": "results/steering_+1.mat",
+    "status": "retired_reversibly",
+    "bytes": 271631
+  },
+  {
+    "relative_path": "results/steering_-1.mat",
+    "status": "retired_reversibly",
+    "bytes": 272184
+  },
+  {
+    "relative_path": "results/steering_authority.csv",
+    "status": "retired_reversibly",
+    "bytes": 361
+  },
+  {
+    "relative_path": "results/test_results.txt",
+    "status": "retired_reversibly",
+    "bytes": 376
+  },
+  {
+    "relative_path": "results/training_campaign_status.json",
+    "status": "retired_reversibly",
+    "bytes": 204
+  },
+  {
+    "relative_path": "results/VALIDATION.md",
+    "status": "retired_reversibly",
+    "bytes": 3950
+  },
+  {
+    "relative_path": "results/matlab_native_validation/matched_fixed_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2179876
+  },
+  {
+    "relative_path": "results/matlab_native_validation/matched_fixed_replay.mat",
+    "status": "retired_reversibly",
+    "bytes": 20578
+  },
+  {
+    "relative_path": "results/matlab_native_validation/same_policy_lambda_zero_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2180895
+  },
+  {
+    "relative_path": "results/matlab_native_validation/same_policy_lambda_zero_replay.mat",
+    "status": "retired_reversibly",
+    "bytes": 20823
+  },
+  {
+    "relative_path": "results/matlab_native_validation/selected_checkpoint_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2178509
+  },
+  {
+    "relative_path": "results/matlab_native_validation/selected_checkpoint_replay.mat",
+    "status": "retired_reversibly",
+    "bytes": 20675
+  },
+  {
+    "relative_path": "results/matlab_native_validation/td3_global_and_step_raw.mat",
+    "status": "retired_reversibly",
+    "bytes": 2180159
+  },
+  {
+    "relative_path": "results/matlab_native_validation/td3_global_and_step_replay.mat",
+    "status": "retired_reversibly",
+    "bytes": 20770
+  },
+  {
+    "relative_path": "build/cache/DRL_MPC.slxc",
+    "status": "retired_reversibly",
+    "bytes": 5869
+  },
+  {
+    "relative_path": "build/cache/DRL_MPC_Paper.slxc",
+    "status": "retired_reversibly",
+    "bytes": 5278
+  },
+  {
+    "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC/checksumOfCache.mat",
+    "status": "retired_reversibly",
+    "bytes": 392
+  },
+  {
+    "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC/tmwinternal/simulink_cache.xml",
+    "status": "retired_reversibly",
+    "bytes": 376
+  },
+  {
+    "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC/varInfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 3216
+  },
+  {
+    "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC_Paper/checksumOfCache.mat",
+    "status": "retired_reversibly",
+    "bytes": 392
+  },
+  {
+    "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC_Paper/tmwinternal/simulink_cache.xml",
+    "status": "retired_reversibly",
+    "bytes": 376
+  },
+  {
+    "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC_Paper/varInfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 3216
+  },
+  {
+    "relative_path": "build/carsim_plant.obj",
+    "status": "retired_reversibly",
+    "bytes": 1498946
+  },
+  {
+    "relative_path": "build/config.obj",
+    "status": "retired_reversibly",
+    "bytes": 963925
+  },
+  {
+    "relative_path": "build/DRL_MPC.slxc",
+    "status": "retired_reversibly",
+    "bytes": 5114
+  },
+  {
+    "relative_path": "build/initial_slprj/sim/varcache/DRL_MPC/checksumOfCache.mat",
+    "status": "retired_reversibly",
+    "bytes": 392
+  },
+  {
+    "relative_path": "build/initial_slprj/sim/varcache/DRL_MPC/tmwinternal/simulink_cache.xml",
+    "status": "retired_reversibly",
+    "bytes": 376
+  },
+  {
+    "relative_path": "build/initial_slprj/sim/varcache/DRL_MPC/varInfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 1392
+  },
+  {
+    "relative_path": "build/mpc.obj",
+    "status": "retired_reversibly",
+    "bytes": 340977
+  },
+  {
+    "relative_path": "build/mpc_mex.exp",
+    "status": "retired_reversibly",
+    "bytes": 713
+  },
+  {
+    "relative_path": "build/mpc_mex.lib",
+    "status": "retired_reversibly",
+    "bytes": 1888
+  },
+  {
+    "relative_path": "build/mpc_mex.mexw64",
+    "status": "retired_reversibly",
+    "bytes": 258560
+  },
+  {
+    "relative_path": "build/mpc_mex.obj",
+    "status": "retired_reversibly",
+    "bytes": 314336
+  },
+  {
+    "relative_path": "build/mpc_mex_next.mexw64",
+    "status": "retired_reversibly",
+    "bytes": 258560
+  },
+  {
+    "relative_path": "build/mpc_paper_mex.mexw64",
+    "status": "retired_reversibly",
+    "bytes": 259072
+  },
+  {
+    "relative_path": "build/mpc_pipeline.obj",
+    "status": "retired_reversibly",
+    "bytes": 391126
+  },
+  {
+    "relative_path": "build/paper_cache/DRL_MPC_Paper.slxc",
+    "status": "retired_reversibly",
+    "bytes": 5275
+  },
+  {
+    "relative_path": "build/paper_cache/DRL_MPC_Paper_Observed.slxc",
+    "status": "retired_reversibly",
+    "bytes": 5252
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/jitEngineAccessInfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 838
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sDonN1eQdudqn7EeQ1kqADD.l",
+    "status": "retired_reversibly",
+    "bytes": 11500
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sDonN1eQdudqn7EeQ1kqADD.mat",
+    "status": "retired_reversibly",
+    "bytes": 1288
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sDW4EC62f8BT4fl4tkLHFRD.l",
+    "status": "retired_reversibly",
+    "bytes": 10932
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sDW4EC62f8BT4fl4tkLHFRD.mat",
+    "status": "retired_reversibly",
+    "bytes": 1273
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sLoc3ACWMiidlJeUnZBN8fF.l",
+    "status": "retired_reversibly",
+    "bytes": 12932
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sLoc3ACWMiidlJeUnZBN8fF.mat",
+    "status": "retired_reversibly",
+    "bytes": 1300
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sxTKvd7KHBoxnw3vBS3qt9G.l",
+    "status": "retired_reversibly",
+    "bytes": 9068
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sxTKvd7KHBoxnw3vBS3qt9G.mat",
+    "status": "retired_reversibly",
+    "bytes": 1266
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sytQDnWXXsdaswzeYKjQEnH.l",
+    "status": "retired_reversibly",
+    "bytes": 11308
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_jitprj/sytQDnWXXsdaswzeYKjQEnH.mat",
+    "status": "retired_reversibly",
+    "bytes": 1292
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/DRL_MPC_Paper_Observed/_self/sfun/info/binfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 876
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/DRL_MPC_Paper_Observed/amsi_serial.mat",
+    "status": "retired_reversibly",
+    "bytes": 244
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/emlReportAccessInfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 838
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sDonN1eQdudqn7EeQ1kqADD.mat",
+    "status": "retired_reversibly",
+    "bytes": 84341
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sDW4EC62f8BT4fl4tkLHFRD.mat",
+    "status": "retired_reversibly",
+    "bytes": 89626
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sLoc3ACWMiidlJeUnZBN8fF.mat",
+    "status": "retired_reversibly",
+    "bytes": 55696
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sxTKvd7KHBoxnw3vBS3qt9G.mat",
+    "status": "retired_reversibly",
+    "bytes": 15906
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sytQDnWXXsdaswzeYKjQEnH.mat",
+    "status": "retired_reversibly",
+    "bytes": 84010
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/0LLRZi4yEUR1ZfTmzv1We.mat",
+    "status": "retired_reversibly",
+    "bytes": 859
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/1XWap5dvOEFfSzlvD5PBdB.mat",
+    "status": "retired_reversibly",
+    "bytes": 677
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/7K8PiGMktDLaipoPk8RulE.mat",
+    "status": "retired_reversibly",
+    "bytes": 678
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/aepQJl5GrE03frMKcNFWQG.mat",
+    "status": "retired_reversibly",
+    "bytes": 827
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/autoInferAccessInfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 997
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/F7hGBoCet16zZYefM39ns.mat",
+    "status": "retired_reversibly",
+    "bytes": 710
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/HxYBuiOFdXuSeXle2C47qG.mat",
+    "status": "retired_reversibly",
+    "bytes": 685
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/Rj4Ll6Zv6G71BZCdsCOzyC.mat",
+    "status": "retired_reversibly",
+    "bytes": 685
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/SuzwHCnwForsT5f9FuYCfH.mat",
+    "status": "retired_reversibly",
+    "bytes": 694
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/UewcAhdq8KjwABgKuyFr3E.mat",
+    "status": "retired_reversibly",
+    "bytes": 692
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/_sfprj/precompile/Y7CwpmhRGIpIOeq5uHTKeE.mat",
+    "status": "retired_reversibly",
+    "bytes": 710
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper/checksumOfCache.mat",
+    "status": "retired_reversibly",
+    "bytes": 392
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper/tmwinternal/simulink_cache.xml",
+    "status": "retired_reversibly",
+    "bytes": 376
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper/varInfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 3216
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper_Observed/checksumOfCache.mat",
+    "status": "retired_reversibly",
+    "bytes": 392
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper_Observed/tmwinternal/simulink_cache.xml",
+    "status": "retired_reversibly",
+    "bytes": 376
+  },
+  {
+    "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper_Observed/varInfo.mat",
+    "status": "retired_reversibly",
+    "bytes": 2848
+  },
+  {
+    "relative_path": "build/parity_original.exe",
+    "status": "retired_reversibly",
+    "bytes": 228352
+  },
+  {
+    "relative_path": "build/parity_original.obj",
+    "status": "retired_reversibly",
+    "bytes": 365321
+  },
+  {
+    "relative_path": "build/parity_pipeline.exe",
+    "status": "retired_reversibly",
+    "bytes": 230400
+  },
+  {
+    "relative_path": "build/reference.obj",
+    "status": "retired_reversibly",
+    "bytes": 298940
+  },
+  {
+    "relative_path": "build/rl.obj",
+    "status": "retired_reversibly",
+    "bytes": 90547
+  },
+  {
+    "relative_path": "build/vehicle.obj",
+    "status": "retired_reversibly",
+    "bytes": 404864
+  },
+  {
+    "relative_path": "utils/prepare_cleanup_fixtures.m",
+    "status": "retired_reversibly",
+    "bytes": 1031
+  },
+  {
+    "relative_path": "utils/cleanup_matlab_project.py",
+    "status": "retired_reversibly",
+    "bytes": 8706
+  }
+]

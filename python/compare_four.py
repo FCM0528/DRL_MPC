@@ -11,9 +11,9 @@ import numpy as np
 from algorithms import ALGORITHMS
 from evaluate import (DEFAULT_CONTROLLER, DEFAULT_FIXED_CONFIG, _episode, fixed_episode,
                       require_same_distance)
-from report import control_trace, render_fig5, render_paper_charts
+from report import control_trace, render_fig5, render_paper_charts, render_sensor_charts
 from scenario import (read_scenario, reference_bounds, resolve_config_value, resolve_simfile,
-                      snapshot_scenario)
+                      snapshot_config, snapshot_scenario, controller_policy_signature)
 
 COLORS = {"fixed_mpc": "#27538e", "ddpg": "#c13c38",
           "td3": "#13865c", "tqc": "#8b55a4"}
@@ -32,8 +32,8 @@ def comparison_limits(scenario, config, fixed_config, cuts):
     if end_station(config) != end:
         raise ValueError("Fixed MPC and DRL must use the same end station")
     limits = (start, *cuts, end)
-    if cuts and (not np.isfinite(limits).all() or
-                 any(left >= right for left, right in zip(limits, limits[1:]))):
+    if (not np.isfinite(limits).all() or
+            any(left >= right for left, right in zip(limits, limits[1:]))):
         raise ValueError(f"Segment cuts must increase between X={start:g} and X={end:g}")
     return limits
 
@@ -67,14 +67,35 @@ def compare_four(models, bridge, config, simfile, output, seed=42,
     paths = {key: Path(value).resolve(strict=True) for key, value in models.items()}
     agents = {key: ALGORITHMS[key].load(path, device="cpu") for key, path in paths.items()}
     scenario = read_scenario(simfile)
+    source_config = Path(config).resolve(strict=True)
+    source_fixed_config = Path(fixed_config).resolve(strict=True)
+    config = snapshot_config(source_config, output / "configs")
+    fixed_config = snapshot_config(source_fixed_config, output / "fixed_configs")
+    provenance = {}
+    for algorithm, path in paths.items():
+        manifest_path = next((parent / "manifest.json" for parent in path.parents
+                              if (parent / "manifest.json").is_file()), None)
+        if manifest_path is None:
+            provenance[algorithm] = {"contract_verified": False}
+            continue
+        training = json.loads(manifest_path.read_text(encoding="utf-8"))
+        saved_config = training.get("frozen_config")
+        verified = bool(saved_config and Path(saved_config).is_file())
+        if verified and controller_policy_signature(saved_config) != controller_policy_signature(config):
+            raise ValueError(f"{algorithm.upper()} control, observation or action settings differ from its "
+                             f"training config. Use {saved_config}")
+        provenance[algorithm] = {"training_manifest": str(manifest_path),
+                                 "episodes": training.get("episodes"), "seed": training.get("seed"),
+                                 "contract_verified": verified}
     limits = comparison_limits(scenario, config, fixed_config, segments)
     frozen = snapshot_scenario(scenario, output / "source_case")
     fixed_config = Path(fixed_config).resolve(strict=True)
     context = {"scenario": scenario, "config": str(Path(config).resolve()), "seed": seed,
+               "source_config": str(source_config), "source_fixed_config": str(source_fixed_config),
                "segment_cuts_m": list(segments),
                "fixed_config": str(fixed_config),
                "fixed_config_sha256": hashlib.sha256(fixed_config.read_bytes()).hexdigest(),
-               "models": {key: {"path": str(path),
+               "models": {key: {"path": str(path), **provenance[key],
                     "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
                           for key, path in paths.items()}}
     (output / "comparison_context.json").write_text(json.dumps(context, indent=2), encoding="utf-8")
@@ -101,11 +122,16 @@ def compare_four(models, bridge, config, simfile, output, seed=42,
     charts = [render_fig5(output, traces, LABELS, COLORS, bounds,
                           f"median {speed:.1f} km/h")]
     charts.append(render_paper_charts(output, traces, LABELS, COLORS, bounds))
+    sensor_chart = render_sensor_charts(output, traces, LABELS, COLORS, bounds)
+    if sensor_chart:
+        charts.append(sensor_chart)
 
     headings = [("controller", "控制器"), ("distance_m", "实际终点 X m"), ("failed", "失败"),
                 ("truncated", "截断"), ("mae_y_m", "横向 MAE m"), ("rmse_y_m", "横向 RMSE m"),
                 ("peak_y_m", "最大横向误差 m"), ("rmse_heading_deg", "航向 RMSE °"),
-                ("qp_failures", "QP 失败")]
+                ("qp_failures", "QP 失败"), ("peak_measured_ay_mps2", "实测侧向加速度峰值 m/s²"),
+                ("peak_measured_beta_deg", "实测侧偏角峰值 °"),
+                ("steer_tracking_rmse_deg", "实际轮角与指令差 RMSE °")]
     head = "".join(f"<th>{title}</th>" for _, title in headings)
     body = "".join("<tr>" + "".join(
         f"<td>{html.escape(str(round(row[key], 5) if isinstance(row[key], float) else row[key]))}</td>"
@@ -113,6 +139,9 @@ def compare_four(models, bridge, config, simfile, output, seed=42,
     links = " ｜ ".join(f'<a href="{html.escape(path.relative_to(output).as_posix())}">'
                        f'{LABELS[label]} C++ 详细报告</a>' for label, path in report_paths.items())
     pictures = "".join(f'<section><img src="{name}" alt="{name}"></section>' for name in charts)
+    training_note = "；".join(f"{key.upper()}：{value.get('episodes') or '未知'} 回合，"
+                             f"{'配置已核对' if value['contract_verified'] else '训练配置未核对'}"
+                             for key, value in provenance.items())
     phase_table = ""
     if segments:
         rows = segment_metrics(traces, limits, output)
@@ -138,6 +167,9 @@ th{{background:#e4eef8}}section{{margin:20px 0;padding:12px;background:white}}im
 <p>目标车速 {html.escape(str(scenario["target_speed_kmh"]))} km/h，种子 {seed}，设定终点 X = {distance:g} m。
 各控制器使用同一 CarSim 快照。固定 MPC 配置为 {html.escape(fixed_config.name)}。
 跟踪误差按控制后的状态样本统计。</p>
+<p>模型训练来源：{html.escape(training_note)}。本报告为保存模型在上述工况的确定性回放。</p>
+<p>新增实测信号用于侧偏、转向执行和运动学一致性诊断。指标 CSV 同时记录含旋转坐标项的加速度一致性、轮胎力平衡残差。
+驾驶员路径曲率与横向偏移目标轨迹曲率的差值用于区分两者含义，并非错误判据；空白表示未提供相应传感量。</p>
 <p>{links}</p><p><a href="four_controller_metrics.csv">指标 CSV</a> ｜
 <a href="comparison_context.json">工况和模型来源</a></p>
 <div style="overflow:auto"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>

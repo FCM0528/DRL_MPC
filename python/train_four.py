@@ -59,6 +59,7 @@ def main():
     frozen_train_config = root / "rl_training.ini"
     shutil.copy2(train_config, frozen_train_config)
     info = {"scenario": scenario, "seed": args.seed, "episodes_per_algorithm": args.episodes,
+            "training_data_source": "online_carsim_closed_loop",
             "model_selection": "final_models",
             "segment_cuts_m": args.segments,
             "fixed_config": str(fixed_config),
@@ -95,6 +96,8 @@ def main():
             if len(runs) != 1:
                 raise RuntimeError(f"Expected exactly one completed {algorithm.upper()} run in {output}")
             info["models"][algorithm] = str(runs[0] / "final_model.zip")
+            training_run = json.loads((runs[0] / "manifest.json").read_text(encoding="utf-8"))
+            info.setdefault("training_data", {})[algorithm] = training_run["training_data"]
             monitors[algorithm] = runs[0] / "train_monitor.csv"
             save()
             print(f"{algorithm.upper()} complete: {info['models'][algorithm]}", flush=True)

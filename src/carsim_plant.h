@@ -66,6 +66,12 @@ CarSimSteeringModel readCarSimSteeringModel(const std::filesystem::path& native_
 
 CarSimRunInfo readCarSimRunInfo(const std::filesystem::path& parsfile);
 
+// Echo uses display units for IMPORT arrays; vs_get_var_ptr uses SI units.
+// Validate steering names/modes/units even with a manually configured angle bound.
+// Uncontrolled imports retain their declared initial values.
+std::vector<double> readCarSimImports(const std::filesystem::path& native_dir,
+                                      const CarSimConfig& config, int count);
+
 // Resolve the generated Simfile's relative Parsfile and place solver outputs
 // under this experiment's output directory. The original CarSim files stay put.
 std::filesystem::path stageCarSimSimfile(const std::filesystem::path& source,
@@ -103,6 +109,8 @@ private:
     mutable std::vector<double> imports_;
     mutable std::vector<double> exports_;
     std::array<double*, 6> state_ptrs_{};
+    std::array<double*, 2> steering_ptrs_{};
+    std::array<double*, 4> telemetry_ptrs_{}; // Ax, Ay, Beta, Rho_Road, when exported
     std::array<double*, 4> lagged_slip_ptrs_{}; // front left/right, rear left/right
     std::array<double*, 4> tire_force_ptrs_{};
 

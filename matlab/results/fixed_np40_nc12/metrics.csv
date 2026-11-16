@@ -1,2 +1,0 @@
-controller,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,completed,end_x_m,end_time_s,samples
-fixed_np40_nc12,0.0825924627407953,0.2596388406921,0.0164811932899855,0,1,150.582048567275,7.84,197

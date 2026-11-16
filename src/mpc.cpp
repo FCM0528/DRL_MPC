@@ -17,13 +17,15 @@ LateralMpc::LateralMpc(const VehicleParameters& v,
                        const TireTable& tires)
     : vehicle_(v), p_(p), ref_(r), tires_(tires) {
     if (p.np < 2 || p.np > 150 || p.nc < 1 || p.nc > p.np ||
-        p.dt <= 0.0 || !std::isfinite(p.max_steer) || p.max_steer <= 0.0 ||
+        !std::isfinite(p.dt) || p.dt <= 0.0 || !std::isfinite(p.max_steer) || p.max_steer <= 0.0 ||
         !(p.max_steer_rate > 0.0) || (p.speed_rate_enabled && !std::isfinite(p.max_steer_rate)) ||
         !std::isfinite(p.speed_rate_start) || !std::isfinite(p.speed_rate_end) ||
         p.speed_rate_start < 0 || p.speed_rate_end <= p.speed_rate_start ||
         !std::isfinite(p.speed_rate_end_limit) || p.speed_rate_end_limit <= 0 ||
-        p.admm_rho <= 0.0 || p.admm_max_iterations <= 0 ||
-        p.admm_primal_tol <= 0.0 || p.admm_dual_tol <= 0.0 ||
+        !std::isfinite(p.admm_rho) || p.admm_rho <= 0.0 || p.admm_max_iterations <= 0 ||
+        !std::isfinite(p.admm_primal_tol) || p.admm_primal_tol <= 0.0 ||
+        !std::isfinite(p.admm_dual_tol) || p.admm_dual_tol <= 0.0 ||
+        !std::isfinite(p.terminal_scale) || p.terminal_scale <= 0.0 ||
         !std::isfinite(p.r_delta_change) || p.r_delta_change < 0.0 ||
         !std::isfinite(p.q_tire_slip) || p.q_tire_slip < 0.0 ||
         (p.q_tire_slip > 0.0 && !(p.front_relaxation_m > 0.0 && p.rear_relaxation_m > 0.0)) ||
@@ -33,6 +35,12 @@ LateralMpc::LateralMpc(const VehicleParameters& v,
         !std::isfinite(p.rear_relaxation_m) || p.rear_relaxation_m < 0.0 ||
         !std::isfinite(p.stage_weight_lambda) || std::abs(p.stage_weight_lambda) > 5.0)
         throw std::invalid_argument("Invalid MPC settings (require 1 <= Nc <= Np <= 150)");
+    for (double weight : {p.q_y, p.q_psi, p.q_vy, p.q_r, p.r_steer, p.r_delta})
+        if (!std::isfinite(weight) || weight < 0.0)
+            throw std::invalid_argument("MPC weights must be finite and nonnegative");
+    for (double physical : {v.mass, v.iz, v.a, v.b})
+        if (!std::isfinite(physical) || physical <= 0.0)
+            throw std::invalid_argument("MPC vehicle mass, inertia and axle distances must be positive and finite");
     if (!std::isfinite(v.road_grip_scale) || v.road_grip_scale <= 0.0)
         throw std::invalid_argument("Invalid road grip");
     current_steer_rate_ = p.max_steer_rate;
@@ -214,6 +222,7 @@ MpcResult LateralMpc::control(const VehicleState& plant, double prev, double pre
         return solve(plant, prev, previous_increment);
     } catch (const std::exception& e) {
         has_solution_ = false;
+        std::fill(last_solution_.begin(), last_solution_.end(), prev);
         MpcResult status;
         status.steer = prev;
         status.prediction_failure = e.what();
@@ -222,8 +231,10 @@ MpcResult LateralMpc::control(const VehicleState& plant, double prev, double pre
 }
 
 MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previous_increment) {
-    if (!std::isfinite(plant.vx) || !std::isfinite(plant.ax))
-        throw std::runtime_error("MPC requires finite vehicle speed and acceleration");
+    for (double value : {plant.x, plant.y, plant.psi, plant.vx, plant.vy,
+                         plant.r, plant.ax, plant.alpha_front, plant.alpha_rear, previous_increment})
+        if (!std::isfinite(value))
+            throw std::runtime_error("MPC requires finite vehicle state and previous steering increment");
     current_steer_rate_ = effectiveSteerRate(p_, plant.vx);
     precompute(plant, prev, std::clamp(plant.ax, -6.0, 6.0));
     const int np = p_.np, nc = p_.nc;

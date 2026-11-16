@@ -1,0 +1,16 @@
+{
+  "quadprog_used": true,
+  "qp_samples": 15,
+  "max_first_move_difference_rad": 2.0536947351046386E-9,
+  "max_relative_objective_gap": 2.3811132562712785E-15,
+  "max_constraint_violation_rad": 0,
+  "min_hessian_eigenvalue": 1.1415200795019909E+6,
+  "max_hessian_condition": 13657.883140014428,
+  "reference_peak_normal_accel_mps2": 10.198049652003146,
+  "reference_mu_g_exceed_fraction": 0.11490424646128226,
+  "static_tire_peak_accel_mps2": 7.6448954121350559,
+  "reference_static_tire_exceed_fraction": 0.12239800166527894,
+  "measured_peak_body_ay_mps2": 7.4188790015809385,
+  "max_rate_radps": null,
+  "steering_rate_limit_enabled": false
+}

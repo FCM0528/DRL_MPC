@@ -15,6 +15,8 @@ from scenario import reference_bounds
 def _trace(path):
     with Path(path).open(newline="", encoding="utf-8") as file:
         rows = list(csv.DictReader(file))
+    if not rows:
+        raise ValueError(f"No completed control samples in {path}; check the solver episode log")
     return {key: np.asarray([float(row[key]) for row in rows]) for key in rows[0]}
 
 
@@ -25,7 +27,7 @@ def control_trace(path):
         return data
     vx = data["vx_carsim_kmh"][1:] / 3.6
     vy = data["vy_carsim_kmh"][1:] / 3.6
-    return {"x_m": data["X_carsim_m"][1:], "y_m": data["Y_carsim_m"][1:],
+    result = {"x_m": data["X_carsim_m"][1:], "y_m": data["Y_carsim_m"][1:],
             "ey_m": data["ey_m"][1:], "vx_mps": vx, "vy_mps": vy,
             "psi_rad": np.deg2rad(data["psi_carsim_deg"][1:]),
             "epsi_rad": np.deg2rad(data["epsi_deg"][1:]),
@@ -35,6 +37,54 @@ def control_trace(path):
             "qp_failed": 1 - data["qp_converged"][:-1],
             "np": data["np"][:-1], "q_y": data["q_y_applied"][:-1],
             "q_psi": data["q_psi_applied"][:-1], "r_delta": data["r_delta_applied"][:-1]}
+    for key in ("time_s", "body_ax_mps2", "body_ay_mps2", "measured_beta_rad",
+                "driver_curvature_inv_m", "reference_curvature_inv_m", "front_lateral_force_n",
+                "rear_lateral_force_n", "front_lagged_slip_rad", "rear_lagged_slip_rad"):
+        if key in data:
+            result[key] = data[key][1:]
+    if {"front_left_wheel_steer_deg", "front_right_wheel_steer_deg"} <= data.keys():
+        result["actual_steer_rad"] = np.deg2rad(0.5 * (
+            data["front_left_wheel_steer_deg"][1:] + data["front_right_wheel_steer_deg"][1:]))
+    return result
+
+
+def render_sensor_charts(output, traces, labels, colors, bounds):
+    """Plot actual CarSim measurements independently of controller predictions."""
+    panels = (("Measured lateral acceleration", "body_ay_mps2", "a_y (m/s²)", 1.0),
+              ("Measured vehicle sideslip", "measured_beta_rad", "Beta (deg)", 180 / np.pi),
+              ("Actual minus commanded front angle", "steer_tracking_rad", "Angle difference (deg)", 180 / np.pi),
+              ("Driver curvature minus target curvature", "curvature_difference", "Curvature difference (1/m)", 1.0),
+              ("Measured front axle lateral force", "front_lateral_force_n", "F_y front (N)", 1.0),
+              ("Measured rear axle lateral force", "rear_lateral_force_n", "F_y rear (N)", 1.0))
+    measured = {}
+    for name, trace in traces.items():
+        data = dict(trace)
+        if "actual_steer_rad" in data:
+            data["steer_tracking_rad"] = data["actual_steer_rad"] - data["steer_rad"]
+        if {"driver_curvature_inv_m", "reference_curvature_inv_m"} <= data.keys():
+            data["curvature_difference"] = data["driver_curvature_inv_m"] - data["reference_curvature_inv_m"]
+        measured[name] = data
+    if not any(any(key in data and np.isfinite(data[key]).any() for _, key, _, _ in panels)
+               for data in measured.values()):
+        return None
+    fig, axes = plt.subplots(3, 2, figsize=(11, 11))
+    for ax, (title, key, unit, scale) in zip(axes.flat, panels):
+        for name, data in measured.items():
+            if key not in data:
+                continue
+            mask = reference_mask(data, bounds) & np.isfinite(data[key])
+            if mask.any():
+                ax.plot(data["x_m"][mask], data[key][mask] * scale,
+                        label=labels[name], color=colors[name], linewidth=1.4)
+        reference_axis(ax, bounds)
+        ax.set(xlabel="X (m)", ylabel=unit, title=title)
+        ax.grid(alpha=0.25)
+        if ax.lines:
+            ax.legend(fontsize=8)
+    fig.suptitle("CarSim measured states and physical diagnostics", fontsize=14)
+    filename = "carsim_sensor_diagnostics.svg"
+    _save(fig, Path(output) / filename)
+    return filename
 
 
 def fig5_trace(bridge_trace, data):

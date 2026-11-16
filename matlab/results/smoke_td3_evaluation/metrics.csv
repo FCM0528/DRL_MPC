@@ -1,2 +1,0 @@
-controller,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,completed,end_x_m,end_time_s,samples
-smoke_td3_evaluation,0.16492931769802,0.514895410461051,0.0280584774434476,0,1,150.655091392468,7.84,197

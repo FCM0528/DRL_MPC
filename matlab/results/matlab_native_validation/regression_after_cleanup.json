@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "reference": "saved native controller comparison runs",
+  "model": "DRL_MPC_MATLAB",
+  "state_steer_reward_max_difference": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0
+    ]
+  ],
+  "controller_mex_loaded": false,
+  "range_start_m": 0,
+  "range_end_m": 120
+}

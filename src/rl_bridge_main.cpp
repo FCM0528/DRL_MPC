@@ -106,6 +106,7 @@ public:
                  cfg_.mpc.max_steer > plant_->steeringModel().max_front_angle + 1e-12)
             throw std::invalid_argument("Configured angle exceeds the CarSim steering map range");
         state_ = plant_->initialState();
+        previous_steer_ = 0.5 * (state_.steer_front_left + state_.steer_front_right);
         if (state_.x >= cfg_.distance_m)
             throw std::invalid_argument("CarSim starts at or beyond the requested end station");
         vehicle_ = model_.vehicle;
@@ -121,7 +122,10 @@ public:
         trace_.open(dir_ / "bridge_trace.csv");
         if (!trace_) throw std::runtime_error("Cannot create bridge_trace.csv");
         trace_ << std::setprecision(17)
-               << "step,x_m,y_m,vx_mps,ey_m,epsi_rad,steer_rad,np,q_y,q_psi,r_delta,qp_failed,vy_mps,psi_rad,yaw_rate_radps,sideslip_rad\n";
+               << "step,x_m,y_m,vx_mps,ey_m,epsi_rad,steer_rad,np,q_y,q_psi,r_delta,qp_failed,vy_mps,psi_rad,yaw_rate_radps,sideslip_rad,"
+                  "time_s,body_ax_mps2,body_ay_mps2,measured_beta_rad,driver_curvature_inv_m,"
+                  "front_lateral_force_n,rear_lateral_force_n,actual_steer_rad,reference_curvature_inv_m,"
+                  "front_lagged_slip_rad,rear_lagged_slip_rad\n";
     }
 
     RoadPreviewObservation observation() const {
@@ -189,7 +193,7 @@ public:
                 const auto next = reference_->at(state_.x);
                 const double ey = state_.y - next.y;
                 const double epsi = angleDifference(state_.psi, next.psi);
-                const double sideslip = std::atan2(state_.vy, state_.vx);
+                const double sideslip = vehicleSideslip(state_);
                 auto row = recordSample(before, *reference_, time_, command, elapsed, true,
                                         !command.prediction_failure.empty(), current_,
                                         vehicle_.road_grip_scale, curvature_sigma_m);
@@ -211,7 +215,13 @@ public:
                        << ',' << current_.q_psi << ',' << current_.r_delta << ','
                        << (bad_qp ? 1 : 0)
                        << ',' << state_.vy << ',' << state_.psi << ',' << state_.r
-                       << ',' << sideslip << '\n';
+                       << ',' << sideslip << ',' << time_ << ',' << state_.body_ax
+                       << ',' << state_.body_ay << ',' << state_.measured_beta
+                       << ',' << state_.driver_curvature << ',' << state_.fy_front
+                       << ',' << state_.fy_rear << ','
+                       << 0.5 * (state_.steer_front_left + state_.steer_front_right)
+                       << ',' << next.curvature << ',' << state_.alpha_front
+                       << ',' << state_.alpha_rear << '\n';
             } catch (const std::exception& e) {
                 std::cerr << "BRIDGE_STEP_FAILURE " << e.what() << '\n';
                 failed = true;

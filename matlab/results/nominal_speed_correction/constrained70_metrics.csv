@@ -1,0 +1,2 @@
+controller,range_end_m,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,samples,reached_range,elapsed_s,min_speed_kmh,max_speed_kmh,distance_grid_rmse_m,max_abs_ay_mps2,max_ay_excess_mps2,max_beta_deg,max_slack
+constrained70,120,0.0614406982335654,0.184088009267035,0.0181179737675202,0,155,1,35.239611,69.6386356431193,70.1227031344743,0.0608023119793972,7.22431020207468,0,2.60522345773835,0.00792940739040871

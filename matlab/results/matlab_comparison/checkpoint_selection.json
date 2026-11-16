@@ -1,0 +1,21 @@
+{
+  "criterion": "maximum previous-10-episode mean training reward among saved checkpoints",
+  "episode": 160,
+  "training_mean_reward": -7496.7485319929647,
+  "checkpoint_file": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\results\\matlab_td3_ep300_seed42\\checkpoints\\Agent160.mat",
+  "model": "DRL_MPC_MATLAB",
+  "trained_with": "MATLAB/Simulink MPC",
+  "metrics": {
+    "controller": "native_td3_reward_selected",
+    "range_end_m": 120,
+    "lateral_rmse_m": 0.051562302377436094,
+    "max_abs_lateral_m": 0.13723722451716905,
+    "heading_rmse_rad": 0.019675113465032586,
+    "qp_failures": 0,
+    "samples": 155,
+    "reached_range": true,
+    "lateral_mae_m": 0.033824319198700846,
+    "heading_mae_rad": 0.011505404069152044,
+    "max_abs_front_command_deg": 10.785956746776668
+  }
+}

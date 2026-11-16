@@ -1,0 +1,51 @@
+{
+  "passed": true,
+  "model": "DRL_MPC_MATLAB",
+  "profile": 3,
+  "coordinated_case": true,
+  "np": 40,
+  "nc": 12,
+  "scopes": 10,
+  "external_sfunctions": [
+    "vs_sf"
+  ],
+  "native_controller_files": 30,
+  "controller_mex_loaded": false,
+  "max_front_slip_deg": 4.5778059149577635,
+  "front_slip_limit_deg": 8.36,
+  "max_rear_slip_deg": 5.848279379465623,
+  "rear_slip_limit_deg": 7.98,
+  "corrected_environment_training_episodes": 0,
+  "old_agent_applicability": "legacy prediction model only",
+  "additional_integral_observer_enabled": false,
+  "measured_force_residual_compensation_enabled": true,
+  "real_time_qualified": false,
+  "metrics": {
+    "controller": "constrained_planned",
+    "range_end_m": 120,
+    "lateral_rmse_m": 0.03534439245677817,
+    "max_abs_lateral_m": 0.11745896932011313,
+    "heading_rmse_rad": 0.017480905059373393,
+    "qp_failures": 0,
+    "samples": 171,
+    "reached_range": true,
+    "distance_grid_rmse_m": 0.033322632704832066,
+    "elapsed_s": 77.3656772,
+    "min_speed_kmh": 56.10486236688045,
+    "max_speed_kmh": 69.93529894705374,
+    "max_abs_ay_mps2": 6.782276293141339,
+    "max_ay_excess_mps2": 0,
+    "max_abs_beta_deg": 2.7774178897931483,
+    "max_slack": 0,
+    "max_reference_excess": 0.055245740680913036,
+    "max_steer_rate_deg_s": 12.839432852761231
+  },
+  "observer_gain": [
+    0.03,
+    0,
+    0.03
+  ],
+  "disturbance_prediction_decay_s": 0.08,
+  "applicability": "Historical reduced-speed experiment only; superseded for the user nominal-speed requirement.",
+  "superseded_by": "../nominal_speed_correction/acceptance.json"
+}

@@ -1,2 +1,0 @@
-controller,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,completed,end_x_m,end_time_s,samples
-training_ddpg_evaluation,0.084689530591654,0.223255111357031,0.0150647311219114,0,1,150.541660110344,7.84,197

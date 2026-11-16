@@ -165,6 +165,10 @@ double angleDifference(double a, double b) {
     return std::atan2(std::sin(a - b), std::cos(a - b));
 }
 
+double vehicleSideslip(const VehicleState& state) {
+    return std::isfinite(state.measured_beta) ? state.measured_beta : std::atan2(state.vy, state.vx);
+}
+
 // 车辆动力学模型的构造函数，检查参数合法性
 std::pair<double, double> staticWheelLoads(const VehicleParameters& p) {
     constexpr double gravity = 9.80665;

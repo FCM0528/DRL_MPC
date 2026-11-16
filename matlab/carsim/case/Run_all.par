@@ -25,7 +25,7 @@ OPT_INT_METHOD 2
 OPT_VS_FILETYPE 2
 ENTER_PARSFILE Models\Simulink\Simlink_932c9aac-89b5-434c-ab5a-c326fafdefae.par
 #FullDataName Models: Simulink`DRL-MPC`* FCM
-SIMULINK_MODEL_FILE C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\models\DRL_MPC.slx
+SIMULINK_MODEL_FILE C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\models\DRL_MPC_MATLAB.slx
 ENTER_PARSFILE IO_Channels\I_Channels\Import_efb52014-ecb4-4584-a899-1a5e97eb2bf2.par
 #FullDataName I/O Channels: Import`DRL-MPC`* FCM
 LOG_ENTRY Used Dataset: I/O Channels: Import; { * FCM } DRL-MPC

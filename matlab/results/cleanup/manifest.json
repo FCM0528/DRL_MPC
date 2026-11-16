@@ -1,0 +1,4140 @@
+{
+  "root": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab",
+  "archive": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\archives\\legacy_migration_20261113_211219.zip",
+  "archive_verified": true,
+  "archive_bytes": 2698125566,
+  "files_before": 752,
+  "bytes_before": 21541254994,
+  "protected": [
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\loadMatlabMpcParameters.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabAdmmQp.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabConstraintBounds.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabCostMatrices.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabGrip.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabMpcStep.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabNominalPrediction.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabOperatingPoint.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabPredictionReference.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabReference.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabReferencePreview.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabSteeringCommand.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabTireForce.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabVehicleModel.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\models\\DRL_MPC_MATLAB.slx",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\results\\matlab_td3_ep300_seed42\\checkpoints\\Agent160.mat",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\results\\matlab_td3_ep300_seed42\\final_agent.mat",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\tests\\fixtures\\controller_reference.mat"
+  ],
+  "files": [
+    {
+      "relative_path": "build_model.m",
+      "bytes": 6783,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "9bb25ec989ae8d4958effbc65e13b6415cad4e87f8b94e6ec93eafac52723986",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "compare_controllers.m",
+      "bytes": 2735,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "492c5c664b55a3f552cbabba643b5dbfec93064d45d55f04783fd94f70e4921d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "compare_observed_effect.m",
+      "bytes": 2397,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "84f75e385bb623ccd494e48c14c9e0e61e5f4de67de6104f7d4ef6801fc60b10",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "run_fixed_mpc.m",
+      "bytes": 415,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "3e208277511112170d5bb4385e3ca45c1e2c732a89e191a568edfc53517ab2a1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "run_training_campaign.m",
+      "bytes": 1398,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "a084bb3d9321c490a4eef5b6f5a36784d101cb992ecd420f4b9af2e6f2543e17",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "setup.m",
+      "bytes": 1272,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "322fb013d0ec244e584688f226320e1bf9ca80bc9e25faf95187c7e41d65f07d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "setup_paper.m",
+      "bytes": 1041,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "6b6d00dbaf6731600af921abdcb728f6871370c7dbaf1763020033312d6445b3",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "train_ddpg.m",
+      "bytes": 162,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "27f27773b4e83eeccfcdd745ab34c3e2c16b7855901146ef8029a9d1cc650dc4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "train_td3.m",
+      "bytes": 160,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "214c8970418db321af26fcc6b14e584f6892e8bf19de024f97f1a12fcdbdf62d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "train_observed_td3.m",
+      "bytes": 2025,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "acd7d1248a4488beb237c885382cae0c07a8c1380027ee0334d4bf49d86a4ef8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "train_paper_td3.m",
+      "bytes": 2280,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "5221446f2a5dfe08b7c39b6512163387b50eed23fde91d9c5256cf78a5950e93",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build_native.cmd",
+      "bytes": 883,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "5dd67723c7f5bb7956ac448ddf049a28068b6033dda0e30a85f0cbaabac46bf6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build_parity.cmd",
+      "bytes": 450,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "aa360382159596383cefbaf06b74ac028bc274eca4259698ebb3530f9b063b5a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build_pipeline_test.cmd",
+      "bytes": 591,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "9e7158d8dfee896f68fd3153d6a69e093e093ec5e80f2eda2d919993993da536",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "SOURCE_MAP.md",
+      "bytes": 3751,
+      "reason": "retired C++ adapter workflow",
+      "sha256": "d763cf69ea9a6f0b1c5741c144c56be13a1dcf85828f9ea22905eb901d23c687",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/carsim_plant.cpp",
+      "bytes": 42587,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "0b42dea9a34f1d6636fd9ea03980e22e7c18ab55354fdad9b2fc41383ffeb365",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/carsim_plant.h",
+      "bytes": 5272,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "ce2bb96d573f0987858c27cfb8d2f8ecb1702338cc495684f5cba688b563c356",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/config.cpp",
+      "bytes": 40400,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "cf3153b2b02e5c29cebb8dc3c19a47fdfea028295e70c1633173631bac2b6e7a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/config.h",
+      "bytes": 1408,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "27b5aca4d0066172859ac17fe6e28be4b9a19d62498f5a5c010d4a293fb301e1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/mpc.cpp",
+      "bytes": 19192,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "11f4170abcfb10ea8b5fa658a7d78e69a01a5bbba039099210e79ca488dd407c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/mpc.h",
+      "bytes": 4710,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "ad86c369f1a59d752401559e104f4f13e2a2e6055ec7ce9302b7126cdd552839",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/mpc_mex.cpp",
+      "bytes": 8146,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "28d685dc3828bb2243c525e01baf6d3335ef1de0e88049374fe7ab4510ea9c8c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/mpc_pipeline.cpp",
+      "bytes": 29533,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "1d4a5b60979e82723b34326fdd926a140edd9f7cec59aaa6ce00d8f564f98d49",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/mpc_pipeline.h",
+      "bytes": 3068,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "56a0db02ba21915c06f31a9926811cf6e9ce1d5a59d538d75431f8ccb18c7842",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/reference.cpp",
+      "bytes": 5620,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "da3f8456a2466c0a01f0c9fba260eb7e633ed12163ef1c33d32ff8ce809b78a2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/reference.h",
+      "bytes": 1036,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "72bd0a08611303e48abe2a08f48c449d447f6e721dbe1bafedb32a7516f5b384",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/rl.cpp",
+      "bytes": 14398,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "73a804517d7ae0d36f5ed3b1136ade2d492f31595f53c32411addb3edd8201cc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/rl.h",
+      "bytes": 4905,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "0687a712afea8de6feefad3368c50a5b714ef7da08802ddb39874789b9d54d4f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/vehicle.cpp",
+      "bytes": 16427,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "0f18cce464a1f80366acd8f5f4a57dd96f2ba4f196effe38b68a654dbf604e37",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "controllers/native/vehicle.h",
+      "bytes": 3716,
+      "reason": "retired controller source copy; original C++ project remains separate",
+      "sha256": "a68e4301a1167c457a18045314fcc6ee2fcf6e36642a9b1e537469569b00057d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison.fig",
+      "bytes": 92770,
+      "reason": "historical migration backups consolidated",
+      "sha256": "1685bb73efbea8e19fa9fc45b4a81720977ef8d2ca7d428d0759c9d5ac600d37",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/COMPARISON.md",
+      "bytes": 1541,
+      "reason": "historical migration backups consolidated",
+      "sha256": "5549d213383649204afb7d737100078348c43e0419b728c8a7819c6acd3d6919",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison.png",
+      "bytes": 198894,
+      "reason": "historical migration backups consolidated",
+      "sha256": "98157e3a405754553a601d853f21cbd288d22ac0c3ee5bcfc19a045af2c2adde",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison_cn.fig",
+      "bytes": 98863,
+      "reason": "historical migration backups consolidated",
+      "sha256": "0852eb9ffb7869d61c6ba2bc2542e58c2681dbe52d3382d9d57a1e5dbbd29d55",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison_cn.pdf",
+      "bytes": 58816,
+      "reason": "historical migration backups consolidated",
+      "sha256": "2db49821033417233ff77ea11e8f1ba83ea3e3f25b3a0463cc422d5f1d0186ca",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/comparison_cn.png",
+      "bytes": 404125,
+      "reason": "historical migration backups consolidated",
+      "sha256": "710fbb37bfe325dbc74670d60319559032a9338023c21d5bd5a0c4f3d2321b8b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/training_comparison.fig",
+      "bytes": 35944,
+      "reason": "historical migration backups consolidated",
+      "sha256": "b6f3f94ceff0e7e92edc6d4afabe356826e22cd1255a6e9f378683c8995faa0f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/training_comparison.pdf",
+      "bytes": 31782,
+      "reason": "historical migration backups consolidated",
+      "sha256": "24f97f5382bb55b3f81d4182bcf450d12ba1f74042c39247c33eda39941e8036",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/comparison_np40_nc12/training_comparison.png",
+      "bytes": 199040,
+      "reason": "historical migration backups consolidated",
+      "sha256": "24445ea2b9cde250c7d874dbce52a3f69eee3e043442b5ec7b1bd15cd164aea8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/ddpg_np40_nc12/tracking.fig",
+      "bytes": 81280,
+      "reason": "historical migration backups consolidated",
+      "sha256": "e084bbc4c5edfb29dce1dc1271f6f3e1de9fa7e685cc00fd7929bfe0169d576d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/ddpg_np40_nc12/tracking.png",
+      "bytes": 153311,
+      "reason": "historical migration backups consolidated",
+      "sha256": "3348c61be44c493ac48f6eff25156688cd49c7d84c872c62d05d0731c4026805",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/fixed_np40_nc12/tracking.fig",
+      "bytes": 80001,
+      "reason": "historical migration backups consolidated",
+      "sha256": "59550e7659006bdf7fcce216a82b405473c755abb66c8480ffebab5ffd49a552",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/fixed_np40_nc12/tracking.png",
+      "bytes": 151479,
+      "reason": "historical migration backups consolidated",
+      "sha256": "296b79d2b427da0cd25d4747d73ea3edb5a0762f4458d517251097183bd23505",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/td3_np40_nc12/tracking.fig",
+      "bytes": 81050,
+      "reason": "historical migration backups consolidated",
+      "sha256": "be0cb78bc9b0c89d7185fa6d68050fbe9deb250ac4258c4976df927898862bc8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/td3_np40_nc12/tracking.png",
+      "bytes": 152329,
+      "reason": "historical migration backups consolidated",
+      "sha256": "ceed78eb666fbd909fcf7f8466462d750acb36bcfe385eb6812ea6c23556ed6a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/training_ddpg_np40_nc12_ep300_seed42_evaluation/tracking.fig",
+      "bytes": 81291,
+      "reason": "historical migration backups consolidated",
+      "sha256": "2c59c449ba862473ae9b344be1098732695962ef41fd353597b5b26e2eae5bc2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/training_ddpg_np40_nc12_ep300_seed42_evaluation/tracking.png",
+      "bytes": 158731,
+      "reason": "historical migration backups consolidated",
+      "sha256": "0238225da0b11334b4c47c44c07cfa596ef78a0d9200c85dcf84bc1669419373",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/training_td3_np40_nc12_ep300_seed42_evaluation/tracking.fig",
+      "bytes": 81128,
+      "reason": "historical migration backups consolidated",
+      "sha256": "f46794c28ad536a8b076d3399c2a17d567c8cbf767da353d0462c8b0ef661abe",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_120m_figures_20261113_020514/training_td3_np40_nc12_ep300_seed42_evaluation/tracking.png",
+      "bytes": 158732,
+      "reason": "historical migration backups consolidated",
+      "sha256": "ed02580f85e4bbf440c4ee0d67b46addb282d929e16c8c4868a6386f7df9bbe0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_build_20261112_204244.slx",
+      "bytes": 88222,
+      "reason": "historical migration backups consolidated",
+      "sha256": "1bad230baedda63e9ea086d3b7ba41f20d95e353f9b27548fe00cb5ae10d3f3c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_build_20261112_204311.slx",
+      "bytes": 88222,
+      "reason": "historical migration backups consolidated",
+      "sha256": "1bad230baedda63e9ea086d3b7ba41f20d95e353f9b27548fe00cb5ae10d3f3c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_build_20261112_204644.slx",
+      "bytes": 88222,
+      "reason": "historical migration backups consolidated",
+      "sha256": "1bad230baedda63e9ea086d3b7ba41f20d95e353f9b27548fe00cb5ae10d3f3c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_final_layout_20261112_225938.slx",
+      "bytes": 195216,
+      "reason": "historical migration backups consolidated",
+      "sha256": "d629c4d18917736c743d92624d10569737991f1580c877b96ebe427b8fb54505",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_final_layout_20261112_230151.slx",
+      "bytes": 210152,
+      "reason": "historical migration backups consolidated",
+      "sha256": "f7849d6038b9c992c468cfbf6d928501cab16ea532e26fa71102d37a6b08c5e9",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_final_layout_20261112_232057.slx",
+      "bytes": 204179,
+      "reason": "historical migration backups consolidated",
+      "sha256": "0b5023332b4ae4e9679789af29bfd34159fc317c8d8b58f7318acb15b188dc0c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_light_truck_20261113_153029/DRL_MPC.slx",
+      "bytes": 228813,
+      "reason": "historical migration backups consolidated",
+      "sha256": "b62a1fe82d6df90fd20645eb5680ba398b1879b53cd72147727c6dbe4ebf98d1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_light_truck_20261113_153029/migration_sfun.m",
+      "bytes": 3497,
+      "reason": "historical migration backups consolidated",
+      "sha256": "406e30edd6294ae091fc76e3e00ce18f2d8fe3a8d65b8e87719c6c22481ebf21",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_light_truck_20261113_153029/mpc_mex.cpp",
+      "bytes": 7769,
+      "reason": "historical migration backups consolidated",
+      "sha256": "45e8ad84399a6b6cd927157fe5b69860e6e6aaed8f7b1fb7b5b237efc4581c45",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_light_truck_20261113_153029/mpc_mex.mexw64",
+      "bytes": 258560,
+      "reason": "historical migration backups consolidated",
+      "sha256": "1da27632c7d10caaf052bcccf8a85b2aeca3983c7047df38739b0ccad73aece7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_light_truck_20261113_153029/setup.m",
+      "bytes": 1272,
+      "reason": "historical migration backups consolidated",
+      "sha256": "322fb013d0ec244e584688f226320e1bf9ca80bc9e25faf95187c7e41d65f07d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_matlab_native/README_cpp_adapter.md",
+      "bytes": 11359,
+      "reason": "historical migration backups consolidated",
+      "sha256": "ed80451fc73c2638f7e230885f2a3c0b59b501cd9facce2b5f2fcc1305e9b19b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_native_scopes_20261113_164451/DRL_MPC_Paper.slx",
+      "bytes": 228242,
+      "reason": "historical migration backups consolidated",
+      "sha256": "f400b4290c88e46460d1483c9b640d6fa14288557b87c5f7b2031dc6d0c4ef60",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_native_scopes_20261113_164451/open_paper_model.m",
+      "bytes": 162,
+      "reason": "historical migration backups consolidated",
+      "sha256": "6eb3935f03f9090c27404494d1734685132fb20d444128254aa8501ae2bf6682",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_native_scopes_20261113_164451/train_paper_td3.m",
+      "bytes": 2280,
+      "reason": "historical migration backups consolidated",
+      "sha256": "5221446f2a5dfe08b7c39b6512163387b50eed23fde91d9c5256cf78a5950e93",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/configs/carsim_python_rl.ini",
+      "bytes": 1685,
+      "reason": "historical migration backups consolidated",
+      "sha256": "633d151d0e0c96c1db9af6e73d2cdc963e5df041b60871a2664df13b4c7034fa",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/configs/default.ini",
+      "bytes": 2297,
+      "reason": "historical migration backups consolidated",
+      "sha256": "6b25b001d905030c5243ef3ef7c67a89bb8f1b2e2a301bd2588ddacc5eaca6ff",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/configs/forced_qp_failure.ini",
+      "bytes": 1756,
+      "reason": "historical migration backups consolidated",
+      "sha256": "fa9e136396b6df7b43d3b715635bf5da7cb68bae174a4374f713049f61a4e290",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/configs/rl_training.ini",
+      "bytes": 1205,
+      "reason": "historical migration backups consolidated",
+      "sha256": "893aa9ac6f4082f9c5b2a39b37dc3362d47e8785dedbe91dfcebd72530951666",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/delivery_sha256.json",
+      "bytes": 300,
+      "reason": "historical migration backups consolidated",
+      "sha256": "1a59031b45df8299a5cea1f8992c3ad7a4c826a91ae2a59015dd9425b7030594",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/DRL_MPC.slx",
+      "bytes": 204596,
+      "reason": "historical migration backups consolidated",
+      "sha256": "9f270b1b4cef2da674be792d5b343b9495fa2565c9e90664ec15781b96861d6c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/mex_pipeline_failure_parity.csv",
+      "bytes": 126,
+      "reason": "historical migration backups consolidated",
+      "sha256": "3f93ed6855bbe5f9169869d9b05f19aa338e0e4e629f734f82a82a135662d2f8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/mex_pipeline_parity.csv",
+      "bytes": 126,
+      "reason": "historical migration backups consolidated",
+      "sha256": "3f93ed6855bbe5f9169869d9b05f19aa338e0e4e629f734f82a82a135662d2f8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/native_parity.csv",
+      "bytes": 222,
+      "reason": "historical migration backups consolidated",
+      "sha256": "daf0811a0f859b92fcaed9bfb8e98735730bbc9a1a823fbd36fe3f2174fe078f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/README.md",
+      "bytes": 7832,
+      "reason": "historical migration backups consolidated",
+      "sha256": "7366a2d04cab2df9fe359e40fab18d9816d8e3f57a5932c86f84332958142cf8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/reset_validation.mat",
+      "bytes": 241,
+      "reason": "historical migration backups consolidated",
+      "sha256": "f3999ec47ab08aabd057bbdba4454967aeab41c449563c375212bc5c11e99461",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/setup.m",
+      "bytes": 796,
+      "reason": "historical migration backups consolidated",
+      "sha256": "8e2bbe5c76e434537ed0343a00fec567d372eec29aa48f3b00f9a39c6bf66c27",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/test_results.txt",
+      "bytes": 376,
+      "reason": "historical migration backups consolidated",
+      "sha256": "b7e87f30513b976658947b5632778a135ac0ae877da3e4e067988ae290384f87",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_np40_nc12_300_20261112_234308/VALIDATION.md",
+      "bytes": 3809,
+      "reason": "historical migration backups consolidated",
+      "sha256": "cbb7790c4920d6507cca21fce991fa7e15cbb333cb1e2ccf41778d95227acb2d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_spacing_training300_20261113_002736/annotate_model_chinese.m",
+      "bytes": 5916,
+      "reason": "historical migration backups consolidated",
+      "sha256": "5b4d8a6cf9d6862f35d453ac3278367e451f735f1f39de6b14075e4148fba0c4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_spacing_training300_20261113_002736/DRL_MPC.slx",
+      "bytes": 230464,
+      "reason": "historical migration backups consolidated",
+      "sha256": "24715e11c08e11e010bc9d7c9ee2b227199d45eda57494f4165569b70d52f442",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_spacing_training300_20261113_002736/refine_main_view.m",
+      "bytes": 5547,
+      "reason": "historical migration backups consolidated",
+      "sha256": "112195f69ea1101ec8cc792e597836008cfeaf42a22cbbc366f1db66b4755f98",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/before_spacing_training300_20261113_002736/route_monitor_signals.m",
+      "bytes": 3317,
+      "reason": "historical migration backups consolidated",
+      "sha256": "4146e52789cccdb311aa5874f8fbdcdbc71b4731862bce1065fa30debbe0331d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/initial_20261112_202749/DRL_MPC.slx",
+      "bytes": 83469,
+      "reason": "historical migration backups consolidated",
+      "sha256": "922ab670741e8ca55aa7fede4f2dfd7b171b5192beb6386f19d5ed87a9cee815",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/initial_20261112_202749/git_status_before.txt",
+      "bytes": 12,
+      "reason": "historical migration backups consolidated",
+      "sha256": "0b412e5cf262be9814f3f07663410d8630c667b23214fcd7dee801aabadb7d4b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/initial_20261112_202749/model_sha256.txt",
+      "bytes": 185,
+      "reason": "historical migration backups consolidated",
+      "sha256": "1a24f3c5a31812aefb3769c3a082d65de996a5f520084236f6ee2ae6a0fab8fa",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/legacy_mpc_mex.mexw64",
+      "bytes": 230912,
+      "reason": "historical migration backups consolidated",
+      "sha256": "df04fdbf9628617acb7c6b1a7e57ce5ceb2e20b8fe94dbf4993f090ae0f065b1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/native_conversion_crash/DRL_MPC_Paper_Native.slx.disabled",
+      "bytes": 228242,
+      "reason": "historical migration backups consolidated",
+      "sha256": "f400b4290c88e46460d1483c9b640d6fa14288557b87c5f7b2031dc6d0c4ef60",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "backups/protected_src_hashes.json",
+      "bytes": 2785,
+      "reason": "historical migration backups consolidated",
+      "sha256": "b90d9e32b86e4327480f1d0826318882719afd165376b121f9cb89444355ed5c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "models/DRL_MPC.slx",
+      "bytes": 228813,
+      "reason": "historical model or autosave preserved in archive",
+      "sha256": "b62a1fe82d6df90fd20645eb5680ba398b1879b53cd72147727c6dbe4ebf98d1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "models/DRL_MPC.slx.autosave",
+      "bytes": 200751,
+      "reason": "historical model or autosave preserved in archive",
+      "sha256": "9c31c94cdbf1edd4b8603c60f0d4ba3f46a91968a4d278b798f3988d7e6f2841",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "models/DRL_MPC_Paper.slx",
+      "bytes": 227546,
+      "reason": "historical model or autosave preserved in archive",
+      "sha256": "64942826bfbf2f492ab942b612a7a155ff30f06e724fcc5b606c6397be61951f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "models/DRL_MPC_Paper_Observed.slx",
+      "bytes": 291790,
+      "reason": "historical model or autosave preserved in archive",
+      "sha256": "2ae71651521cd99e58f7d1c13c723332addc5d729acb5effd856606d00313923",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "configs/carsim_python_rl.ini",
+      "bytes": 1685,
+      "reason": "retired configuration",
+      "sha256": "7ca58885a4bd18f04baf511f175ee64cff2f204d784c243560afff107f7f90ee",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "configs/rl_training.ini",
+      "bytes": 1205,
+      "reason": "retired configuration",
+      "sha256": "bf8454aba5f2d5126e879a85cab5844172338a5ad96e963d711d02621bcac8a1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "configs/forced_qp_failure.ini",
+      "bytes": 1756,
+      "reason": "retired configuration",
+      "sha256": "923da0b1f4e7f34fb972197617bf0ec44c05a00bf2522380b4d588937613ff5e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "rl/add_rl_interface.m",
+      "bytes": 2186,
+      "reason": "retired agent dimension or C++ interface",
+      "sha256": "cb9b911dadf70ce246a2584160d8a224596295eb348cf5fe925edc2a5e8764e6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "rl/create_agent.m",
+      "bytes": 2712,
+      "reason": "retired agent dimension or C++ interface",
+      "sha256": "c698dc13f8acdbd8dec4b6b2a79123306ac9b06ce5686e7e310a3fdf2bef31b7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "rl/make_environment.m",
+      "bytes": 465,
+      "reason": "retired agent dimension or C++ interface",
+      "sha256": "aaf764a0f913cea30b2cd511c4867e2a283de0177376d5b551192fb519fa869a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "rl/paper_features.m",
+      "bytes": 354,
+      "reason": "retired agent dimension or C++ interface",
+      "sha256": "e6d907d5b01d8ed829ea88e6fb82aa5cb277e971fad00262c2b83108cbc04fc1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "rl/paper_map_action.m",
+      "bytes": 264,
+      "reason": "retired agent dimension or C++ interface",
+      "sha256": "b681a373432c57a2ecd05fbc9bec2150859f74e0c93ef2f57c6da05fda61377d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "rl/read_training_config.m",
+      "bytes": 483,
+      "reason": "retired agent dimension or C++ interface",
+      "sha256": "f6fe38f36498d7e10f6cd952524138ad99b68e5ba8f23e05fd4ad6e7c0146785",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "rl/train_controller.m",
+      "bytes": 2537,
+      "reason": "retired agent dimension or C++ interface",
+      "sha256": "210c2dd7f5483c54b35659900ef95df41f559fbffb29b13849003bf60df5f76e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/add_steering_test_mode.m",
+      "bytes": 1103,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "a363982d979670e77a0828314e30ce4eab53e80060c04df29aaa05ea1fe47864",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/annotate_model_chinese.m",
+      "bytes": 6027,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "cc794fff067b6a2336aa4a11fd590c5a70dc48bef071c8db5d5e3e484f47e694",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/apply_current_configuration.m",
+      "bytes": 1227,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "82ac78af4d7e499760ab21d7e3c92ceb56d8d8e50fa9c86ec0cb9816894272ce",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/archive_training_summary.m",
+      "bytes": 1615,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "d251c1c6caff684bb2d4bd10f87ce1278eda696d022b7f697b870aaf8ca3384c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/audit_sources.py",
+      "bytes": 1545,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "779ac84c8b1ed57640ce22763757f486bf017f2127ef5703e62d012d7eb063f8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/build_matlab_controller.m",
+      "bytes": 9508,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "093132c60f6a96ddccd493a4b88b3d5b19c5fc19bc8ce1d2dc9edf2da03e7437",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/build_observed_model.m",
+      "bytes": 6960,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "ff9c3d46e31e1b20abf23d2d78126340a26234eced3f11fc5a7308963d144b5e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/build_paper_model.m",
+      "bytes": 5248,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "00b075bcc662d697b0d22a03d0af35a3ced1a6f540c936d892b18954c24fce29",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/check_observed_checkpoint.m",
+      "bytes": 3343,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "97ba3290095bf3eefb8176cb07fafed3b2cd3bdf1bf1faf43eb41748e3c65a0b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/convert_paper_native.m",
+      "bytes": 5060,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "4f3daba0d7089533fee435ac7130ea4e84c5060465dace2b6171b74bda58f757",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/diagnose_drl.m",
+      "bytes": 4210,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "e564a57652437316eba4dd8e8e8b51026bf6ba4bd05b3f2112864f307e54a27a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/expand_controller_pipeline.m",
+      "bytes": 2434,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "d93dd0fe8fbaecd3db23a48d6461057ef38df742b27b26d12a37b2d9749fbaab",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/export_run.m",
+      "bytes": 2394,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "22652ba80a9b8a41b69eb4e24075bd47359c7134e7568ee441b9d021d997b1f5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/finalize_model.m",
+      "bytes": 4156,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "6c2bc4f56511964b107e609e97fdb16d2f2d1bbe711e8b922de78a78ca0bce89",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/finalize_observed_results.m",
+      "bytes": 4820,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "bf0abb2d72169fb6c5c7a0aeb2f52c744dc5c98056e6116942ebd92c99cf5c9f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/finish_observed_delivery.m",
+      "bytes": 1169,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "4dd94c42f1be149a7e0bfd7f47a9974a4d2b6a205d377440276c0705246d829c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/finish_paper_model.m",
+      "bytes": 2458,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "001f22937daef946c24e1c6fc0f48492b010a5949ae4cc6512e880b321ff0306",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/fix_local_spacing.m",
+      "bytes": 1000,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "80195dc0cf995f7c8b11b5c91ae7c9919c16062189427f16a575dbdf3b7fa36d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/generate_pipeline.py",
+      "bytes": 4000,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "f8fbc2fc5c031117566f73b768f8d25592aaf63f738349909ef2ab4050afa8d5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/layout_paper_drl.m",
+      "bytes": 3411,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "8cca5be84735a717c26322961b2db6663cf6e0481a8af2e8ae390e3a0f64fb10",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/matlab_com.ps1",
+      "bytes": 554,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "1d9a1727b2135c73087ad926d6a270f17a127709de18e2aaef325458fbaa3d59",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/migration_id.m",
+      "bytes": 511,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "603e8a0ca36059d162299f42d75594db2013e29f9886a41c67e10d6319c44763",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/migration_sfun.m",
+      "bytes": 3497,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "406e30edd6294ae091fc76e3e00ce18f2d8fe3a8d65b8e87719c6c22481ebf21",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/paper_core_sfun.m",
+      "bytes": 1160,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "4d66dccaf912bf969a42ea33922af3424e51a25042d4a9245b7ccb447305f136",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/paper_migration_sfun.m",
+      "bytes": 3665,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "980e55539357c4ee625e767d80bde8d62fbdc4993fa1fa704351f69b29151b3d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/plot_current_comparison.m",
+      "bytes": 7355,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "6b02b33087f31009171954809736998bbaea66e7682fd11bc7bcd57692504eb0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/plot_drl_diagnosis.m",
+      "bytes": 2939,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "ad4f2f7415a5309ec9d8765f2bbd503e5391e8c6aa4f81bd02f417f896a701a0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/plot_paper_verification.m",
+      "bytes": 2261,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "ef6befa3719d91f77d6680b5c9b76357ec7f35d3cfdf4370b0da05d06c360918",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/plot_station_limit.m",
+      "bytes": 132,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "23d135eca54f182a4da1a9a1685908704da3f5515249fdda913eb2f0a4cb1496",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/probe_native_editing.m",
+      "bytes": 825,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "ff003dc9b315395f50faea6ef3da2545272f66868e1bc6b27f93102c0c3f0408",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/read_mpc_settings.m",
+      "bytes": 923,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "16e15e3c8c290634827a2541cacf91bc8014575c4f1510cca40bb8e27a421d49",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/refine_drl_layout.m",
+      "bytes": 2942,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "0b47e6c6df7d303aa0f882cea3b78e6158b801e1377c970d6845e56ec83feff1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/refine_main_view.m",
+      "bytes": 5702,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "963906eca6b84417b61a3f6d6ac60f0b9abb6554c23552ca4fb60c7993988fd6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/refresh_120m_plots.m",
+      "bytes": 1054,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "c0dcf2529666659c1c3cc73d8ec7991d988988c163a93267e5c691e8676fab4a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/route_monitor_signals.m",
+      "bytes": 3324,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "0879daa8d453bb61c476cbbfb3066a9612e9e8702048a08a5d16a73fb44a813b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/run_drl_ablations.m",
+      "bytes": 2238,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "ab7de6734a358a8068084ee2abc845f05e8afb934d643d234fa21f71d0a0d08d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/run_extended_weight_probe.m",
+      "bytes": 1488,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "43a57350a97703bcdb8a4cff24af14a45132999a131ff5e762e3f22b541a6b92",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/run_observed_campaign.m",
+      "bytes": 506,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "72eed93f84e3abb77d330081f09b513e9b79ad4940e7b2428cc141768108225b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/stage_matlab_model.py",
+      "bytes": 1172,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "df39072006ee31a25dd9adc631da28756362a966353e910ab3575041625b248b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/test_pipeline_replay.py",
+      "bytes": 2685,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "be450bf0d05f537afd9b987c44e288b5cfd844db5592b6acd7d66895b548697b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/tidy_mpc_view.m",
+      "bytes": 1572,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "52d47629069679d3c1ae62c149328d816d338e4facbbc3412d6a4b843f5543bc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/tidy_observed_views.m",
+      "bytes": 3700,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "eccc10c6e0cb69cd12e21bd50acf0d258d371efb2a7510d7e9b07e4185df4dca",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/validate_paper_profile.m",
+      "bytes": 2392,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "0beb616c5a3551d0fe1bad6ee3f50fcac7c06713d9753a222c4ac9aa27cefac2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/verify_observed_model.m",
+      "bytes": 2796,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "aa0682ccc3730f6d23522cb283241d6cd6663550bff41851b40d6b47363519b8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/write_current_configuration_report.m",
+      "bytes": 3436,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "d35e2e4e326927c05af94e76724acbedf629d920bd9fe595c404730adfd0430f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/write_drl_diagnosis_report.py",
+      "bytes": 9386,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "bf0be72b5ba4f373c24a975a42f82503e3f6c8014a44bfda1695fb7bba4805da",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/write_validation.py",
+      "bytes": 5972,
+      "reason": "one-off migration/layout/build helper retired",
+      "sha256": "cfa235e3ac06487acf3ad1b7df7b616618e69c7a0e8a08f8de189f80030d299d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "tests/DRL_MPC.slxc",
+      "bytes": 5117,
+      "reason": "retired C++ adapter test; numerical fixtures retained",
+      "sha256": "770a452abc9c07cc888f98f7302d1b82f8f78cf578f779aacb99b73c1f24f069",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "tests/parity_original.cpp",
+      "bytes": 3622,
+      "reason": "retired C++ adapter test; numerical fixtures retained",
+      "sha256": "87a8abe269b6601014d4b50c56929b487ef263d493e744b62c04748e0226ae67",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "tests/run_all_tests.m",
+      "bytes": 1757,
+      "reason": "retired C++ adapter test; numerical fixtures retained",
+      "sha256": "c2c5f395af2d7e732b12c512ee0f32085272e46812f82b7890d3b50989a1381c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "tests/test_mex_pipeline.m",
+      "bytes": 1923,
+      "reason": "retired C++ adapter test; numerical fixtures retained",
+      "sha256": "781843eb1d5fc9aff26d9626c0b6a2e901132f8ae76b454d5804a47a94e377cf",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "tests/test_native_parity.m",
+      "bytes": 1770,
+      "reason": "retired C++ adapter test; numerical fixtures retained",
+      "sha256": "09bdbe24d5c9d20e582d6287342069a598ef12877ce407481a8735d7037d0f5c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "tests/test_steering_interface.m",
+      "bytes": 1509,
+      "reason": "retired C++ adapter test; numerical fixtures retained",
+      "sha256": "985a8ea9cb07d74b10f6756f9af5d463288a78c41f6f5b105825868472512c8b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison/comparison.fig",
+      "bytes": 92338,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5e4a37ca7089fbba483f9bafdb760d69049da5fd8484b0f7f0aab201cbf25695",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison/comparison.mat",
+      "bytes": 1448,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a1cfecab5196fd6767b2bd357ac16362f4383f8a0b7587b7fad0f489e1947fee",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison/comparison.png",
+      "bytes": 192036,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "dc8a35e863e16f89c14897099afe866bdef559c4e28f85f5efaec0fe4e1d0ce2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison/control_effort.csv",
+      "bytes": 266,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b1099cc186ba27294d7248250e2be8f251401bf334d92a743a7b1c4020fd104e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison/metrics.csv",
+      "bytes": 385,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "19f867c4c889db90b6529c6a6a861ef0a1b15b743000d80c8d9b48131be60a72",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/comparison.fig",
+      "bytes": 95146,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "86797b11cd942774eb7cfa103b4842123e7c9be0d3f71d6c4774f04b4ab7d776",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/comparison.mat",
+      "bytes": 1480,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "34d50d856c62e71e67976b0e483a865df33c8233a25879d2d816df5621dcfb95",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/COMPARISON.md",
+      "bytes": 1662,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "3c67e3afaf62cfbf4c97249cb4cde9b3d68f459b862ea29ba99cf93f802a1d6f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/comparison.png",
+      "bytes": 204932,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d60d24e0e63dc57a02dc7e0e1534b4658682c068b9a84d64796548862d7cc9d5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/comparison_cn.fig",
+      "bytes": 99576,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d0139b51223f44a9132941303e292afb16b8483253ca27ff426652b123db18fd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/comparison_cn.pdf",
+      "bytes": 54632,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a8579223c345d2f2e2b7c0e400844afcadfc92a20162408b191f5189e8a9862e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/comparison_cn.png",
+      "bytes": 422576,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "336067ced29e199586163dbe54113e068962fa1676e258fbac2d86a55491e226",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/metrics.csv",
+      "bytes": 415,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "cebc2728f5a2be3ae5d8a29671e8e9f63084309f08540c80b86e51350fe01fe2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/metrics_120m.csv",
+      "bytes": 358,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "52c74effa71d832cba74394c9e346b0f687594cdf6b5fad1a2f1c760006f9e53",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/training_comparison.fig",
+      "bytes": 35942,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "8eecf8d48c25b26e37a0848e45ec9b22f5d1b834e7940dd8337ebb9af93bdc49",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/training_comparison.pdf",
+      "bytes": 31782,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a23657f31d8eab4a60256a72603adf18cef2678e012ee9485c0c7c5e9378d65c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/comparison_np40_nc12/training_comparison.png",
+      "bytes": 199040,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b7705c25e2b4588a3db6f618369aa9222844ba42d35609bba06c2c432fe2c535",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/crash_diagnosis/CRASH_ANALYSIS.md",
+      "bytes": 3121,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4d638e589b52397fd7eb0fab638467eccc8a7384d214006a19b32ecc36bb77d5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/crash_diagnosis/crash_signatures.txt",
+      "bytes": 3419,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "658509e06795ad120cbdfa681aa427091b125cbed592ce39b337d5794124d054",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg/metrics.csv",
+      "bytes": 202,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a4e6006263eff930b9abdbc069fab5dc37ee43039d2d8e5f2ac24240742da0d2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg/raw.mat",
+      "bytes": 2560966,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "25fb52b8faa7be3dd19702091d149aa26b1f2fb649e2c53ad955c32f4d2d6911",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg/trace.csv",
+      "bytes": 93627,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5b04c16391fba09f4219af129736eedc11a368224cf9b93e1d7c48ae7ef3c022",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg/tracking.fig",
+      "bytes": 81136,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "6ee02dea23c016cf69f6f68748709701e18de6de0b93c541cb8c897a6625804a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg/tracking.png",
+      "bytes": 150132,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4af8fa5a7245c308a1610f778114a2ef74de98e81536824320ee99da03389518",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg_np40_nc12/metrics.csv",
+      "bytes": 213,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f91225752dd9eb093906d2f42cd9630e53c44d3767b73d034e068f624a9d6b8c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg_np40_nc12/raw.mat",
+      "bytes": 2551655,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "3e499eaa7c1b98912d76d241cb6a938ddc94b5db8c788e03f4c9a23353344549",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg_np40_nc12/trace.csv",
+      "bytes": 93432,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "529e03236f26f5a2fea5a00b70ecc96691b16cadde4635059d968c0b93fedc3a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg_np40_nc12/tracking.fig",
+      "bytes": 85119,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "02aa0faedf75696c03c0bcc1fa2a0f4d9da21502df2d57d414c3028651e0d68f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/ddpg_np40_nc12/tracking.png",
+      "bytes": 149105,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "01f9047dca3746746ea5e4fadbb2e5b03c5d6d60bf784697908e61d0fc19fe18",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/ablations_120m.csv",
+      "bytes": 1558,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "0df018bc1347c83f4c5d0e71abeabd30bc58154eced00c441fc0c499ed3d3f21",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/carsim_python_rl.ini",
+      "bytes": 1685,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7ca58885a4bd18f04baf511f175ee64cff2f204d784c243560afff107f7f90ee",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/ddpg_learning_audit.csv",
+      "bytes": 13949,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "e2252138d1a0f6ec4b3366764286463ca1c866b540128678b2e2b052724e4942",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/ddpg_np40_nc12_reward_alignment.csv",
+      "bytes": 4537,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "e6216679b61bf8384aedde3e7b3abcf522005398d9d82880508180ac74ef6c79",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/ddpg_np40_nc12_reward_terms.csv",
+      "bytes": 28697,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7a49c8f443cf2e8b9fca94a88e27ac3553410bbe873a8dc4f64066df7f1575d1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/default.ini",
+      "bytes": 2281,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "2b3dbee2a0caaae5020ee57c61ffff17545e3e0979ad5e98bf3bcfa735c250cb",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/DIAGNOSIS.md",
+      "bytes": 7274,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "da8c17fcd66d3dd6abc8bbd127163388938a60096437ad9084fe9ce2c8c2c0a0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/diagnosis_120m.fig",
+      "bytes": 65124,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a751889cff51113406a776e7787807b12bb0e7cfd44a09fa201c76d35800d407",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/diagnosis_120m.pdf",
+      "bytes": 47286,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d29cc61d8169515f16309097206f256a7b1a59d07f6817118a6401a119b52b35",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/diagnosis_120m.png",
+      "bytes": 427216,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "abbdc983c375234277aff04e94ad8a826454cb6fcd456c45fead90917b1d5538",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/diagnosis_summary.json",
+      "bytes": 425,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "79a064abdfe69d274b96afeb0fc805673f73277c54e6d6cb033e67739cb140e6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy10.ini",
+      "bytes": 172,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "af9f9793ed747e33e78f4036eac8858f9b3efe912cffa44df649f4607475d596",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy10_low_r.ini",
+      "bytes": 172,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "af9f9793ed747e33e78f4036eac8858f9b3efe912cffa44df649f4607475d596",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy10_low_r_raw.mat",
+      "bytes": 2532605,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4519859603d92dcb8a144f81925d096ae99d2911c7e6fe97a5bbb89e36a3a04c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy10_raw.mat",
+      "bytes": 2532286,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b171b6308b40ada6f43abad9de859f05923b2076ecf0190778135f74a44bba12",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy15.ini",
+      "bytes": 172,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "af9f9793ed747e33e78f4036eac8858f9b3efe912cffa44df649f4607475d596",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy15_raw.mat",
+      "bytes": 2534122,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "1c94cde49e85c290628e6543a51cb6a311f42ab77aae74c6140bf33d3d8ecd7e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy2.ini",
+      "bytes": 172,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "af9f9793ed747e33e78f4036eac8858f9b3efe912cffa44df649f4607475d596",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy2_raw.mat",
+      "bytes": 2539400,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "593df58a78825da18264e953e0215193cc8a117bffb7212921b7b4d5bc64c947",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy5.ini",
+      "bytes": 172,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "af9f9793ed747e33e78f4036eac8858f9b3efe912cffa44df649f4607475d596",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy5_low_r.ini",
+      "bytes": 172,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "af9f9793ed747e33e78f4036eac8858f9b3efe912cffa44df649f4607475d596",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy5_low_r_raw.mat",
+      "bytes": 2533182,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "915cb04d6b1c4f1939e27055cae11cf733bc719dcaa642288ff49d6c9cb20f67",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_qy5_raw.mat",
+      "bytes": 2533396,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "9a4883cff6a3b9ca5ae4aa731cc02c5bb2836eaa42eb8ff13c05eb142002f29d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/extended_weights_120m.csv",
+      "bytes": 738,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fa5fb8b25d2638720de874f60658e3a5d1376d535b70fc46fa3c24afa52aa7fc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/feedforward_penalty_zero.ini",
+      "bytes": 84,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4dfd6bedf96c6e83e7635d12fb53880efd3e1711e47cc62cfd8917f43a3ab5d8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/feedforward_penalty_zero_raw.mat",
+      "bytes": 2539954,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ffa909441ed29591208a946759d6e3c4c1028d0e74ded9184a51fc74c979da6f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/fixed_np40_nc12_reward_terms.csv",
+      "bytes": 25470,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f6d8e2a11987c40295a72ee57c3861e965f4d65b1589af9a45e849f10a2640f6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/high_y_high_psi.ini",
+      "bytes": 88,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "88c295db767abd642bf21155cf7a09d8e08fdd83a320e0e3f89e2acab499ce48",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/high_y_high_psi_raw.mat",
+      "bytes": 2541335,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "78470342cba2aae6d9a69c0af83da41766a8be7ff1451e785a9c6069047ed5d3",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/high_y_high_r.ini",
+      "bytes": 88,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "88c295db767abd642bf21155cf7a09d8e08fdd83a320e0e3f89e2acab499ce48",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/high_y_high_r_raw.mat",
+      "bytes": 2541784,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "95023cee5d2685b7e39a762fafb8cf63ecf465eb86b4fdebe1d31f1736e52d81",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/local_action_deadband.csv",
+      "bytes": 36,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "9fd9aa1c9efcef518a96c7cb730a1744b19fdaf38e2212ff57429d0f68e68a4a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/metrics_120m.csv",
+      "bytes": 358,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "52c74effa71d832cba74394c9e346b0f687594cdf6b5fad1a2f1c760006f9e53",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/nominal.ini",
+      "bytes": 88,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "88c295db767abd642bf21155cf7a09d8e08fdd83a320e0e3f89e2acab499ce48",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/nominal_raw.mat",
+      "bytes": 2543038,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7dfe784b4a10bc2d77880757c37bd5326b564365bb9b314f027890a7597122ec",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/np12.ini",
+      "bytes": 88,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "88c295db767abd642bf21155cf7a09d8e08fdd83a320e0e3f89e2acab499ce48",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/np12_raw.mat",
+      "bytes": 2562534,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ae723be31c8b88b3a6b8fe6a22667c642a92e0fbe5785f601f8ff36331c8b763",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/np32.ini",
+      "bytes": 88,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "88c295db767abd642bf21155cf7a09d8e08fdd83a320e0e3f89e2acab499ce48",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/np32_raw.mat",
+      "bytes": 2544305,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c1c8af1ccce2cb072830c7d1a3605a03eeabb91e0a009d5950ab9ceea26e05c3",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/np50.ini",
+      "bytes": 88,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "88c295db767abd642bf21155cf7a09d8e08fdd83a320e0e3f89e2acab499ce48",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/np50_raw.mat",
+      "bytes": 2541098,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ad6804b9e12b690133cc20a2f0957520ac22ef9e9f5c03fdb712a5ea1dae862b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/rate_change_half.ini",
+      "bytes": 88,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c822f452bc1d2045a6b65bb812ea2fba2c932062ec928278ac06e90a0a5fdab1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/rate_change_half_raw.mat",
+      "bytes": 2541741,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7dece9ed5c864e9018bd800c02b347b7c976cb7e69ac534f6c1c66c261c763fc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/rate_change_tenth.ini",
+      "bytes": 87,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "62f6981e35a1bbd6fc770c5c2023269c674ebeba1bd7a23c3746025b5d3927f9",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/rate_change_tenth_raw.mat",
+      "bytes": 2544439,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "30a71db7417eb4517ff22f46caa037b58c81f14a3c4aa14fd198d351a5a32baf",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/rate_change_zero.ini",
+      "bytes": 83,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "2920eded912c414061f94e757479b825fcfb2c18670dde5a80912e84808d065c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/rate_change_zero_raw.mat",
+      "bytes": 2554743,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "34af92dd7c26c036225f7f2d25a54067cdb3924885cb1248233599e1e882ebb1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/rate_tenth_and_tracking_corner.ini",
+      "bytes": 87,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "62f6981e35a1bbd6fc770c5c2023269c674ebeba1bd7a23c3746025b5d3927f9",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/rate_tenth_and_tracking_corner_raw.mat",
+      "bytes": 2544084,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ea95f8f20b971e22e6810726be7e4f79695e415bec095b7f9e0acbeadec09e7c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/reward_decomposition_120m.csv",
+      "bytes": 669,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c82f3de2f6cd8ca98810a1c3ff4fa2125de59ab0b9815e2994684d31b50fe5e4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/td3_learning_audit.csv",
+      "bytes": 14147,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5061c7b5ba4e66979ece1df665dad9ce5f685accf81d2b18c7bef2e200fa48c6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/td3_np40_nc12_reward_alignment.csv",
+      "bytes": 4523,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "31833b0bd3b8cb341801997304f33afcf1e4816e5f820d05d9176ee88a5031cc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/td3_np40_nc12_reward_terms.csv",
+      "bytes": 27474,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "355a96ff061b010cc7ac009155f9e7d2db8cf0f09fb65134d10120be153c86f0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/tracking_corner.ini",
+      "bytes": 88,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "88c295db767abd642bf21155cf7a09d8e08fdd83a320e0e3f89e2acab499ce48",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/drl_diagnosis/tracking_corner_raw.mat",
+      "bytes": 2541338,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f09cee57490e43a358236d0cd2b68a3165db35e79cc7d3a59083702f5a47e3cd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed/metrics.csv",
+      "bytes": 203,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "762905f5cc2f12819cd648df2603d1bffb360b6a89504488f5331a89b0466eb5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed/raw.mat",
+      "bytes": 2575514,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "3c25943a508a5287a8a4a4060228b6938d6a3338544ed29a55bd44f00e0580e2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed/trace.csv",
+      "bytes": 93192,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f17ba049700c72c899cdcdaee3ddc7cbe21ad34aab410d7edb6a741483d8f2bc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed/tracking.fig",
+      "bytes": 79931,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c91db3c977d7036d2d022f0c3198be8cf5402cb4e31d6068920575c6ae392f2b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed/tracking.png",
+      "bytes": 146765,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5afe391e65f9c80b39bc6894fef33b61afb782a80dd3a0a7783d810a2615e885",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed_np40_nc12/metrics.csv",
+      "bytes": 212,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "758bbbe6a91e6539cbd92e58ff7583ba53db1dfaf11d8b46d1d637bcf4ceeb72",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed_np40_nc12/raw.mat",
+      "bytes": 2552654,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "1bb56564c88c7f9a67da9c19182d5bab478749ff9a594226911e201c50cf79f8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed_np40_nc12/trace.csv",
+      "bytes": 93530,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "75d31e9b58ada24d1763ff767e71ee0ac13c92448f6d3574abca001c2dd63e63",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed_np40_nc12/tracking.fig",
+      "bytes": 82765,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "91b98ac1f808db6b29e3e3f5ada1cd5810baa6b85a5c1f8dd03f263e0788ebc3",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/fixed_np40_nc12/tracking.png",
+      "bytes": 149017,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "656806ab0bfe8accd011574e74139f96cdeb9e95476c7964668000272586b3bb",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/build.log",
+      "bytes": 621,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "bf7e10ee570c2393337e3b9c820db9cc2f8a93abafc742ae4a237946e26873eb",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/build2.log",
+      "bytes": 133,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f81f4294141363f459fcdbf60d74af078fc461c26bee6bd5902d3eff903c2f1c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/campaign.log",
+      "bytes": 213184,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4ac184c1bb7a9034ebdff35f7e3cf01dbfdf93363d09f31a0ac72f880756dfa9",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/cleanup_prepare.log",
+      "bytes": 3727,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "37b1aa9de4f8009eb1e54a19925e95bb86fed3af966ecbb81c9eb50f4bd7a823",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/delivery.log",
+      "bytes": 1083,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "81fbc1389903f06f2b45dddc1f034e70053fa9c3c65eb21efd106402d4d02b89",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/finalize.log",
+      "bytes": 1233,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "020ce357da0fe24de356cc4a2274a34a7f56b803d11c28e86a17d920ddebad2e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/finalize2.log",
+      "bytes": 3025,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a48ef612ac004ec2c87f7d178131f9d41892d5039c2df7e93f88b58dcd967971",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_build.log",
+      "bytes": 656,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f510dd1c0a22e3d2e9fa543f279ccf54986c51a62347726a9bc0e10efc320a96",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_build2.log",
+      "bytes": 516,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "6b42a35c4417b17cb974a675e2deb9fbdc1b54d2df1d400d429d2564b15fc784",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_build3.log",
+      "bytes": 778,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fd286edddec11f98c5cc53eaea8e5329e5d0b489d7b2c23e21804b8a3ed4c3f4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_build4.log",
+      "bytes": 311,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "991d7bf30253d1bd06e50dee77bee5b05f73c9f28761c950f95ad271b472cd97",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_build5.log",
+      "bytes": 25,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "37ee073eacec666b73a4ef8e2a7bc57d69f765122512ca047a97a7e1a14331d6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_campaign.log",
+      "bytes": 217695,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7ff932f8a1c2f62430ea7de2a0aa5902ee80cf7053dff6d39f8bc2a1cca2c6fb",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_delivery.log",
+      "bytes": 1067,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5d429a6478122bfb4aee90f271b4c8c1cc0cdef242bac3b4004d88e55a431fa2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_replay.log",
+      "bytes": 956,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "9a2e00c65d1fab3ec32a906aa07ab193fb564a3f1ba4d8b807a962f6119acde1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_review.log",
+      "bytes": 207,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "cf7f19ae47036a6f10d47fb6542354cf49794f68ebbc2e0cbf2ba192824960a5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/matlab_review2.log",
+      "bytes": 57,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "73143d9a99d11ac6ee32c170c7dac0c7dd9a9e2c8b5d1baa48f5f4c2dd319751",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/mpc_diagnosis.log",
+      "bytes": 1354,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ce21e6691a84dd96d5bfaa7ac56563aaa53bfbaaab55ba901c44f93b3d720c77",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/mpc_diagnosis2.log",
+      "bytes": 1354,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ce21e6691a84dd96d5bfaa7ac56563aaa53bfbaaab55ba901c44f93b3d720c77",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/NativeEditingProbe.slx",
+      "bytes": 84542,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5359ae4e3fe3529d2fcec00b181266ddf2f6dbf5ac4d2f2e99744ace4f350be1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/probe.log",
+      "bytes": 23,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b1b68dd636413fe46da0dae9a8b7ddaf2af9ccb0a100d2090b5e6009fa29dfcf",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/verification.log",
+      "bytes": 957,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "10e86bce0999948e4968c83a6f27390904840fd33cdaea35f0e8792ffd3fb401",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_build/verification2.log",
+      "bytes": 2788,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "162cacf17c30f46cceb87049e82ed2bd30b89e9fae23016c1d5059757e01da48",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/all_metrics_120m.csv",
+      "bytes": 485,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "db04351968b42dc03dbf5c1176d326ad9facd3413cc39637ed20cceb427be57e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/checkpoint_check_120m.fig",
+      "bytes": 34240,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "0a688ff422acae419d225c0124a9bd27c5c2386985e5bc6f27dec292e9ea9861",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/checkpoint_check_120m.png",
+      "bytes": 169999,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "40d656bc0ebf3209aed21cb1e7cd26ec1ed6deb08682661a8c1c706423a083fb",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/checkpoint_selection.json",
+      "bytes": 606,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "dd451f055817c5d1649de2a415d0f6e00cd0a6b8632071446571f92a7357bb63",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/COMPARISON.md",
+      "bytes": 7986,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a4b093a25f2bcab736ac9b0ab0624703f30175152f96681092eec186d63b408c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/comparison_120m.fig",
+      "bytes": 59009,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "60e5b131af103bd531c57c06e3b3b5b88e3a2a174e5dbde6a6ecead9c282254b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/comparison_120m.png",
+      "bytes": 257572,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "3f048904cf4c6973bfe22df93f6699a079427510dc1f0a3155767f929b375dbd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/diagnostics_120m.csv",
+      "bytes": 532,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "9e8e978a5d03fd35ca2054e5406a43b4ca043dd5ac4fae18f7cdb2d512051343",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/matched_fixed_raw.mat",
+      "bytes": 2180216,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d8e91d653693257315dcae80d3412a9ad03dac0e487c5856a7a69cd5bc7e67ca",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/metrics_120m.csv",
+      "bytes": 513,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b6730f42ccca4c4f2b07559dd5e17c558acbe7a637f65ac1e80ffc828929b771",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/path_weights_120m.fig",
+      "bytes": 55061,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "072a8c83bb0827e52d58de03d7248c677c19014ca0dff8bc0d8fe4970f607cf6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/path_weights_120m.png",
+      "bytes": 241123,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "18c779063ff8af97724b52b5528934ddc6a96b3039e261cfa536246df6616b26",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/provenance.mat",
+      "bytes": 1364056,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5bf21ae2130c00f63c73366e003fb3d9c073023d47859a6f816326f26460d4fa",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/same_policy_lambda_zero_raw.mat",
+      "bytes": 2181194,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d4388eaa7ef86fd6362c320690806df86d589af3ed18c6aab455b231bd4f4e1a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/selected_checkpoint_raw.mat",
+      "bytes": 2178914,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "8b6bfef6eb70baab6fad3a6e29a0046d1de5e25701831897ba35b9616bf7124c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/td3_global_and_step_raw.mat",
+      "bytes": 2180476,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5f2ed543c42f5db15852c9379a1c7c3122c1545ad72eeb6239a93d114fd11048",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/training_300.fig",
+      "bytes": 17018,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "cca87303bc94a89f9e059d5f1b58f38bb93baf80ad83abf03288de7083e0d3bd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_comparison/training_300.png",
+      "bytes": 89496,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "65fe944b0901bd6bd61e38152ea2e21ae1bbc4d92862a73892f716c53781c0a4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_preview/fixed_metrics_120m.csv",
+      "bytes": 191,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "bfa8ce51850099eb36d33ebf5004728a14500032e5850c6c42f5ce84eb55e78d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_preview/fixed_raw.mat",
+      "bytes": 2179584,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "da422742120f1d1ef58ea5096e399b9a16c8c8b281ebe07fa2784916698adb7c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_preview/metrics_120m.csv",
+      "bytes": 191,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "bfa8ce51850099eb36d33ebf5004728a14500032e5850c6c42f5ce84eb55e78d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_preview/raw.mat",
+      "bytes": 2179296,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5ab21614ef1602c62e20ac79eecba1603c38cef87eea60d7949109eb81eefb54",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_preview/selected_metrics_120m.csv",
+      "bytes": 194,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "9def5532d78d122c0dde242e8a0228e54a138148d271717f9f2a85138e2b61a3",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_preview/selected_raw.mat",
+      "bytes": 2178370,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "97f1ed213d7fd91d9a5306da5aeee9e00e19a2f656f5bf0527cfcfb070df1c95",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent10.mat",
+      "bytes": 20313551,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "24a83fa80ea7a9c19da949f3cb92ba56a0c438711d0a7a9278df0216f204b04d",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent100.mat",
+      "bytes": 195853890,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "5c6c94a7cf85cc1a2ad3770bac336c3a291e356b6e4759fcbfc96f9014cd1423",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent110.mat",
+      "bytes": 215344286,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "b9f3fbd2861340a075446ce330a80906eddff1aa91620151cdee713a57ff29c2",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent120.mat",
+      "bytes": 234841623,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "64fd99ff5b139a528b330ab29f4a1e0de2cc787b3c9ddea5af87995b90349ecd",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent130.mat",
+      "bytes": 254343450,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "9d7585ce95a4b77c8888d24d8983838572b1e20c9b48d7982eb9f03df7f79d2c",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent140.mat",
+      "bytes": 273857859,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "c151a3990adbc6e902e021cf17805cfed20e7c509028333257983ebcd040ecfa",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent150.mat",
+      "bytes": 293374776,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "76822654b4f14facc5566c243b6f618cfc8e948e437ee901da607a4b69851af0",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent160.mat",
+      "bytes": 312882784,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "36182ef5ba821027fd18b471a898a868956475bd31feff235033145043ca5f47",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent170.mat",
+      "bytes": 332384592,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "db7227dcda666dd998ad47782afc67c20ad07f7efc6bea71b0f3f7b6e5c27499",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent180.mat",
+      "bytes": 351881685,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "04c16613b057a2fe5e88e2007787c407dbcf4da7b05b2d93b98fd224e32dab1f",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent190.mat",
+      "bytes": 371382105,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "2b3affba929747bbc994b93af281e2a2841d385d7694f68d9d3d2d85e0b7dd87",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent20.mat",
+      "bytes": 39837802,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "f3a20bd4640aaae807f34a44296ec4403596380337b649ddc6632e3c478a4a80",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent200.mat",
+      "bytes": 390888848,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "21230cef90d3f20a969bbb826919150851a65e12ad51f9fd1b309ce1ca6fe6ec",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent210.mat",
+      "bytes": 410388623,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "284aa098506e9d428abb9c053c49e49a636a133f49b4341a2c87be144784de9a",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent220.mat",
+      "bytes": 429899530,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "cd117842c264037147bfcb92338e97e4ce9f24189a2ae7b12144b5d264371210",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent230.mat",
+      "bytes": 449406111,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "f3f4d6ae5840cdda7847c608a1caba9fec73610e53ddc076fde6bca695840eff",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent240.mat",
+      "bytes": 468923240,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "3a9f4058bab516d2060dcb0d50cb97a77f86e8e43ac0dff4008dcba0fcb149f9",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent250.mat",
+      "bytes": 488439714,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "11c6e093d8db652243760b14cd24065ea5d14021f2ce6ca652bbb2d9db98208b",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent260.mat",
+      "bytes": 507946371,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "6204dde9454a45852e680ca21f7fd94b042598a0d731590a63c7babcf19800d1",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent270.mat",
+      "bytes": 527444257,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "f51737c56fc3ebd8118562c654d5b32bfd0ddf3644a689d1ca1816d1cad9f976",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent280.mat",
+      "bytes": 546948331,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "afade8a24ee2aea6c88f48975a4fc651421dc4387746e612c49f79086e541448",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent290.mat",
+      "bytes": 566457190,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "25e8a49db20c7175291db1f5d0f0fc119a796926b99458610598e947111461b5",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent30.mat",
+      "bytes": 59356083,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "22312a2d66d01dd729988f5cb3a533debbac25b841a558d46887a82bf366de68",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent300.mat",
+      "bytes": 585964875,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "75966841d541d79223049b8848107865d181e7266984f039c78a4d5ee64a1017",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent40.mat",
+      "bytes": 78871432,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "db04b1c2c18e813f25da84881ec8b92c16ea481ffbded76d00ad018ce19d6bac",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent50.mat",
+      "bytes": 98376754,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "2597b5420dc980be37f3cbfa933501ff5f0bfe5104983b54d6571ec56e055a89",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent60.mat",
+      "bytes": 117877314,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "9650211c45f84f5ad6239d0303c75b9300fb15e4b608544a7aa1bf540608cd49",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent70.mat",
+      "bytes": 137376093,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "2ea5332b2c9ab50b84943a6e090442a71cfc6261d238497e1fbc1ad30a443bfa",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent80.mat",
+      "bytes": 156867251,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "bd1a17a860a9b86ca988629f96dda51b29c4868307c1e5089ac3f6078ddd3736",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/checkpoints/Agent90.mat",
+      "bytes": 176357539,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "ea0c1240d71e4e79ed7c40c6bf1b068ab5883321ce4df11b3cec1459ad1da48e",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/final_agent.mat",
+      "bytes": 641769199,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fc0a63cbfb706279ea219004f363694e5cb7246bbd4914598ceb2062c4ada9f6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/summary.json",
+      "bytes": 248,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7a5c967906cec64cca96f9cb9aeb930c34fa494cc2b67a57778ab3429c27300e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/training.csv",
+      "bytes": 7981,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7705663c791070cb6bb5983c2f4b9d35204b658aca90b4fe3d85d2fb910043b1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_td3_ep300_seed42/training.log",
+      "bytes": 213157,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f772af2512764bed39b1a143ec0fa647921da740cda68ebcb36c9fffe5f3dd37",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/acceptance.json",
+      "bytes": 458,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "0030f9ccc21bc4a9cb57354376798f0d0dc8218a2b8216f5f5c03b7d296087da",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/delivery_manifest.json",
+      "bytes": 5772,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d7a2b141b2f5418e23cbb2a4a6ce0c45667d5897236e4652844a1e3f8feee2f3",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/final_audit.json",
+      "bytes": 355,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b6494e690fe3a404a8cc702ac725f01f610610ec9301375178e38808fca2b0aa",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/fixed_raw.mat",
+      "bytes": 2179280,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7f8a65af3b8a9e00a6266591f353e75984785bf0cbb47460f4870611c3cf125f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/metrics_120m.csv",
+      "bytes": 263,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "cbfa44e050b2c0cf3ad1c84cace334acac34b230c86a8a62344b21a1da80db12",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/model_overview.png",
+      "bytes": 155740,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "638d5b9f3301973b0c1aa9a8a5f85603f604fc5560a50670dd09c81ce10d7f07",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/mpc_core.png",
+      "bytes": 15399,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fc80a5735a9a648e3b1be9f7b502f4db333adaed8921b0e3b5b3f5d92006937e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/same_agent_raw.mat",
+      "bytes": 2179076,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a3c588b8b8251a71eb8382fbad059ad72fbc1e29831ec7d59f2736c476d62a7e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/scopes.png",
+      "bytes": 61988,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "60ce93e9a21e2ec073e3b6f69eddc671f79eac2da6bb92275c6f4cc129105914",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/observed_validation/USER_GUIDE.md",
+      "bytes": 6335,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4cc8c643a85738b6063c2c415e24fe78f934817bea990d49c0f7d24b4518c45c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_checked_smoke_ep4_seed42/final_agent.mat",
+      "bytes": 11675771,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "02fcf5fa30c2f72560fb850c66d0c588d7a2050d924a373a64b34d433001773e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_checked_smoke_ep4_seed42/training.csv",
+      "bytes": 122,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "acca2b4a1d3bf26b8c7dc857f17fafd5ebf13ad81f752b2bbc9eb28b6d4930b0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_checked_smoke_ep4_seed42/verification.json",
+      "bytes": 138,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "480adf9fc938e08746a860868a773d1994a419619477fd1fe58fdc8187718378",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/metrics.csv",
+      "bytes": 240,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "9f8e9de88f073e6b9471875b57c67466aa90937f97d83f1ff5895eb787316ab4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/raw.mat",
+      "bytes": 2596788,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "bcb2383a6fa1a4c02dfa650e289a6fe2092e7f37337c50bac56080da35e541ec",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/trace.csv",
+      "bytes": 93376,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7261db704a005c9195a1629f7d6468206c842ffa322985ac8b2dfe4d436e2c20",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/tracking.fig",
+      "bytes": 82510,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c8b2a627de779a0f901d63782fa0b7450415e5e8fe7aba38ac66119b7ba4db90",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_checked_smoke_ep4_seed42_evaluation/tracking.png",
+      "bytes": 150783,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "af334398bea214c37c1a7ed2b366b79692bd034827dc7db4f15da5399002898c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_adapted/metrics.csv",
+      "bytes": 212,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fd032b8a8a6960155e0b7cb6541d058c56dfdd809d3cea91978e9b8f5bd15e14",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_adapted/raw.mat",
+      "bytes": 836049,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "9236b3eef1f3b38fe159545750f77cd0c58ad0708d4cabea71c2151e2e1fb040",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_adapted/trace.csv",
+      "bytes": 22876,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4253af64e2a2cf0957ba364b02595f5ecd3798493f6c184ad33d00dcfa42cc17",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_adapted/tracking.fig",
+      "bytes": 53452,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "80283c8e4002f16cf5d0e3d592d9abaccadf1e607b38fcfaea00d66d7e8a39e1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_adapted/tracking.png",
+      "bytes": 110641,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b68eafd8ff27fc68be23bafe8d156f015d6da29b2f849b5b598e4e0da649187d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_final/metrics.csv",
+      "bytes": 216,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "22ccd7d66f2941b773a380da40668c45262a2021b3b08c780c88ac67a6772cc8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_final/raw.mat",
+      "bytes": 2610640,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "414007db3ad45cfc42966cb3d0a559c2c0932feb40876cfdbcee71e298945441",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_final/trace.csv",
+      "bytes": 93442,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "8a33fa86d6560d2b5cece9e3432f2e4d436e2e7df2d0ccbc71976158dc1bde72",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_final/tracking.fig",
+      "bytes": 82689,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f3b2ed487a8cadc720c7864e5235b4eb532b498e54ce93ca5fd9db3f57029590",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_final/tracking.png",
+      "bytes": 146640,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d364b438cf9181d1cc5b1cbffa39f7c9517c2528121c472b7b0dce6fb3e07251",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_verified/metrics.csv",
+      "bytes": 219,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "77232719e63704d6c8743f210a7aca1d3f405dfae5d329e607fcc859d1716e4f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_verified/raw.mat",
+      "bytes": 2578364,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f5e1678ee2c475a53affb4e2fe1892b32667e2237babe72dea4601b38614ec6f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_verified/trace.csv",
+      "bytes": 93376,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7261db704a005c9195a1629f7d6468206c842ffa322985ac8b2dfe4d436e2c20",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_verified/tracking.fig",
+      "bytes": 82503,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "30b3c1832a82a4180928810a42427344c523ae95909fa54514f0384e8eaaa78a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_fixed_verified/tracking.png",
+      "bytes": 146332,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "bf5c46ba4bdc5f28c2c43e0cb7c2348d9a27da2fb25cbb6290f9991a5e88c0f1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_functional_smoke_ep4_seed42/final_agent.mat",
+      "bytes": 11681393,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "3f59b6c827ef1c217476dfc0d7db1057d420d46955f4c4cf7d1cff570be54c81",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_functional_smoke_ep4_seed42/training.csv",
+      "bytes": 121,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "e22c12f486f273ae037df77948dae7b7098ec3c48185f02759cd6db9ea922fd7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_functional_smoke_ep4_seed42/verification.json",
+      "bytes": 138,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b930c24981f9267b078b0efe52c870d568899232e451feae750da66e0a3655bd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/metrics.csv",
+      "bytes": 240,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "48211b1e1aaf90b84628a3cec8a50cc3a57e765ed7c746593d60ea16b2c95747",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/raw.mat",
+      "bytes": 2598943,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "251d79d1fa9f2d392d3f3bb2714d1370196ac98bb9502bbc07b193c820f6de57",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/trace.csv",
+      "bytes": 93393,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b370e286c74330763e9e4c35233ebadaa290ed4be7c43ce364361d94c1598178",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/tracking.fig",
+      "bytes": 83110,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "51b453ecd44264377bc5a1caec39e61cbddad228e17521948fb888d84b7c10ba",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_functional_smoke_ep4_seed42_evaluation/tracking.png",
+      "bytes": 150373,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7820d1a3be4668a9998f7dfb25a19eb19688c4bfa30944a8d67a3fe37b40473a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_smoke_ep4_seed42/final_agent.mat",
+      "bytes": 4608635,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "493166c6de3d547bae89a85e29f7c39b62762c863c0cf64c6153ecff3598d118",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_smoke_ep4_seed42/training.csv",
+      "bytes": 118,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f035a9cee0ea6e930de707f0eba65fb7de798c3a8529143cf93a9111eb261e6b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_smoke_ep4_seed42/verification.json",
+      "bytes": 251,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d9c312c2ec364190ca16b2ceaab41d1171767106b23b9fb613ea16a7cc6f466c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_smoke_ep4_seed42_evaluation/metrics.csv",
+      "bytes": 226,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d115e8e6c2081fa4ac191047c6c08e365ed719363ea5070aa9b1b8168ee4240b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_smoke_ep4_seed42_evaluation/raw.mat",
+      "bytes": 836081,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "56b9a04a350ccf76f7872cdd9ab51f0d3be6dde3f114d70deed546e57a6c8631",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_smoke_ep4_seed42_evaluation/trace.csv",
+      "bytes": 22876,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4253af64e2a2cf0957ba364b02595f5ecd3798493f6c184ad33d00dcfa42cc17",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_smoke_ep4_seed42_evaluation/tracking.fig",
+      "bytes": 53460,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fef5ccd763865cbb83ed87f3b5d0f299442f7df7bcd9877117002e9f6b7a5699",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_smoke_ep4_seed42_evaluation/tracking.png",
+      "bytes": 113902,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "bee7e3c61a244e0bbead63a9a4c3a68c1f4aa5b3a78efc3a4927a43ddd187e1d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_validation/delivery_sha256.json",
+      "bytes": 816,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "e7f98b87af6ea3ce8561a44ca9a4d699ba4561fa71a232252e137a7f79cbb7aa",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_validation/lambda_qp_probe.csv",
+      "bytes": 210,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d3f23880a8cfa38840a67c9d504dbcd39756fd9baa181c904c45171d2e6dbe28",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_validation/metrics_120m.csv",
+      "bytes": 533,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "6657ea8cd6161d99077e876da7ab602f7e785f44a24b98bcec30bf58f4e98c28",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_validation/PAPER_IMPLEMENTATION.md",
+      "bytes": 6347,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4249fd81da5de14fb30935301288dc4d0b567e15a94a3878fcc8379806e4606b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_validation/validation.json",
+      "bytes": 723,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a374a7dcd60f6b2e3ab7fb6e9d59590c30d4b7a3a79e9c604cfb8e3de0847b37",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_validation/verification_120m.fig",
+      "bytes": 58379,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "bf0d9be9a3466e01be209ecdaf5188fb686e00d34d6482e61430424144c6aa9a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_validation/verification_120m.png",
+      "bytes": 204838,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7ae36daa21a984dfc33fa8f6f121be837c715ad19cdd519ba4235c343cf217de",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_verified_smoke_ep4_seed42/final_agent.mat",
+      "bytes": 11753211,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "8a57276de396d33ed666e205c6f549edeeb444576493517f38eda602af06afe4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_verified_smoke_ep4_seed42/training.csv",
+      "bytes": 120,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "be224a7fc15d139c90e469f84b97c62c2640b4b3ce879151fc6f5a69e2d6ceb2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_verified_smoke_ep4_seed42/verification.json",
+      "bytes": 138,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c8122d4590413a800e836f2d3625e434a2250bb77225c9b103ec2ba78b8d62ba",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/metrics.csv",
+      "bytes": 241,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "7c3d6a8b1e5ce61c21aff3e5f28cd1af944db8e3cb612427be14e13f31e60016",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/raw.mat",
+      "bytes": 2612560,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b86f5cd2f44d36a19dcb56e255a46ed5affa98e0c9efbf3831cdca541839c419",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/trace.csv",
+      "bytes": 93409,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "23cbd2d270c9312404b4f5b29f5e0b98d9ef5d862d143f95aa22fa25d95c20ed",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/tracking.fig",
+      "bytes": 83230,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "98166b213e63dfd4b9c7928b2df22e10a87b46ac2d3ad850fb34560b922c9cf2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_verified_smoke_ep4_seed42_evaluation/tracking.png",
+      "bytes": 148253,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fe05d0157b58d49fbbfcfbae582ec348ee66b3d78025df9b74e31db460dad926",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3/metrics.csv",
+      "bytes": 202,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d8561dd3e0ecefd214b4be593193239b4b296a493e44396b4cb6d19866424223",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3/raw.mat",
+      "bytes": 2555547,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "e0b0dfa9951dc1b903d5227726d629504515ecb8f15402782cbadad6c7d732bd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3/trace.csv",
+      "bytes": 93539,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c6bad1bdc327506235bbdb2f0026ddf9819552ff41b71b246a3819b8230ad5b6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3/tracking.fig",
+      "bytes": 81182,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "bcf9883fca5f1a6b2322c1297bc105cda17659127d40a9d4f7d213f4f4d4199a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3/tracking.png",
+      "bytes": 147534,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d13399e429d96d7fe2afa5a06f92a96ec54d7db0115bf92ccaf758740e9a593c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3_np40_nc12/metrics.csv",
+      "bytes": 212,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a922c6c98e06749b0af3f6e39e5719521ac69a8041723142549f98762c81a63b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3_np40_nc12/raw.mat",
+      "bytes": 2548768,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fc1522e560cc3cdd95ca34c1eb09c3f058d62d0275fa5c332b3aa0b31a6232e4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3_np40_nc12/trace.csv",
+      "bytes": 93431,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ce43f948fef62e43c55b8e9965f0c18e6d647e686596658448f90ff3f0175d4b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3_np40_nc12/tracking.fig",
+      "bytes": 84972,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "9e6f4dcc2362145bd5020b44114d486be63664bbe4a0742f859df968aa01b63e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/td3_np40_nc12/tracking.png",
+      "bytes": 149712,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "66ef2f6866f2283c85587b222ee34a908de2399ff4f7fe1455168a310a1a61d1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/final_agent.mat",
+      "bytes": 755536404,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "0e52090fccafbf2dea65d7ea1370cf1f18ae348f70d729a652e3d5b1f28975ff",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/summary.json",
+      "bytes": 239,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "8278ca4832b915441e9a383a71f12ef1dcc35c17e7dadce2d7d6cffd9b2d5aea",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/training.csv",
+      "bytes": 7680,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "583b1954b412d31a39bb91e68ac9a05395a973bf8d204bccf813b96b411e0ad1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/training.fig",
+      "bytes": 10659,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "322f4ef4324d34a1ea8adcd9d21a6ac8a904380cdd58de8fcd3e420980358137",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/training.log",
+      "bytes": 14300,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "5487a5a74cbd2e69f2e68b128fa3b7fa790f397e6685bc169dbf3d7f049f1f8a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42/training.png",
+      "bytes": 34843,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a5cb110d269bd57d0e8fdf5fa1487e3769619079ab98a11997b357882d74e2a4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/metrics.csv",
+      "bytes": 246,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ef20946aa5a836b0289625d0548c4d8c4f76aba506883211b23e532a8d72bed0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/raw.mat",
+      "bytes": 2551719,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f0e5078f01b2228191b6072b5d8ede86757d6354c319e4637a99de685a6518f7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/trace.csv",
+      "bytes": 93432,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "529e03236f26f5a2fea5a00b70ecc96691b16cadde4635059d968c0b93fedc3a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/tracking.fig",
+      "bytes": 85217,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "4cbfe45a3e367ac0c0b6f0ed66916f597815fc40fc2b3860c81f795dc46d3bda",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_np40_nc12_ep300_seed42_evaluation/tracking.png",
+      "bytes": 154192,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d6e4649761c63058e9b21f6025391fa2f77c89a0150446029dc7ea1ec362efbc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_seed42/final_agent.mat",
+      "bytes": 182008689,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "1dc536e2c2f35ca14caaea70be378e0cbf7b6eed8689b3118966ce7c09edcb81",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_seed42/summary.json",
+      "bytes": 239,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "93fcbe60370c51d68d8efb73e1cda999826ca6c1b82386b83c4b6a74f5a95553",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_seed42/training.csv",
+      "bytes": 12868,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "8900d33f8284d6a22a074fed655d6f18b8787a2d64faa6334ec06058669133c9",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_seed42/training.fig",
+      "bytes": 12633,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "fc443e23bf13017199586a76cdb9048e3c01dcefa521b96f35c8601ea3574dc6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_seed42/training.log",
+      "bytes": 23846,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "087c995b314764b37682cf69ba0b47b4cfafad0796232403b8284cf5d78b8ef0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_ddpg_seed42/training.png",
+      "bytes": 32273,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d7778848466d94cc3d6bfaacbe27f80ffdc348c0f48499985c173ad1ccadf605",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42/final_agent.mat",
+      "bytes": 755546339,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "431865910a2ff539891b994753f85cc761a1fed65b9d2328fe2d4226496309f1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42/summary.json",
+      "bytes": 239,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "17fc2283a52af5124e6121b19003b8f40097f2332677572c2df8c734875a1b10",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42/training.csv",
+      "bytes": 7672,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "b0ad693d510bed2cb056a82c57540956cce72fece42fbb87dbe8bd7a85348e4d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42/training.fig",
+      "bytes": 10656,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "d3044b30748136040fce71777c34d5da43531dc40c6923f59b6004fcf2860294",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42/training.log",
+      "bytes": 14304,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ed85b69aa72f3b87a9ae881ea2c007b6f5856c56a9c6848c1d9bde8069188c8c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42/training.png",
+      "bytes": 36043,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "402d989adca60e8c43782ca7c4af99ef1fe2eeda0e3e5aa9274b93d88b691340",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/metrics.csv",
+      "bytes": 245,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "94b66beb4180e6527639fdf1277219c15a0cf58d4bb8f9fbfea6e48718404c3d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/raw.mat",
+      "bytes": 2548832,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "568eec76b94ff58941eaf9ae1b3073c59613e881e4926de70c99d486bd32fef4",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/trace.csv",
+      "bytes": 93431,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ce43f948fef62e43c55b8e9965f0c18e6d647e686596658448f90ff3f0175d4b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/tracking.fig",
+      "bytes": 85089,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "cecfa90436ccdc985d7837a9a8f253c164b86081de74f2796bd788ea7fc3dca0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_np40_nc12_ep300_seed42_evaluation/tracking.png",
+      "bytes": 155515,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c8f540d3880ad15b425874ecd31e0576b3a0a418d6257ca9a2344752b6542f50",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_seed42/final_agent.mat",
+      "bytes": 182454207,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "c618268b0f14158a2df3afe72e322f130066c731b9aa45ce0ff82831b5e44eeb",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_seed42/summary.json",
+      "bytes": 238,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "de3fd0bfb93ed156febd5ec60fbffc70e2dc083f2a48a8b94b96d6ebea621671",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_seed42/training.csv",
+      "bytes": 12852,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "a1f4dbc72be581152884604965112b5b96ada628e5468e5e323a44d8b3f71678",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_seed42/training.fig",
+      "bytes": 12707,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "ad331d6a74737c3909f57bcba2bbdd369c573c097d7cb358916dde9df4b27914",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_seed42/training.log",
+      "bytes": 23818,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "55ca8ce6704ba638135aec7dd2f08fbc1e6bb4d077099632c44f0d196b83441e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_td3_seed42/training.png",
+      "bytes": 36861,
+      "reason": "historical experiment consolidated; final agents and reports recoverable",
+      "sha256": "f5d8227d2e0b3427a2e96dd1e0afeaa9194784cafb006f44f07e583ca00d36b8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent10.mat",
+      "bytes": 20313880,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "d4f833490732001806316db7950deff3094871f321b80492eac04724206517db",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent100.mat",
+      "bytes": 195853085,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "64f091991f8f00d4712455b1e45e93412594f00c069a6bdbb60224830f6b296d",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent110.mat",
+      "bytes": 215342504,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "af59245792fa9b3843906e27336fe54bee077540e56f94132c365348d17f91b6",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent120.mat",
+      "bytes": 234846080,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "f1a1f2bf54fd9536bdee9a1374548e025e1567978ac20cc1cd1a06ba8d079cf6",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent130.mat",
+      "bytes": 254347998,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "178965ad2c4d7a1b7718493ea457a378668e95632f94e849c09f3482021b311e",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent140.mat",
+      "bytes": 273862566,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "2ddb49e78e3c28e30f18ee198f21d85f38d22adf269a560e42f5edd5487d8cd1",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent150.mat",
+      "bytes": 293373975,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "58faef35f5ae4dbb3d0910a27ba053386d842d47f5d843c0c94bc9bed48e369d",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent170.mat",
+      "bytes": 332383049,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "6568cc027e0ec826c7d1613fd229167bf7aa45816779c170d590aa930f542f17",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent180.mat",
+      "bytes": 351877131,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "4716ac7337a2fb07c7192670039b387a9052a4f4cecf24c3752531452290ee65",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent190.mat",
+      "bytes": 371377133,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "53322b84611ed85e5d8924fe13896f4c4a34c81bcbb3679216d86d0751e57a9d",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent20.mat",
+      "bytes": 39839056,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "8cdcf1fcea190b2f832fe3eaea0587671f2ea291ff7d0899a736f999fe3061ce",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent200.mat",
+      "bytes": 390880855,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "f0a91cfe4032b7278ee3867fb6e914bb10f6be97378d8f7f4aa6a2927572231a",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent210.mat",
+      "bytes": 410382586,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "8fa1654f0cf510349da71367543479ffacd98c023fcb782713370480be9852ea",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent220.mat",
+      "bytes": 429890015,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "22e4328cb572d4e0fe95e9df9457a8f0e488746ef166a666d58f026afadf1e59",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent230.mat",
+      "bytes": 449398951,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "ff3c8bda5ef9fb18e73223d503dcfa371034105ebd147c19f9884071b901521b",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent240.mat",
+      "bytes": 468908244,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "7a03957a21fd02035759dd5df4652970bcbddbccdbbcaf5644784ce3d2420c15",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent250.mat",
+      "bytes": 488421664,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "e2404711e098dd8dfcf7bdb42ca508f1a3bf560fdb64ca85c85ebe53b99e3ae5",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent260.mat",
+      "bytes": 507931511,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "a2194a5f6ca090e83b7a47c41be1639e7c93bd4094e3ce6284f226f42116de04",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent270.mat",
+      "bytes": 527429244,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "06529688c5b927b1553e3e04af9540af71f0f3c89c58f67811ac0e7586ab8462",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent280.mat",
+      "bytes": 546929534,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "4358507bd40452e8f072654dc3593bfb116addca0df9b2569e72cf19d415fa9c",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent290.mat",
+      "bytes": 566439119,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "fffcc5597775421a5f6dda5340a3cf0f5145b85186634697da84ab625308d5af",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent30.mat",
+      "bytes": 59355807,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "78a3fd4728065b2d0d7c6d3f480091875a78cdf7be6cfc706fc34a45dbd2317e",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent300.mat",
+      "bytes": 585946126,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "6be895589eb1e62861bc5c24372d6eaa20371560eeef0ffd8076b350ce53b81c",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent40.mat",
+      "bytes": 78871226,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "e2e7bfe5b166384bbdb3fbf979c3d3ad1391b3d6e48f1ec24c464f94b20e36d1",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent50.mat",
+      "bytes": 98376891,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "582e5a0f2e1ac3e8c801e220bd216a170916f90ef24414b7cbd5fbc5948da151",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent60.mat",
+      "bytes": 117875856,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "aa9b1cc6d2e8c043bd92e57408689095e4aa5ec3e65796759bbef018be20b5ff",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent70.mat",
+      "bytes": 137375933,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "bd95048259d33aeea1464a392d7ac5b169a26faa7280ddccec23f2db02bcbd09",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent80.mat",
+      "bytes": 156867424,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "af2ec92bac30c5f63d2901786b10f22ca09677dc392844263833d2e70446c260",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/matlab_td3_ep300_seed42/checkpoints/Agent90.mat",
+      "bytes": 176358335,
+      "reason": "unused periodic checkpoint; final and reward-selected policies retained",
+      "sha256": "74f3833792a83c289937f3cc9f819098e4f9105000f532e782115a6c8cc99ecb",
+      "planned_action": "remove_redundant_checkpoint"
+    },
+    {
+      "relative_path": "results/adaptive_pipeline_parity.json",
+      "bytes": 200,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "891ae502b8f79eb28dc79157c75a705c90965aaf80ff30d3e88004ede94d1af3",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/adaptive_replay_original.csv",
+      "bytes": 114348,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "7c571467ac2d4a831639aa3efc265769e53aa06946549f1fa40e1a0fbab7fd4c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/adaptive_replay_pipeline.csv",
+      "bytes": 114348,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "7c571467ac2d4a831639aa3efc265769e53aa06946549f1fa40e1a0fbab7fd4c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/adaptive_replay_states.csv",
+      "bytes": 81059,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "717f6f17ecfa36ebda9e5ac8793912bb74677d84a94443c862e4d2aa69a80981",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/build.log",
+      "bytes": 0,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/code_analysis.txt",
+      "bytes": 4285,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "04b39c2e8411c9b2e47810d7058e5a9f8ff808c5b69ece3773bb338bec332631",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/current_configuration.json",
+      "bytes": 411,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "e51d1e3ad7dafd5b4a7acc095d68ab9e4452d8d25581fb3a5b0c2bafc55f0bbd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/CURRENT_CONFIGURATION.md",
+      "bytes": 1210,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "25bb4eba306bf0110479d69d4cd8d19be9e0f8f011539898aa6e5e4b11f14175",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/delivery_sha256.json",
+      "bytes": 9037,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "d09c0d930d416dc42a1639160421730d82e6ff1190a9566c5768465f4c39719b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/execution.log",
+      "bytes": 1168842,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "1e81e840c168501656d7300585dc63abf01a0dd5e8631846568090842faa3771",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/forced_qp_failure_original.csv",
+      "bytes": 114577,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "795e8781b028b8f6470271946d4425f97befbe5e1c1e464d7e918fa5b0a681e0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/forced_qp_failure_parity.json",
+      "bytes": 109,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "9c51781df3bed0f0fe1e2ea3da12356479f02101b2af6a1670c4e9df917f147d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/forced_qp_failure_pipeline.csv",
+      "bytes": 114577,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "795e8781b028b8f6470271946d4425f97befbe5e1c1e464d7e918fa5b0a681e0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/initial_zero.mat",
+      "bytes": 77170,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "0f8cb51705e7003869b50b7d8cce111bf5134a6ae765ec8af72ac847ab4bc07d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/interface_units.txt",
+      "bytes": 1252,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "7f8b9ffee6c470c492f734922649abccd5823e83dde17b7524bcbaa9f062ddb5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/layout_spacing_audit.json",
+      "bytes": 340,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "9c62641ba750dc136eef2258642500f0d221f50c1f0bd7e649a131df7d9bf4b7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/mex_pipeline_failure_parity.csv",
+      "bytes": 126,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "3f93ed6855bbe5f9169869d9b05f19aa338e0e4e629f734f82a82a135662d2f8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/mex_pipeline_failure_parity.mat",
+      "bytes": 72008,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "fa3e1b3d0b764cae2e649204ed4f062e24b8d2337173f6ff14c15584ccbe0411",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/mex_pipeline_parity.csv",
+      "bytes": 126,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "3f93ed6855bbe5f9169869d9b05f19aa338e0e4e629f734f82a82a135662d2f8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/mex_pipeline_parity.mat",
+      "bytes": 72866,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "0a3601c78437c29bbe0bb88a4601ad29af380f5e0268dc3cc6bb862f89264928",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/model_overview.png",
+      "bytes": 110462,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "a190bdfc728881903c4dff4ff9a115fbc9bea9dd8b62d6048edc21c4a53ddd8d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/model_overview_np40_nc12.png",
+      "bytes": 173672,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "016d7b2f532057d8c470c0b25b36dbfb8eb4f3c07ec6c4042448b70319b7bac2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/model_structure.txt",
+      "bytes": 2805,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "ca404f92a8a99cf7444bce070e89ba2a4cce2591da62fab62ee3bec0cf45f7fc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/model_validation.json",
+      "bytes": 237,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "04087772bbbca5ad457fec6fb1d265f74f630fc525a4beb0357d6b824ade20fc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/mpc_subsystem_np40_nc12.png",
+      "bytes": 33936,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "fde0aea68cd8d6a754e47b47905fe935dedbbc008d027925cc0d6a2f132ca7b1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_parity.csv",
+      "bytes": 222,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "f6f6b8a18860fd02da96ae9c89a25185312f316a0fb4e4446c852bf503d3ce23",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/native_parity.mat",
+      "bytes": 72706,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "466b6d172d878269aa58e6fc3d8179fb354bbd7ce54188e51e032984d937b175",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_drl_subsystem.png",
+      "bytes": 68771,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "3ec00e66a4a096786b6e0e897ae3f044e3555511925a618036346d87f959ccbc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/paper_model_overview.png",
+      "bytes": 157777,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "03d07f587d05b0a7c8d1d8c3f1d5256dd82193ab5906430be16a18611e838697",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/parity_original.csv",
+      "bytes": 116046,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "e34e9e5467c6f12d636b1725e95868474b23351a75763f665b630c0423dfccf2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/parity_states.csv",
+      "bytes": 71436,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "a8d2f83a178c7a6fcc4aae5abc202e2d8d507658c6e1730a85d74b2d2cce82b5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/pipeline_original.csv",
+      "bytes": 115588,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "7c48f79925ec63587e2b792372431c2d5561c044c4c57880a23afec640f48b58",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/pipeline_staged.csv",
+      "bytes": 115588,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "7c48f79925ec63587e2b792372431c2d5561c044c4c57880a23afec640f48b58",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/plot_validation_120m.json",
+      "bytes": 136,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "64e470465fe829e467f57a56805be7788fff9f6b50bb118d712fd1b284c5b408",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/reset_validation.mat",
+      "bytes": 241,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "aac26dcd353d42926e1391e12dcdfb3d3e75deeb24d8c4d4ac1db8a2ccabc560",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/source_audit.json",
+      "bytes": 1037,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "23cbfebceb19bf578349fdf78868fa0bd33a1b7867b3aa0576f91487c08a36dc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/steering_+0.mat",
+      "bytes": 1131446,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "524685ca303f16799052b69d41d09d9e95e0f518cd3e562614c46fc7c430a710",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/steering_+1.mat",
+      "bytes": 271631,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "f0d21b48b9e0fb715722397953d518ed27c3b3fb93a025e70242d4c70137f59b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/steering_-1.mat",
+      "bytes": 272184,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "d331eb53979fbe05cff8e98cc57b7262218ee8ae1a8b11b3256a4b851e540f21",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/steering_authority.csv",
+      "bytes": 361,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "107c1892bac00375a60b6dbf49a1b35cf4d630fc0272d4d61e78ab1227c1d5e8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/test_results.txt",
+      "bytes": 376,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "b7e87f30513b976658947b5632778a135ac0ae877da3e4e067988ae290384f87",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/training_campaign_status.json",
+      "bytes": 204,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "bffd08f02bbbf6aa76070043c23efc2df1da8060ed5e442528cc31b6b5b32d4d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/VALIDATION.md",
+      "bytes": 3950,
+      "reason": "historical top-level experiment output consolidated",
+      "sha256": "e39c73f01ed58791a231b3f7a3ba23225cf7e002285e6faa2d1256d2440a97b5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_native_validation/matched_fixed_raw.mat",
+      "bytes": 2179876,
+      "reason": "superseded by compact numerical fixtures and current comparison outputs",
+      "sha256": "2086b91c49cf902199ce265e4969008227a55903b6631656ac4ba3f12b510d05",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_native_validation/matched_fixed_replay.mat",
+      "bytes": 20578,
+      "reason": "superseded by compact numerical fixtures and current comparison outputs",
+      "sha256": "f7ca4c9136503310b7e1f4822cc0d09615e742c4f15b9310c8b99a19cf83430a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_native_validation/same_policy_lambda_zero_raw.mat",
+      "bytes": 2180895,
+      "reason": "superseded by compact numerical fixtures and current comparison outputs",
+      "sha256": "6ae8d67d1087631db123904be50daa9f327f4b11f69f658959f30addcf0ea23c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_native_validation/same_policy_lambda_zero_replay.mat",
+      "bytes": 20823,
+      "reason": "superseded by compact numerical fixtures and current comparison outputs",
+      "sha256": "5969472292038cf9fdc695ee3393ca3d7031b731761415f24b235caf2f45bb52",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_native_validation/selected_checkpoint_raw.mat",
+      "bytes": 2178509,
+      "reason": "superseded by compact numerical fixtures and current comparison outputs",
+      "sha256": "893b071c90030dd58391622407de033af44cc3b14d56e99c0598dff13f9a3eb9",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_native_validation/selected_checkpoint_replay.mat",
+      "bytes": 20675,
+      "reason": "superseded by compact numerical fixtures and current comparison outputs",
+      "sha256": "b825ad4697566066ad31d7b2bcc2ab21b5e82da617f83d8e0ed924a3660c23a1",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_native_validation/td3_global_and_step_raw.mat",
+      "bytes": 2180159,
+      "reason": "superseded by compact numerical fixtures and current comparison outputs",
+      "sha256": "95c6f79063691df6b4bab3b95333497b99cf41d7eb73f7150c7dd230d99532eb",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "results/matlab_native_validation/td3_global_and_step_replay.mat",
+      "bytes": 20770,
+      "reason": "superseded by compact numerical fixtures and current comparison outputs",
+      "sha256": "bce2843e5d291293f74921c2abdf64c980726ee0df62179d2b68dedaad721e05",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/cache/DRL_MPC.slxc",
+      "bytes": 5869,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "7fe6e6c89524b7aebcd65969e746906d1d62dfcd5f2df689ce90891e4a82b43e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/cache/DRL_MPC_Paper.slxc",
+      "bytes": 5278,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "5af29a1614b49c394628269d389cc255d396f840df89be1b3901535f67a60190",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC/checksumOfCache.mat",
+      "bytes": 392,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "dd45462281eb16befd59dd560da9fb0c85cfe7aba0f127f1f772d214de0e82b9",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC/tmwinternal/simulink_cache.xml",
+      "bytes": 376,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "00a22e33670b826b831bb3096410ca9a082c281fce6374ba8140ced6cf70093b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC/varInfo.mat",
+      "bytes": 3216,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "124512217f790a35d0708b76ee4a246dee1ae745238038be91b7d11f73abae87",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC_Paper/checksumOfCache.mat",
+      "bytes": 392,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "f9cc736e44431349b30fbba81666d618d4d5234dcd390b9807811b419da098f7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC_Paper/tmwinternal/simulink_cache.xml",
+      "bytes": 376,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "dfd8a8958d57d165ce6ac464b8cc270a922137f035239aafc74fc63039887412",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/cache/slprj/sim/varcache/DRL_MPC_Paper/varInfo.mat",
+      "bytes": 3216,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "3223c2c8485332270cc56969d8050f90da319786b884cfdf6491f1a9ee04202b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/carsim_plant.obj",
+      "bytes": 1498946,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "5a558399214ada0d153617c5082319f7d62fd6e1929cf4c88eaee6317bb10af5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/config.obj",
+      "bytes": 963925,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "3209b772501cf369def3bd7d433e240f68fd79bc09875dde3603943ba8a3cbed",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/DRL_MPC.slxc",
+      "bytes": 5114,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "7bd09a38ed1e436c6d88ef7751b29d7b8df291dfa110adb308080f7864a9de1d",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/initial_slprj/sim/varcache/DRL_MPC/checksumOfCache.mat",
+      "bytes": 392,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "73bc20008b2d437488852ef6c96b92a04b9e56db64a52fa2c72aaabd2e1b8957",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/initial_slprj/sim/varcache/DRL_MPC/tmwinternal/simulink_cache.xml",
+      "bytes": 376,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "28fa026de5a6d0091d767733d66a5e5303befe83732ff9d499536d2041821fae",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/initial_slprj/sim/varcache/DRL_MPC/varInfo.mat",
+      "bytes": 1392,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "10e3cddcf2c4ed54fcf45ec36dbee19fbef6595b8fecda45ee901ec43af674fd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/mpc.obj",
+      "bytes": 340977,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "f466e6d060dd03fe1a2213f8fcd3082ef2bfda8b2addc0fc138321606d962233",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/mpc_mex.exp",
+      "bytes": 713,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "e528d96f6fe22e00a24726cb5eb8afa2bff822776c7fa00a57a645f568d70064",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/mpc_mex.lib",
+      "bytes": 1888,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "ee00f095dc25f943bc9b173daf76db9db35d14a1bf55e86c535ce5ac45d32109",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/mpc_mex.mexw64",
+      "bytes": 258560,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "1da27632c7d10caaf052bcccf8a85b2aeca3983c7047df38739b0ccad73aece7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/mpc_mex.obj",
+      "bytes": 314336,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "e7ca291f37ab3cd3e9ff71b341d5b93e575991651b8108fb17e569e982ce667b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/mpc_mex_next.mexw64",
+      "bytes": 258560,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "1da27632c7d10caaf052bcccf8a85b2aeca3983c7047df38739b0ccad73aece7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/mpc_paper_mex.mexw64",
+      "bytes": 259072,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "a54ec10310870ec0037299a9a9f672cd83acd4be0ea5057bb02e999b93f30d13",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/mpc_pipeline.obj",
+      "bytes": 391126,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "62d10d722fd6aac01048aa6e8081cbaeca56a3f9765788aa19f0a5c0319e6bf8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/DRL_MPC_Paper.slxc",
+      "bytes": 5275,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "d9288703f37109c46136fe699bff9ba8c3147085335effabadfbf2af77776e04",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/DRL_MPC_Paper_Observed.slxc",
+      "bytes": 5252,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "a34756af19c3748ea045f676533acca63f2881ea7c0ae5e8b5fdc84abff65105",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/jitEngineAccessInfo.mat",
+      "bytes": 838,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "124e1e68b4f3d6bf1128d4c86c8adf07c718bf0605d4f0d51f586061e3437a8f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sDonN1eQdudqn7EeQ1kqADD.l",
+      "bytes": 11500,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "e481f8635299e4b013735682503a4e1a84bbd9e5130ef0462bff21f9045a9901",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sDonN1eQdudqn7EeQ1kqADD.mat",
+      "bytes": 1288,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "8fa2ad6302c019d651a0b04b446e1983eb446b6b9153b4ef121f88f43003d619",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sDW4EC62f8BT4fl4tkLHFRD.l",
+      "bytes": 10932,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "684966e4227a5dfe5ae23d2c0a5a3e24eaad6bc4e78f1acbda82ddf9f800a40f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sDW4EC62f8BT4fl4tkLHFRD.mat",
+      "bytes": 1273,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "ae23bacedc13457182611bde6c9f7d956bc8dbb2bef9fb1a9b413c141b848249",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sLoc3ACWMiidlJeUnZBN8fF.l",
+      "bytes": 12932,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "2a401a10f31dfdcc0909d77a666647d8d8ea78d94b1f22ee1009366424f3b293",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sLoc3ACWMiidlJeUnZBN8fF.mat",
+      "bytes": 1300,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "c6effb0b9d58cd973989a9272f681da3fced3d127bed95934b104de13153d9ea",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sxTKvd7KHBoxnw3vBS3qt9G.l",
+      "bytes": 9068,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "336a423a6e0dd454f058a68b224bbee4295726aa4820cb54b65aff439754dfbb",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sxTKvd7KHBoxnw3vBS3qt9G.mat",
+      "bytes": 1266,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "751e8f1ec72503492d1f3f9982593b32cf33ce28fc7211d140c082f4265e540c",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sytQDnWXXsdaswzeYKjQEnH.l",
+      "bytes": 11308,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "f88b2f59eec75d27b17631920414585c34a72b6866981abe38ba95e7635a06fd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_jitprj/sytQDnWXXsdaswzeYKjQEnH.mat",
+      "bytes": 1292,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "24c1c9ca89d817bffb0e2ba795c39ffe084a7aab13bb08d0fc5e48d0b2030fdf",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/DRL_MPC_Paper_Observed/_self/sfun/info/binfo.mat",
+      "bytes": 876,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "ed3d7ad572566e91378530269ca9ada98fa372697a4c1f411f91bf4ee9bdcd69",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/DRL_MPC_Paper_Observed/amsi_serial.mat",
+      "bytes": 244,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "60a9e7867983839494347032de862cc8460d4ea29c91a2d608bd125f0d1ba407",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/emlReportAccessInfo.mat",
+      "bytes": 838,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "02585608d848cc31b32d476c8f340887859d05469c9ef1fb5b3808a620f84ef0",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sDonN1eQdudqn7EeQ1kqADD.mat",
+      "bytes": 84341,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "9eb351de2a05659d7a8d2100f8fb0b440ddbf97c765947e43a5b69848c72a2bd",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sDW4EC62f8BT4fl4tkLHFRD.mat",
+      "bytes": 89626,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "866bbf5c957e20739e40a15ce1ae0fd860c8642d8d23d5c79fa2d1f4c0463663",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sLoc3ACWMiidlJeUnZBN8fF.mat",
+      "bytes": 55696,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "9718e46180a18dff3eb15f17d953220ef8858451f7ef3d15e8b25011eec0b893",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sxTKvd7KHBoxnw3vBS3qt9G.mat",
+      "bytes": 15906,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "b8de31f6e8f30fb14d37dfc439231320790ab416377670e9a5cc4f268f7edad7",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/EMLReport/sytQDnWXXsdaswzeYKjQEnH.mat",
+      "bytes": 84010,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "573b3e18a3b8ac80449b683c63be10ebadeccca18acf2fa8170bf751ae4213f2",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/0LLRZi4yEUR1ZfTmzv1We.mat",
+      "bytes": 859,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "6c260fd0bf649b2fa8b10ea660f1bb0331e43e576a4f9e91bb9f13e5431271a8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/1XWap5dvOEFfSzlvD5PBdB.mat",
+      "bytes": 677,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "481fae13121c227a59389a502f1523a6e3e7c351e9cd21ee8c7f7468b50bd603",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/7K8PiGMktDLaipoPk8RulE.mat",
+      "bytes": 678,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "cd927928f8c7303c85552b0199634ce5c210d031eb9e6d2a50416316e750ee23",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/aepQJl5GrE03frMKcNFWQG.mat",
+      "bytes": 827,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "3515b21d0166d4a2ddcabe1fc4470cdb9e806459c5078d9fad151d45b0dcee7b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/autoInferAccessInfo.mat",
+      "bytes": 997,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "8e072d7cf757cdd9b940f97151708ce1bbe8efa8a1686298bc1023c6ac3f773f",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/F7hGBoCet16zZYefM39ns.mat",
+      "bytes": 710,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "c5d5fee6f26a272fee94009c6434d34e4999f732cd2dde1e639c66c90007e04a",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/HxYBuiOFdXuSeXle2C47qG.mat",
+      "bytes": 685,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "9166cb07f9a0f1c99cf4bb602feb4d109ef5be6adc897bd0d6125897ed01ee5e",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/Rj4Ll6Zv6G71BZCdsCOzyC.mat",
+      "bytes": 685,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "f3845a2fc0f0d94be9922be19f939e68675295528c25e43c4a1b11abaa786449",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/SuzwHCnwForsT5f9FuYCfH.mat",
+      "bytes": 694,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "54e5f8f55d88548e8dc035946aa18d179654720cc1389568c92ebb201d448af8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/UewcAhdq8KjwABgKuyFr3E.mat",
+      "bytes": 692,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "08b443cf7b71a988fdaba35ce1d8600365116a0d479528a6e474773ba4e97c59",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/_sfprj/precompile/Y7CwpmhRGIpIOeq5uHTKeE.mat",
+      "bytes": 710,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "499813f7f85a7b188c69228cf4f8ad36a89d43e073eb262cea098f70f87a9bb8",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper/checksumOfCache.mat",
+      "bytes": 392,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "673615e6b46e5ce855a6cee6858ff012e2a8ff58ccd4f0b43b363fd5d71be414",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper/tmwinternal/simulink_cache.xml",
+      "bytes": 376,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "3c4bf4584bd4a3ef5461fbd2e976c72eaf263be81268f5f6c04f0972240de32b",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper/varInfo.mat",
+      "bytes": 3216,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "855cc57be1d99dce38a27a11fdcdab57e32a9ecfdeae7aa0cfdc87942544a439",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper_Observed/checksumOfCache.mat",
+      "bytes": 392,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "80cac706a1ba597e1a52f15aaed313e5d8f0ec8837873a5ccb612599d27d8c24",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper_Observed/tmwinternal/simulink_cache.xml",
+      "bytes": 376,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "d12f0d92fc2c6386f005c6dca802a3449e1ad51ffe54d388bac84316b70d1249",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/paper_cache/slprj/sim/varcache/DRL_MPC_Paper_Observed/varInfo.mat",
+      "bytes": 2848,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "ea3f017285689b7c596cad08f558343856c012b09f6391dd6b32e885946526dc",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/parity_original.exe",
+      "bytes": 228352,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "d5027a0c264a0f88075fdba4399eb5782369ea6b1a615f0762576087ac5f5ff6",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/parity_original.obj",
+      "bytes": 365321,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "3709b89a018c34a521cbd273acb85553edcaae149cf7b7ded6c2f0d9871c3913",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/parity_pipeline.exe",
+      "bytes": 230400,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "0f72594a99425d1c2d0b286c2318b5419688ffdbf739d571a5c20c685b6b5a39",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/reference.obj",
+      "bytes": 298940,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "8c9ca10e85f975178dc9f2c698b474c0c9d8ae8455ed492eb5488f18959047b5",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/rl.obj",
+      "bytes": 90547,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "d5599fd638aa3b1a91315f9d8db873e207d0fbac6210d7b89a87ff0d83a98208",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "build/vehicle.obj",
+      "bytes": 404864,
+      "reason": "retired compiler binary, object or cache",
+      "sha256": "7fc1c50bcc1cb04d93787c4a5dcdcf1ee2d3aa6192876857239e616630075898",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/prepare_cleanup_fixtures.m",
+      "bytes": 1031,
+      "sha256": "80b2b8122d7e5aabd98e421be7e026b751fb73ea3e17c816013357a53ad74189",
+      "reason": "completed one-off cleanup preparation tool",
+      "planned_action": "archive_and_remove"
+    },
+    {
+      "relative_path": "utils/cleanup_matlab_project.py",
+      "bytes": 8706,
+      "sha256": "dd3f5e2f90696bd671deb08c1f7cf93c2e0e8557b8e457e81b651251b9bae87c",
+      "reason": "completed one-off cleanup preparation tool",
+      "planned_action": "archive_and_remove"
+    }
+  ],
+  "execution_mode": "reversible_retirement",
+  "permanent_deletion_performed": false,
+  "retired_root": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\archives\\retired_20261113_211219",
+  "auto_review": {
+    "action": "bulk permanent Remove-Item",
+    "result": "rejected",
+    "stated_reason": "blocked by policy"
+  }
+}

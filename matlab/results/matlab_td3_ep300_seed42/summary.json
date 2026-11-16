@@ -1,0 +1,11 @@
+{
+  "episodes": 300,
+  "interactions": 47100,
+  "actor_max_abs_change": 0.88210154324769974,
+  "seed": 42,
+  "model": "DRL_MPC_MATLAB",
+  "implementation": "MATLAB/Simulink",
+  "controller_mex_loaded": false,
+  "np": 40,
+  "nc": 12
+}

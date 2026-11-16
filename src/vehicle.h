@@ -51,6 +51,12 @@ struct VehicleState {
     double fy_rear = std::numeric_limits<double>::quiet_NaN();
     double steer_front_left = std::numeric_limits<double>::quiet_NaN();  // rad
     double steer_front_right = std::numeric_limits<double>::quiet_NaN(); // rad
+    // Optional CarSim sensor channels, all in SI. Keep ax above as dvx/dt:
+    // on a planar road dvx/dt = body_ax + r*vy, not body_ax alone.
+    double body_ax = std::numeric_limits<double>::quiet_NaN(); // m/s^2
+    double body_ay = std::numeric_limits<double>::quiet_NaN(); // m/s^2
+    double measured_beta = std::numeric_limits<double>::quiet_NaN(); // rad
+    double driver_curvature = std::numeric_limits<double>::quiet_NaN(); // 1/m
 };
 
 // Three-DOF vehicle with optional tire relaxation: [vy,vx,psi,r,Y,X,alpha_f,alpha_r].
@@ -78,3 +84,4 @@ DiscreteErrorModel discretizeErrorModel(const VehicleParameters& p,
                                         double rear_force_bias = 0.0);
 PredictionState matrixTimesState(const PredictionMatrix& a, const PredictionState& x);
 double angleDifference(double a, double b);
+double vehicleSideslip(const VehicleState& state);

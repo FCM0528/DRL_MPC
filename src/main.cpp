@@ -247,7 +247,7 @@ SimulationRun runConfiguredSimulation(AppConfig opts) {
         });
         VehicleState state = plant->initialState();
         double t = 0.0;
-        double prev_delta = 0.0;
+        double prev_delta = 0.5 * (state.steer_front_left + state.steer_front_right);
         double prev_increment = 0.0;
         std::vector<SimulationRecord> rows;
         const double step_budget_speed = state.vx;
@@ -322,7 +322,7 @@ SimulationRun runConfiguredSimulation(AppConfig opts) {
                 next.y - next_reference.y, angleDifference(next.psi, next_reference.psi),
                 control.steer, current_action.np, opts.mpc, opts.rl, prev_delta, previous_action.np,
                 current_action, previous_action, next.vy,
-                next.r - next.vx * next_reference.curvature, std::atan2(next.vy, next.vx),
+                next.r - next.vx * next_reference.curvature, vehicleSideslip(next),
                 lateralErrorRate(next, next_reference));
             state = next;
             prev_increment = control.steer - prev_delta;

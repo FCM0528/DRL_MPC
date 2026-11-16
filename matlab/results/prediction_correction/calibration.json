@@ -1,0 +1,17 @@
+{
+  "training_record": "matched_fixed",
+  "training_domain_m": [
+    0,
+    80
+  ],
+  "training_windows": 7,
+  "parameters": [
+    0.96854616810176664,
+    1.113268134659954,
+    1.3435343556826371,
+    0.44938615546105054
+  ],
+  "initial_loss": 7.3174484752683941,
+  "final_loss": 0.75053062541004867,
+  "validation_records_not_used_in_optimizer": true
+}

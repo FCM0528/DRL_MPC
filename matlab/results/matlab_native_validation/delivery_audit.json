@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "public_entry_model": "DRL_MPC_MATLAB",
+  "controller_mex_loaded": false,
+  "selected_preview_state_difference": 0,
+  "selected_preview_steer_difference": 0,
+  "matlab_controller_dependencies": [
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabAdmmQp.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabConstraintBounds.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabCostMatrices.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabGrip.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabMpcStep.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabNominalPrediction.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabOperatingPoint.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabPredictionReference.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabReference.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabSteeringCommand.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabTireForce.m",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\controllers\\matlab\\matlabVehicleModel.m"
+  ],
+  "products": {
+    "Name": "MATLAB",
+    "Version": "25.1",
+    "ProductNumber": 1,
+    "Certain": true
+  },
+  "private_carsim_model_link": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\models\\DRL_MPC_MATLAB.slx",
+  "training_episodes": 300
+}

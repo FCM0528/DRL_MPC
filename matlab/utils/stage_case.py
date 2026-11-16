@@ -19,8 +19,12 @@ assert pars.count('IMPORT IMP_STEER_L2 Replace') + pars.count('IMPORT IMP_STEER_
 corrected_import = 'IMPORT IMP_STEER_L2 Replace' in pars
 pars = pars.replace('IMPORT IMP_STEER_L2 Replace', 'IMPORT IMP_STEER_R1 Replace')
 # Same private station margin as extendCarSimStationStop in the original C++.
-# Actual evaluation stops at CG X=150 in Simulink, independent of road station.
+# The native model ends at CG X=120, independent of the road-station margin.
 pars = re.sub(r'^SSTOP 150\s*$', 'SSTOP 160', pars, flags=re.M)
+native_model = root / 'models' / 'DRL_MPC_MATLAB.slx'
+if native_model.exists():
+    pars = re.sub(r'^SIMULINK_MODEL_FILE .+$',
+                  lambda _: f'SIMULINK_MODEL_FILE {native_model}', pars, flags=re.M)
 (case / 'Run_all.par').write_text(pars, encoding='utf-8')
 (case / 'source_Run_all.par').write_bytes(data)
 (case / 'source_simfile.sim').write_bytes((source / 'simfile.sim').read_bytes())
@@ -34,7 +38,8 @@ lines = ['SIMFILE', f'FILEBASE {prefix}', f'INPUT {case / "Run_all.par"}',
 (case / 'simfile.sim').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 manifest = dict(source_parsfile=str(original), source_sha256=hashlib.sha256(data).hexdigest(),
                 changes=[('Second import corrected in private copy' if corrected_import else 'Source front-wheel imports already correct'),
-                         'Private station margin SSTOP 160; evaluation endpoint remains CG X=150',
+                         'Private station margin SSTOP 160; native evaluation ends at CG X=120',
+                         'Private Simulink model link points to the native model when available',
                          'All solver output paths redirected under matlab/carsim/case'],
                 reference='DLC SYX; entire LTARG_TABLE preserved',
                 exports=re.findall(r'^EXPORT (\S+)', pars, re.M))

@@ -1,0 +1,13 @@
+{
+  "source_case": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\carsim\\case",
+  "new_case": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\matlab\\carsim\\coordinated_case",
+  "LTARG_unchanged": true,
+  "imports_unchanged": true,
+  "mechanism": "CarSim SPEED_TARGET time component 70 km/h plus station component",
+  "design_speed_utilization": 0.85,
+  "max_deceleration_mps2": 2,
+  "max_acceleration_mps2": 1,
+  "minimum_target_kmh": 55.706644861440552,
+  "driver_braking_enabled": true,
+  "curvature_preview_m": 20
+}

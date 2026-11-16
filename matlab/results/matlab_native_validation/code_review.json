@@ -1,0 +1,14 @@
+{
+  "files_reviewed": 14,
+  "code_analyzer_messages": [],
+  "forced_nonconvergence_projection_passed": true,
+  "invalid_prediction_hold_passed": true,
+  "missing_force_bias_fallback_passed": true,
+  "finite_steering_rate_bound_passed": true,
+  "lambda_control_values": [
+    -0.085577616480272567,
+    -0.086148350374874422,
+    -0.087048009185318964
+  ],
+  "controller_bridge_reference_count": 0
+}

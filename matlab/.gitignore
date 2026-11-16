@@ -1,5 +1,6 @@
 # Rebuildable compiler and Simulink caches.
 build/
+archives/
 **/__pycache__/
 **/*.slxc
 **/slprj/
@@ -17,3 +18,8 @@ carsim/case/LastRun.vsb
 carsim/case/LastRun_log.txt
 carsim/case/LastRun_end.par
 carsim/case/LastRun_all.par
+carsim/coordinated_case/LastRun.vs
+carsim/coordinated_case/LastRun.vsb
+carsim/coordinated_case/LastRun_log.txt
+carsim/coordinated_case/LastRun_end.par
+carsim/coordinated_case/LastRun_all.par

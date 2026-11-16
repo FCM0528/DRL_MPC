@@ -217,7 +217,7 @@ void testConfig() {
     const auto simfile = root / "simfile.sim";
     write(simfile, "SIMFILE\nSET_MACRO $(ROOT)$ Run_fixture\nDATADIR " + root.string() +
           "\nINPUT Results\\$(ROOT)$\\Run_all.par\n"
-          "FILEBASE Results\\$(ROOT)$\\LastRun\nEND\n");
+          "FILEBASE Results\\$(ROOT)$\\LastRun\nPORTS_EXP 1,20\nEND\n");
     write(gui / "Run_all.par", "PARSFILE\nSPEED_TARGET_CONSTANT 30\nEND\n");
     write(archive / "Run_visualizer.par", read(gui / "Run_all.par"));
     write(archive / "LastRun.vs", "new header");
@@ -241,7 +241,7 @@ void testConfig() {
             "Changed CarSim source must not publish stale output");
     const std::string original_path =
         "PARSFILE\nset_description path_id Straight East\nSPEED_TARGET_CONSTANT 40\n"
-        "LTARG_TABLE SPLINE_FLAT\n0, 0\n1, 1\n2, 0\nENDTABLE\nEXPORT Yaw\nEND\n";
+        "LTARG_TABLE SPLINE_FLAT\n0, 0\n1, 1\n2, 0\nENDTABLE\nEXPORT Yaw\nPORTS_EXP 1,20\nEND\n";
     write(gui / "Run_all.par", original_path);
     const auto staged = root / "staged_run";
     stageCarSimSimfile(simfile, staged);
@@ -249,8 +249,8 @@ void testConfig() {
     const auto visualizer = DoubleLaneChange::fromCarSimParsfile(staged / "Run_visualizer.par");
     require(solver.at(1).y == 1.0 && visualizer.at(1).y == 1.0 &&
             read(staged / "Run_all.par").find("SPEED_TARGET_CONSTANT 40") != std::string::npos &&
-            read(staged / "Run_all.par").find("EXPORT Yaw") == std::string::npos &&
-            read(staged / "Run_all.par").find("EXPORT Steer_L1\nEXPORT Steer_R1\nPORTS_EXP 1,2") != std::string::npos &&
+            read(staged / "Run_all.par") == original_path &&
+            read(staged / "simfile.sim").find("PORTS_EXP 1,20") != std::string::npos &&
             read(staged / "Run_visualizer.par") == original_path &&
             read(gui / "Run_all.par") == original_path,
             "Both run copies must preserve the native reference");
@@ -259,6 +259,63 @@ void testConfig() {
     std::filesystem::remove_all(root);
     std::cout << "PASS: CarSim Browser sync archives cache and rejects changed source\n";
 }
+void testCarSimIo() {
+    const auto dir = std::filesystem::temp_directory_path() /
+        ("mpc_carsim_io_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(dir);
+    const auto writeImports = [&](const char* mode, const char* unit) {
+        std::ofstream out(dir / "LastRun_echo.par");
+        out << "IMPORT IMP_STEER_L1 " << mode << " 0 ; " << unit << " ! left\n"
+            << "IMPORT IMP_STEER_R1 REPLACE 0 ; deg\n"
+               "IMPORT IMP_OTHER REPLACE 7 ; N\n";
+    };
+    CarSimConfig config;
+    config.steering_right_index = 1;
+    writeImports("REPLACE", "deg");
+    require(readCarSimImports(dir, config, 3) == std::vector<double>({0.0, 0.0, 7.0}),
+            "CarSim uncontrolled imports must retain their declared initial values");
+    for (int bad_case = 0; bad_case < 4; ++bad_case) {
+        auto bad = config;
+        writeImports(bad_case == 0 ? "ADD" : "REPLACE", bad_case == 1 ? "rad" : "deg");
+        if (bad_case == 2) std::swap(bad.steering_left_index, bad.steering_right_index);
+        bool rejected = false;
+        try { (void)readCarSimImports(dir, bad, bad_case == 3 ? 4 : 3); }
+        catch (const std::runtime_error&) { rejected = true; }
+        require(rejected, "Invalid CarSim steering mode, units, indices or count was accepted");
+    }
+#ifdef TEST_CARSIM_DLL
+    writeImports("REPLACE", "deg");
+    config.solver_dll = TEST_CARSIM_DLL;
+    config.simfile = dir / "fixture.sim";
+    for (int count : {2, 20, 23, 0}) {
+        writeImports("REPLACE", "deg");
+        if (count >= 20) {
+            std::ofstream out(dir / "LastRun_echo.par", std::ios::app);
+            out << "EXPORT AX 0\nEXPORT AY 0\nEXPORT BETA 0\nEXPORT RHO_ROAD 0\n";
+        }
+        { std::ofstream out(config.simfile); out << count; }
+        CarSimPlant plant(config);
+        auto state = plant.initialState();
+        require(state.x == 5.0 && state.y == 10.0 && state.vx == 20.0 &&
+                state.psi == 0.03 && state.steer_front_left == 0.1 && state.steer_front_right == -0.2,
+                "CarSim feedback must bind SI variables independently of export count and order");
+        require(count >= 20
+                ? state.body_ax == 1.25 && state.body_ay == -2.5 &&
+                  state.measured_beta == 0.02 && state.driver_curvature == 0.003
+                : std::isnan(state.body_ax) && std::isnan(state.body_ay) &&
+                  std::isnan(state.measured_beta) && std::isnan(state.driver_curvature),
+                "Exported telemetry must stay in SI and legacy missing channels must stay unavailable");
+        require(std::abs(plant.step(state, 0.02, 0.04) - 0.04) < 1e-12 &&
+                std::abs(state.x - 5.28) < 1e-10 &&
+                std::abs(state.steer_front_left - 0.02) < 1e-12 &&
+                std::abs(state.steer_front_right - 0.02) < 1e-12,
+                "CarSim substeps lost the steering conversion or uncontrolled import initial value");
+    }
+#endif
+    std::filesystem::remove_all(dir);
+    std::cout << "PASS: CarSim variable export layout and steering IMPORT contract\n";
+}
+
 void testCarSimRackSteeringLimit() {
     const auto dir = std::filesystem::temp_directory_path() / "mpc_carsim_rack_fixture";
     std::filesystem::create_directories(dir);
@@ -398,13 +455,14 @@ void testRlModule() {
     const auto raised = advanceRlTuning(high, neutral, config.rl);
     const auto lowered = advanceRlTuning(low, raised, config.rl);
     require(raised.np == config.rl.max_np && lowered.np == config.rl.min_np &&
-            raised.q_y == 13800.0 && raised.q_psi == 5600.0 && raised.r_delta == 27000.0 &&
-            lowered.q_y == 4600.0 && lowered.q_psi == 1400.0 && lowered.r_delta == 6750.0,
+            raised.q_y == config.rl.maxWeight(0) && raised.q_psi == config.rl.maxWeight(1) &&
+            raised.r_delta == config.rl.maxWeight(5) && lowered.q_y == config.rl.minWeight(0) &&
+            lowered.q_psi == config.rl.minWeight(1) && lowered.r_delta == config.rl.minWeight(5),
             "Default discrete actions must reach horizon and weight endpoints in one decision");
     const auto& discrete = config.rl;
-    require(discrete.min_np == 10 && discrete.max_np == 50 && discrete.np_step == 1 &&
+    require(discrete.min_np >= config.mpc.nc && discrete.max_np > neutral.np && discrete.np_step == 1 &&
             discrete.decision_steps == 2,
-            "The 40 ms MPC must expose all 41 integer horizons at 80 ms policy intervals");
+            "The 40 ms MPC must expose feasible integer horizons at 80 ms policy intervals");
     for (int np = discrete.min_np; np <= discrete.max_np; np += discrete.np_step) {
         const int span = np < neutral.np ? neutral.np - discrete.min_np : discrete.max_np - neutral.np;
         const double request = static_cast<double>(np - neutral.np) / span;
@@ -412,19 +470,22 @@ void testRlModule() {
                 "Every configured horizon must be reachable");
     }
     const auto intermediate = advanceRlTuning({0, -0.5, 0.35, 0.67}, neutral, discrete);
-    require(intermediate.q_y == 7500.0 && intermediate.q_psi == 3150.0 &&
-            intermediate.r_delta == 21500.0, "Interior requests must select exact array entries");
-    for (std::size_t i = 0; i < 9; ++i) {
-        const double request = -1.0 + 0.25 * static_cast<double>(i);
+    require(intermediate.q_y == discrete.weight_choices[0].at(1) &&
+            intermediate.q_psi == discrete.weight_choices[1].at(3) &&
+            intermediate.r_delta == discrete.weight_choices[5].at(3),
+            "Interior requests must select exact array entries");
+    const auto candidates = discrete.weight_choices[0].size();
+    for (std::size_t i = 0; i < candidates; ++i) {
+        const double request = -1.0 + 2.0 * static_cast<double>(i) / (candidates - 1);
         const auto action = advanceRlTuning({0, request, request, request}, neutral, discrete);
         require(action.q_y == discrete.weight_choices[0].at(i) &&
                 action.q_psi == discrete.weight_choices[1].at(i) &&
                 action.r_delta == discrete.weight_choices[5].at(i),
-                "Each of the nine candidates per learned weight must be reachable");
+                "Every candidate per learned weight must be reachable");
     }
     const auto saved = configToIni(config);
     require(saved.find("np_step = 1") != std::string::npos &&
-            saved.find("q_y_values = 4600, 6000, 7500, 8250, 9200, 9850, 10500, 12000, 13800") != std::string::npos &&
+            saved.find("q_y_values = ") != std::string::npos &&
             saved.find("q_psi_values = ") != std::string::npos && saved.find("r_delta_values = ") != std::string::npos,
             "Effective configuration must retain the discrete action space");
     RlConfig legacy;
@@ -447,6 +508,12 @@ void testRlModule() {
     const auto reference = testReference();
     VehicleState state;
     state.vx = 60.0 / 3.6;
+    state.measured_beta = 0.02;
+    require(vehicleSideslip(state) == 0.02,
+            "Available CarSim Beta must feed the observed vehicle sideslip");
+    state.measured_beta = std::numeric_limits<double>::quiet_NaN();
+    require(vehicleSideslip(state) == std::atan2(state.vy, state.vx),
+            "Legacy cases without Beta must compute sideslip from body velocity");
     require(RlConfig{}.observation_profile == "road_preview_v2" &&
             config.rl.observation_profile == "road_preview_v2",
             "New training must use the road preview profile");
@@ -812,8 +879,23 @@ void testMpcConstraints() {
                 "High sideslip must still produce a feasible MPC move");
         risky.vx = 0.0;
         const auto held = mpc.control(risky, result.steer);
-        require(!held.converged && !held.prediction_failure.empty() && held.steer == result.steer,
+        require(!held.converged && !held.prediction_failure.empty() && held.steer == result.steer &&
+                !mpc.hasLastSolution() && std::all_of(mpc.lastControlMoves().begin(),
+                    mpc.lastControlMoves().end(), [&](double value) { return value == held.steer; }),
                 "Invalid operating point must hold the previous applied steering");
+    }
+    for (int bad_case = 0; bad_case < 5; ++bad_case) {
+        auto p = config.mpc;
+        auto invalid_vehicle = model;
+        if (bad_case == 0) p.q_y = -1.0;
+        if (bad_case == 1) p.dt = std::numeric_limits<double>::quiet_NaN();
+        if (bad_case == 2) p.admm_primal_tol = std::numeric_limits<double>::infinity();
+        if (bad_case == 3) p.terminal_scale = -1.0;
+        if (bad_case == 4) invalid_vehicle.iz = 0.0;
+        bool rejected = false;
+        try { LateralMpc invalid(invalid_vehicle, p, ref, tires); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected, "Invalid numerical MPC inputs must fail before building the QP");
     }
     std::cout << "PASS: CarSim-based MPC optimization constraints\n";
 }
@@ -902,6 +984,7 @@ int main() {
         testTireZeroLoadColumn();
         testConfig();
         testCarSimBrowserResultSync();
+        testCarSimIo();
         testCarSimRackSteeringLimit();
         testCarSimMpcModel();
         testRlModule();

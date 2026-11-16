@@ -1,8 +1,0 @@
-PASS Model structural connectivity
-PASS Neutral and action endpoints
-PASS Real steering authority: zero/positive/negative
-PASS Original executable vs MATLAB MEX numeric parity
-PASS Seven MEX stages: online Np/Q/R and forced QP failure
-PASS Full fixed-loop completion, QP status and repeat Reset
-Reset maximum state error: 0
-Pipeline vs previous fixed control maximum error: 0

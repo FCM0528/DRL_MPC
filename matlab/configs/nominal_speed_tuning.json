@@ -1,0 +1,9 @@
+{
+  "rate_change_weight": 240000,
+  "safety_utilization": 1.0,
+  "consistent_feedforward": true,
+  "max_iterations": 20000,
+  "speed_planning_enabled": false,
+  "speed_target_kmh": 70,
+  "basis": "closed-loop comparison at the original CarSim speed target"
+}

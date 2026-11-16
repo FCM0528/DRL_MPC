@@ -1,0 +1,42 @@
+{
+  "passed": true,
+  "verification_scope": "original 70 km/h case restored, compiled and simulated",
+  "model": "DRL_MPC_MATLAB",
+  "default_profile": 3,
+  "speed_planning_enabled": false,
+  "speed_target_kmh": 70,
+  "speed_validation_band_kmh": [
+    68,
+    72
+  ],
+  "speed_validation_band_is_design_check": true,
+  "np": 40,
+  "nc": 12,
+  "scopes": 10,
+  "controller_mex_loaded": false,
+  "default_entry_state_max_difference": 0,
+  "tracking_rmse_improved": true,
+  "actual_ay_within_soft_design_limit": true,
+  "constraint_limitations": "soft predicted state constraints; actual excess is reported separately",
+  "metrics": {
+    "controller": "current70",
+    "range_end_m": 120,
+    "lateral_rmse_m": 0.049970583681467257,
+    "max_abs_lateral_m": 0.14666898655000349,
+    "heading_rmse_rad": 0.021973899455301232,
+    "qp_failures": 0,
+    "samples": 155,
+    "reached_range": true,
+    "min_speed_kmh": 69.638566761829154,
+    "max_speed_kmh": 70.163199808875063,
+    "distance_grid_rmse_m": 0.049585509144688407,
+    "max_ay_mps2": 7.3991083222636567,
+    "max_ay_excess_mps2": 0,
+    "max_beta_deg": 3.0130880187482774,
+    "max_slack": 0.00058811391090004238,
+    "max_steer_rate_deg_s": 43.27433112154521,
+    "rmse_change_vs_baseline_pct": 7.5584984770144192
+  },
+  "corrected_environment_training_episodes": 0,
+  "real_time_qualified": false
+}

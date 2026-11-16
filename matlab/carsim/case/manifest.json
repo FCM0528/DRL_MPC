@@ -3,8 +3,9 @@
   "source_sha256": "9f2b97f7f570261df78c0d9eaf13b876a72ba224c6c42ec81a6e40dea89fa416",
   "changes": [
     "Source front-wheel imports already correct",
-    "Private station margin SSTOP 160; evaluation endpoint remains CG X=150",
-    "All solver output paths redirected under matlab/carsim/case"
+    "Private station margin SSTOP 160; native evaluation ends at CG X=120",
+    "All solver output paths redirected under matlab/carsim/case",
+    "Private SIMULINK_MODEL_FILE points to DRL_MPC_MATLAB.slx; vehicle/source/reference data unchanged"
   ],
   "reference": "DLC SYX; entire LTARG_TABLE preserved",
   "exports": [
@@ -28,5 +29,7 @@
     "Fy_R1",
     "Fy_L2",
     "Fy_R2"
-  ]
+  ],
+  "native_model": "DRL_MPC_MATLAB",
+  "native_evaluation_endpoint_m": 120
 }

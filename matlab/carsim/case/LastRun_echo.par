@@ -9,7 +9,7 @@ CATEGORY * FCM
 TITLE DRL-MPC <* FCM>
 
 ! Echo: C:\Users\fengchengmin\Desktop\JQRKZ\DRL-MPC\matlab\carsim\case\LastRun_echo.par
-! This run was made 02:06 on November 13, 2026.
+! This run was made 09:59 on November 14, 2026.
 
 !------------------------------------------------------------------------------------
 ! SYSTEM PARAMETERS (SIMULATION OPTIONS)
@@ -90,21 +90,6 @@ TSTEP           0.001 ; s ! Time step for numerical integration [L]
 ! TSTEP_WRITE     0.1 ; s ! CALC -- Time interval in output time-series file
 TSTOP              20 ; s ! Stop when this time is reached
 ! T_DT         0.0005 ; s ! CALC -- Time increment between calculations
-
-!------------------------------------------------------------------------------------
-! VS CONNECT SERVER PARAMETERS
-!------------------------------------------------------------------------------------
-VSC_OPT_ENABLE_SERVER 0 ! 0 -> Disable VS Connect server. 1 -> Enable VS Connect
-                        ! server.
-VSC_HOST_PORT       0 ! I.P. port for VS Connect server Node. 0 -> Use default.
-VSC_MIN_CONNECTIONS 0 ! Minimum required VS Connect connections.
-VSC_DESIRED_CONNECTIONS 0 ! Desired number of connections for simulation to begin.
-VSC_STARTUP_TIMEOUT_MS 5000 ! Number of milliseconds to wait for VSC_MIN_CONNECTIONS
-                            ! and VSC_DESIRED_CONNECTIONS connections before
-                            ! starting simulation.
-VSC_MAX_CONNECTIONS 3 ! Maximum VS Connect connections permitted.
-VSC_SHUTDOWN_TIMEOUT_MS 1500 ! Approximate time (in milliseconds) allowed for
-                             ! processing disconnection.
 
 !------------------------------------------------------------------------------------
 ! SYSTEM CONSTANTS

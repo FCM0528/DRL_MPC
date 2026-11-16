@@ -1,0 +1,24 @@
+{
+  "active_model": "models/DRL_MPC_MATLAB.slx",
+  "controller_directory": "controllers/matlab",
+  "np": 40,
+  "nc": 12,
+  "sample_time_s": 0.04,
+  "default_profile": 3,
+  "default_case": "carsim/case/simfile.sim",
+  "prediction_revision": "prediction_correction_nominal70_v1",
+  "speed_planning_enabled": false,
+  "speed_target_kmh": 70,
+  "speed_tuning": "configs/nominal_speed_tuning.json",
+  "correction_validation": "results/nominal_speed_correction/acceptance.json",
+  "corrected_training_episodes": 0,
+  "metric_range_m": [
+    0,
+    120
+  ],
+  "final_agent": "results/matlab_td3_ep300_seed42/final_agent.mat",
+  "existing_agents_environment": "legacy prediction model and original 70 km/h case",
+  "selected_agent": "results/matlab_td3_ep300_seed42/checkpoints/Agent160.mat",
+  "diagnosis": "results/mpc_diagnosis/DIAGNOSIS.md",
+  "cleanup": "results/cleanup/CLEANUP.md"
+}

@@ -1,2 +1,0 @@
-controller,lateral_rmse_m,max_abs_lateral_m,heading_rmse_rad,qp_failures,completed,end_x_m,end_time_s,samples
-training_td3_np40_nc12_ep300_seed42_evaluation,0.0858140371220387,0.265539312026526,0.0131942181949014,0,1,150.581387783999,7.84,197

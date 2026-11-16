@@ -1,0 +1,47 @@
+{
+  "passed": true,
+  "model": "DRL_MPC_MATLAB",
+  "controller_implementation": "MATLAB functions and Simulink Unit Delay states",
+  "external_sfunctions": [
+    "vs_sf"
+  ],
+  "controller_sfunction_count": 0,
+  "scope_count": 6,
+  "matlab_function_count": 12,
+  "controller_mex_loaded": false,
+  "closed_loop_state_steer_reward_max_difference": [
+    [
+      1.4351826393976808e-09,
+      4.0398240308547884e-14,
+      5.1237236675660824e-11
+    ],
+    [
+      1.4124452718533576e-09,
+      5.367928324062632e-14,
+      5.5777604757167865e-11
+    ],
+    [
+      3.648892743512988e-09,
+      2.615963001773025e-13,
+      1.0183498488913756e-10
+    ],
+    [
+      2.8301201382419094e-09,
+      5.773853617441205e-14,
+      1.0094325375575863e-10
+    ]
+  ],
+  "np": 40,
+  "nc": 12,
+  "distance_m": 120,
+  "native_training_completed": true,
+  "training_episodes": 300,
+  "training_interactions": 47100,
+  "delivery_passed": true,
+  "controller_source_files": 14,
+  "code_analyzer_messages": 0,
+  "cleanup_regression_passed": true,
+  "metric_range_start_m": 0,
+  "metric_range_end_m": 120,
+  "metric_samples": 155
+}

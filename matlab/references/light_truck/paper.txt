@@ -1,0 +1,1163 @@
+汽 车 工 程
+
+Automotive Engineering
+
+
+2026 年( 第 48 卷)  第 7 期
+
+
+2026(  Vol.48)  No.7
+
+
+ doi:10.19562/j.chinasae.qcgc.2026.07.006
+
+
+基于强化学习的轻型MPC货车自适应
+路径跟踪 * 控制
+
+
+王志1,2,3红,杨东,浩胡1,2,3 1,2,3杰,曾嘉,荣廖1,2,3 啼,航陈1,2,3 家1,2,3骥
+
+(1. 武汉理工大学,现代汽车零部件 技 43术0070湖;北省重点实验室,武汉
+
+2. 武汉理工大学,汽车零部件技术  湖4300北70;省协同创新中心,武汉
+
+3. 新能源与智能网联车湖北工  程4300技70)术研究中心,武汉
+
+
+[摘 要针]对固定M权PC 重在复杂工况下路径跟踪精度不足的问题,本文提出一种基于强化学习的自适应
+
+MPC 方法。首先,基于车辆动力学模M型PC 控构制建器转角,在增代价量函式数中引入可动态调节的全局权重系
+
+数,并设置分步长权重系数以实现预测时域内的差异化权重分配,从而增强控制器权重设计的灵活性。随后,构建
+
+基于双延迟深度确定T性D策3)的略强梯化度学(习模型,训练目标兼顾跟踪精度与行驶稳定性,使权重参数能够随
+
+车辆状态和道路条件自适应协同Tru调ckS整im/S。imul最ink 联后合,进仿行真与实车试验。实车试验结果表明,横
+
+向误差方差、航向误差方差及转向0.盘041 转m、角0. 10方6 ra差d和分234别.22为6°,均优于对照算法,验证了该方
+
+法在控制性能与自适应调节能力方面的优越性。
+
+关键词:自动驾驶M控PC;制强;化路学径习跟踪;
+
+
+Adaptive Model Predictive Path Tracking Control of Light Trucks Based on 
+Reinforcement Learning
+
+
+Wang Zhihong1,2,3,Yang Donghao1,2,3,Hu Jie1,2,3,Zeng Jiarong1,2,3,
+Liao Tihang1,2,3 & Chen Jiaji1,2,3
+1. Wuhan University of Technology, Hubei Key Laboratory of Modern Auto Parts Technology, Wuhan     430070;
+
+2. Wuhan University of Technology, Hubei Collaborative Innovation Center of Auto Parts Technology, Wuhan     430070;
+
+3. Hubei Technology Research Center of New Energy and Intelligent Connected Vehicle Engineering, Wuhan     430070
+
+
+[Abstract]  For the limited path-tracking accuracy of conventional model predictive control (MPC) under 
+
+complex driving conditions, this paper proposes an adaptive MPC method based on reinforcement learning. Firstly, 
+
+a steering-increment MPC controller is developed using the vehicle dynamics model. The cost function introduces in 
+
+a dynamically adjustable global weight coefficient and astep-varying weighting coefficients are set to realize differen⁃
+
+tiated weight allocation in the prediction time domain, enhancing the flexibility of the controller’s weight design. 
+
+Subsequently, a reinforcement learning model based on the Twin Delayed Deep Deterministic Policy Gradient 
+
+(TD3) algorithm is constructed, where the training objective jointly considers tracking accuracy and driving stabili⁃
+
+ty, which enables the weighting parameters to adaptively and collaboratively adjust according to vehicle state and 
+
+road conditions. Finally, TruckSim/Simulink co-simulation and real-vehicle experiments are conducted. The experi⁃
+
+mental results show that the proposed method achieves lateral error variance, heading error variance, and steering 
+
+angle variance of 0.041 m, 0.106 rad, and 234.226°, respectively, all superior to the baseline algorithm, thereby 
+
+verifying the proposed method’s advantages in control performance and adaptive adjustment capability.
+
+
+* 湖北省中央引导地方科2技023发CGB展005)专资项助(。
+原稿收到日202期5年为10 月23 日,修改稿收到20日25 年期1为1月25 日。
+通信作者:胡杰,教E-m授ail:,au博to_h士j@1,63. com。
+
+
+王志红,等:基于强化学习的MPC轻路型径货跟车自踪适控应制
+
+
+￿￿1553
+
+
+2026(  Vol.48)  No.7
+
+
+Keywords:autonomous driving control;path tracking;MPC;reinforcement learning
+
+
+重,增强了不同曲率下的鲁棒性,但单一权重调整
+
+难以实现全局最优[1。2] 提李出T-韶S华模糊等自
+
+适应权M重PC,改善不同速度下的轨迹跟踪性能,
+
+随着智能交通需求的增长,自动但驾未驶考技虑术预加测速时域内步Tan长g等权[13] 采重差异。
+发展,并在城市物流与货运运输等场用景PSO-中BP展神现经出网广络M优PC化权重,提高了自适应
+阔应用前景。路径跟踪控制作为能自动力驾,但驶的预训核练心技策 略 在 未 知 环 境 下 的 鲁 棒 性 仍
+术之一,直接关系到车辆行[1] 驶。安有全限与。运行稳定性
+与乘用车不同,轻型货车常运行于复杂深度道强路化环学境习,其通过与环境交互最大化奖励函
+路径跟踪受道路曲率、变速行驶数及,不载荷断特优性化等控[1因制4] ,常素策见略算法D包QN[1括5] 、
+影响更为显著,使控制问题更具挑TD战3[1性6] 。和SA因C[17] 此。,在目确前 ,端 到 端 自 动 驾 驶 系 统 在
+保路径跟踪精度和行驶稳定性的实基础现上系,实统 范现围高集性成 方 面 具 有 天 然 优 势 ,但 其 可 解
+能的轻型货车自适应路径跟踪控制释具性差有会带重来要安研全究[18] 。风险相较之下,将深度强
+意义。 化 学 习 用 于 优 化 控 制 器 参 数 ,则 既 保 留 学 习 优 化
+
+本文聚焦车辆横向运动控制,现优有势的,又横向具控备制可预测性和安[1全9] 引性。汪洪波等
+策 略 总 体 可 分 为 基 于2类模方型法和[2] 。无入模深型度强化学MPC习代价对函数权重进行自适应
+无模型方法无须建立被控对象的精整确定数学,结模果型表,其明 该 控 制 器 优 于 模 糊 控 制 参 数 整 定
+中以PID 控制[3] 为代表,在工程应用较为的M普P遍C 控,但制器Zarr。ouki 等[20] 使用强化学习在安
+其在控制精度和鲁棒性方面表现不全足学。习基空于间模内型选 择 预 优 化 的M权PC 重 集,解 决 了
+的横向控制方法可进一步分为基成于本运函动数学权模重型优和化问 题 ,并 实 现 动 态 环 境 下 的 自
+基于动力2学类模。型基于运动学模型适的应典控制型。控
+制算法包括纯跟[4] 踪和S算tanle法y 算[5] 法 。此类 针 对 轻 型 货 车 在 复 杂 工 况 下 采 用 固 定 权 重
+方法建模较为简洁,但无法准确反映MP出C 控车制辆动器力且学忽视预测时域内各预测步权重差异
+特性,因此更适合低速场景下的路导径致跟的踪控控制制性。能基下 降 问 题 ,本 文TD3提 出 一 种 将
+于 动 力 学 的 方 法 须 更 精 细 建 模 以 反(twi映n del系ayed统 de状ep 态det。erministic policy gradient)与
+常见L的QR 算[6] 法通过状态反馈调节横向M运PC动结,但合的自适应控制方法。首先基于车辆动力
+无法考虑车辆状态和系统约束,因此学在建复立转杂角工况增MPC量横式向下 控制器,并在代价函
+难 以 保 证 跟 踪 精 度 和 稳 定M性PC。算相数比 之中引下入, 可调的全局权重与分步长权重系数。其
+法[7]结合预测模型、系统状态及未来次控构T建D制量3 智构能建代体,实现对上述多项权重的协同自
+价函数,并考虑车辆动力学约束适进应行调在节线,从优化而,能增强控制器在不同路况下的跟踪性
+实现更高精度与稳定性,因此被广能泛与应适用应于性路。径最T跟r后uckS,im通/S过imulink 对复杂
+踪控[8] 制。 工况进行联合仿真,验证了算法性能,并结合大曲
+
+近年来,学者们通MP过C算改进法提升自动率驾道路的实车试验,进一步证明了该控制方法的有
+驶 轨 迹 跟 踪 精 度 与C鲁hen棒等性[9] 提。出 基 于效性与优越性。
+Tube MPC 的控制方法,通过将状态量与控制量约束
+在预定义管道内来保证系统稳定1 性并车提辆高跟模型踪精
+度。何智[10] 提成出等优化车辆侧倾与变形转向特
+性模型,在大曲率工况下显著提升1横. 1 向横控制向2自运由动度精度。 模型
+然而,上述方法虽在不同MPC层的面鲁改棒进性了车辆横向路径跟踪控制的基础是对车辆动力学
+或精度,但均采用固定的控制器参进数行,难建以模兼。顾假多设工 车辆纵向速度恒定,忽略空气动力
+况需求。 学和悬架动力学的影响,建立包括横向运动和横摆
+
+Wang 等[11] 利用模糊算法在线调节横向运位动的2车自辆由移权 度动力学1模所型示,。如图
+
+
+前言
+
+
+￿￿1554
+
+
+汽
+
+
+车
+
+
+工
+
+
+程
+
+
+2026 年( 第 48 卷 第) 7 期
+
+
+图1 车辆动力学模型
+
+
+根据牛顿力学和理论力学公式分析,车辆横向
+与横摆运动满足下列微分方程:
+{m ( ay + vx ω) = Fyf cos δ+ Fyr
+
+I ω̇= l F - l F
+z f yf r yr
+
+式中m:为整车质a量为;车辆侧向v加为速纵度向; ìėy = vy - vx ( φ- φdes )
+y x í
+
+车速;ω为横摆角F速、度F;分别为前轮和后轮îeφ的= φ- φdes
+yf yr
+
+侧向Iz力为;车辆轴绕z 的转动l惯、分量f lr ;别为车辆式中φ和φdes 分别为车辆当前时刻航向角和匹配路
+
+质心到前轴和后δ为轴前距轮离转;角。 径点航向角。
+本文采2用自由度车辆模型常用的线性联化假立3式)~(式(5)得
+设。考虑到侧偏角通常较小,可对其ë=运C动αf δ-学Cαf 关+ Cαr系( ė采- v e ) -
+y m mv y x φ
+用小角1阶度近似;同时假设轮胎工作在线性区域,x
+C l - C l
+其侧向力与侧偏角间满足线性关系         ,可αf得f 车αr 辆r ( ė前+ φ̇后) + v ė
+mv φ des x φ
+轮轮胎的侧向力为 x
+C l C l - C l
+ïïìF = C ( δ- vy + lf ω ) ëφ= Iαfz f δ- αf fIz vx αr r ( ėy - vx eφ) -
+
+îïïïïíïïFyyrf = Cαrαfvy -vxlr ωvx 由         几Cαflf 2何I+z vxC关αrlr 2 (系ėφ+可φ̇des知) -:φ̈des
+式中C:αf、Cαr分别为前、后轴等vy 为效侧横偏刚φ̇度= v;κ
+des x
+
+向车速。
+式中κ为道路曲率。
+对前轮转角做小角度近似,忽略其高阶非线性
+联立6式)~(式(8)可得状态空间方程表达式:
+项。联C立1)和式(式2)(,可+ C (-C l 得+ C到l 车辆) 动C 力学方ẋ程= Ax为+ Bu + Cκ (9)
+a = - αf αr v + αf f αr r - v ω + αf δ 其中:
+y mv y mv x m
+x x x = [e ,ė,e,ė]T;u = δ
+(3) y y φ φ
+
+1. 2 评ω̇=跟-估Cαf踪lf车I-z vxC误辆αrlr对v差y 预- C模定αflf 2I型轨+z vxC迹αrl的r 2 ω +跟CIαfz踪l(4)f δ效果,常A = 用êêêêêêêêêêêêêêé0000 横--CCαf向lαfmf01-+vCCx误αrαrlr CCαflαff m-+00 CCαrαrlr --CCαfαflfml2f10++vxCCαrαrllrr 2 úúúúúúúúúúúúúúù
+差和航向误差作为核心考量e 指为标车。本文ë定义Iz vx Iz Iz vx û
+
+如辆车辆质图2心所纵到示向参。轴考线路与径参上考对路应径匹切y配eφ线为点之的间横的B向=夹êêêêêêêêêêé 距Cm00αf角úúúúúúúúúúù离;C,示=,êêêêêêêêêêé Cαr意lr m-图C00αflf - vx 2úúúúúúúúúúù
+
+根据上述模型,可以得到航向误差和êêêê C横αflf úúúú向速êêêê度- Cαflf 2 + Cαrlr 2 úúúú
+误差: ë Iz û ë Iz û
+
+
+图2 误差跟踪模型
+
+
+(1)
+
+
+(5)
+
+
+(6)
+
+
+(2)
+
+
+(7)
+
+
+(8)
+
+
+王志红,等:基于强化学习的MPC轻路型径货跟车自踪适控应制
+
+
+￿￿1555
+
+
+2026(  Vol.48)  No.7
+
+
+其中:
+
+A′= êêêêéAd Bdúúúúù ;B′= êêêêéBdúúúúù ;C′= êêêêéCdúúúúù
+d ëO I û d ë I û d ëOû
+5 × 5 5 × 1 5 × 1
+
+自动驾驶轻型货车常处于复杂式且中Δ:变u (化k)为的时k工况刻的前轮转角增O表量输示入;
+中,而固定M权PC 重控的制器无法随工况动全态调零整矩阵。
+参数,因此路径跟踪精度会下降。为在此道,本路曲文提率出为了零的情况下,曲率项可以忽略不
+一种基TD于3的自适M应PC 控制方法,通过在代计价 ,式12)(可以简化为线性控制系统:
+函数中引入可调节的全局权重与分ξ (k步+ 1长) =权A′ξ (重k) +系B′数Δu,(k) (13)
+d d
+
+构建双层次变权重机制,并结合强化学MPC习的实控制现目权标重是保证预测时域内状态量与参
+参数的自适应整定,从而有效提升考车值辆之横向间的路误径差跟尽可能小,使车辆能够准确地跟踪
+踪的精度与自适应性。整3所体示架。构如预图定轨迹,定义目标函数为
+N
+
+J ( ξ ( k),Δu( k),ε) = ∑p  ξ ( k) - ξ ( k) 2 +
+des Q
+k = 1
+
+N - 1 2
+
+                                        ∑c Δu( k)  + ρ2ε (14)
+k = 1 R
+
+
+2 路径跟踪控制器
+
+
+s. t.     
+ì ξ (k + 1) = A′ξ ( k) + B′Δu(k)
+íïïïï ξ (k) ∈ξlim d d
+îïïïïΔu(k) ∈ uΔlim
+式中ε表: 示松弛因子,其可防止N目标函数无解;
+p
+
+为预测时N域为;控制时Q为域状;态量权重R系数;
+c
+
+为控制增量权ξ 重为系状数态;量约束Δu矩阵;
+lim lim
+
+在该控制结T构D3 的中,决策周MPC期的与更为允许的最大控制增量转角,其数值由车辆最大转
+
+新周期保持一TD3致在每。一控制周期根据向车盘辆角状速度ρ为决松定弛;因子权ξdes重为系参数考;
+态 输 出 当 前 的 全 局 权 重 与 分 步 长状权态量重矩系阵数。,用 于
+MPC 在线更新代价函数并执行滚动优化对。式(14)与式15)(所述的二次优化问题交由
+2. 1 增量MPC式控制器 OSQP 求解,获得最优控制序列:
+
+在本控制器中,将离散T时,并间作设为定为ΔU * = [Δu ,Δu ,⋯,Δu ,ε]T (16)
+s k k k + 1 k + N - 1
+c
+
+MPC 的控制更新周期。在此基础上,对将连优续化系得统(见到的控制序列首项作为当前步的前轮
+
+式(9))采用双线性离散化,得到离散状转态角方程调:整量,并结合车辆前轮当前转角输出控制器
+x (k + 1) = Ad x (k) + Bdu (k) + Cdκ (10) 转角:
+式 中A:d = ( I - ATs /2)-1 ( I + ATs /2);Bd = BTs;Cd = u ( k) = u ( k - 1) + Δu (17)
+k
+
+CTs;为I 单位矩阵。 式中u (k - 1)为k- 1 时刻输入前轮转角。
+为了消除控制器静态误差、提高2. 2期 望代参价考轨函迹数权重设计
+跟踪平滑性,将状态方程进行增广矩阵处在理增。量M式P增C 横广向控制器中,二次型代价函数
+
+元素为控制增量,则控制方程的新的状误态量差权为重直接决定了控制器对不同误差的响应速
+ξ (k + 1) = ëêêêêéx (uk(+k)1)ûúúúúù (11) 预度测与步平使稳性2。.用1相节由可同的Q知和R,M传P权,在C重统通面矩常阵对对所复有杂工
+
+式中x:(k + 1)为时k刻+1 的误差状u(态k)为;时刻况时,常常出现过度修正或滞后响应的极端情况,导
+k 的前轮转角输入。 致路径跟踪精度下降。针对这一不足,本文提出双
+对式(10)做增广处理后可以得到层离次散的状变态空权间重调节策略:在同一控制周期内采用顺
+表达式为 序更新机制,首先确定全局权重的基础取值,随后在
+ξ (k + 1) = A′ξ ( k) + B′Δu(k) + C′κ 其基础上对预测步长内的误差状态权重进行逐步设
+d d d
+
+
+(15)
+
+
+图3 路径跟踪控制器结构
+
+
+(12)
+
+
+￿￿1556
+
+
+汽
+
+
+车
+
+
+工
+
+
+程
+
+
+2026 年( 第 48 卷 第) 7 期
+
+
+定,以实现更灵活的权重配置。 式中Q:为预测时域i步内的第状态项权重矩阵,其
+i
+
+2. 2. 1 全局权重 中i = 1,2,...,N ;R 为控制时域步内的第控j 制增量
+p j
+
+MPC 控制器的目标2函个权数包重含矩阵,分项权重矩阵,其j = 1,2,...,N中 - 1。
+
+c
+
+别对应状态权重与控制增量权重,可表一达般为的,基于模型预测控制的路径跟踪控制算
+
+ïïìQ = diag [Q ,Q ] 法预测的每一步的目标函数权重矩阵均相同,即固
+α β
+
+í
+
+îïïR = [ r ] 定权重策略难以自适应动态路况与行驶状态变化。
+
+式中Q:= diag [ q ,q,q,q ],其q中、q、q、q分别 本文对状态量权重进行研究,在预测时域内为各步
+
+α 1 2 3 4 1 2 3 4
+
+分配不同的权重系数,使各预测步误差项的重要性
+
+对应横向误差、横向速度误差、航向误差和航向角速
+
+能够随车辆状态动。态调因此整,可将14)式目(标
+
+度误差Q ;= [ q ],其q中为前轮转角的r权重系数;
+β 5 5
+
+函数分解为
+
+为前轮转角增量的权重系数。
+
+在自动驾驶车辆路径跟MPC踪控控制制器中,J = Q1[ ξ ( k) - ξdes ( k) ] + ⋯ +QN [ ξ ( k + Np ) -
+
+p
+
+主要针对横向误差、航向误差和前轮        ξ转角( k进+ N行)] 控+ 制R [ Δu。( k) ] + ⋯ +
+des p 1
+
+在代价函数中分别赋予它们不同权重        R,可[平Δu衡( k + 跟N -踪1) ]  + ρ2ε
+
+N - 1 c
+
+精度与车辆行驶稳定性。具体而言,提高c 状态量中
+
+(21)
+
+误差权重Q矩,可阵 增大对路径跟踪误差的惩罚,
+
+α 通过以上分析,目标函数Q 在误整差个状态项
+
+提升车辆的跟踪精度;增大前Q 轮, 转角权重矩阵 α
+
+β 预测时域内被逐步计算,而每一步都可以选取不同
+
+有助于提高车辆的行驶稳定性与乘坐舒适性;而增
+
+大前轮转角增量R权,可重有矩阵效抑制转角的的权剧重值。( 本i 文) 选择分步长权重变化控制率为
+
+烈变化,获得更为平滑的转向响应。Q = Q ⋅ expλ⋅
+
+αi αi N
+
+根据文2献1][ 和文献22[] 可知M,PC 的权重作 p
+
+式中Q:表示目标函数误i差步状的态项权i第=重,
+
+用机制本质上取决于各权重之间的相αi 对比例关系。
+
+基于此,本文将横向q 与速度航误向差角速度误1,2,...,N差 p;λ为分配系数,用于控制权重随预测步
+
+2
+
+q 置为0,同时设q和定r为固定值。q通和过调长节的分布形状与偏λ>重方0 时向,会。在当长预测
+4 5 1
+
+区间内对末端收敛性能给予λ<更0高关注,而当
+
+q ,平衡横向误差与航向误差对控制器的影响,从而
+3
+
+时,则对近端步的关注度更大,优先保证近期跟踪精
+
+提高车辆的路径跟踪性能。
+
+度。该指数形式既避免了线性分配的突变,又只需
+
+2. 2. 2 分步长权重系数
+
+单一参数即可灵活调整对不同预测区间的关注。
+
+由文献23[] 可知,航向误差在路径跟踪中可能
+
+2. 3 TD3 算法
+
+对横向误差的消除起到辅助作用,也可能无法有效
+
+强化学习是一种学习如何从状态映射到行为以
+
+纠正横向误差。因此,合理利用车辆的误差状态对
+
+使得获取的累计折扣奖励最大化的机制。常用的强
+
+分步长权重系数进行调节,可在优先保证远期修正
+
+化 学 习 方Q法-le有arning、DQN、DDPG 和TD3 等 。
+
+稳定性与近期误差快速收敛之间实现平衡,从而影
+
+TD3 基于Actor-Critic 框架来实现连续动作空间的策
+
+响最终的跟踪精度。
+
+略优化,共6个包网括络1个:Actor 网络π、2个Critic
+
+基于1式8)(中的状态权Q重与矩阵控制增量权
+
+重矩阵R,构建预测时域内的扩展Q状ˉ 态网权络Q重c1 和Q矩阵c2、目A标ctor 网络π以' 及2个目标Critic
+
+与扩展控制增量Rˉ,权其重分矩阵别表示为 网络Qc1 ′和Qc2 ′。
+
+êêéQ1 0 ⋯ 0úúù 如图4所示TD,3算法通过Actor 网络根据状态
+
+Qˉ= êêêêêê⋮0 Q⋮2 ⋯⋱ 0úúúúúú⋮ 态St 选St +择1,将动a作,并交t 互与过环程境产交(S生,a的,rt 互rt t 和获下得t,数St + 1据存) 一奖储个励状
+
+ëêê 0 ⋯ 0 QN ûúú 到经验回放池,用于后续策略迭代。
+
+p
+
+êêéR1 0 ⋯ 0 úúù 下一个状Cr态itic的网络估计yθ由值目C标ritic
+
+êê 0 R ⋯ 0 úú 网络计算,须通A过cto目r网标络生成含探索噪声的
+
+Rˉ= ëêêêêêê⋮0 ⋯⋮2 0⋱RN - 1⋮ûúúúúúú 智能a = π体(St +下1|θ′π)一a+:ς步动作
+
+c
+
+
+(18)
+
+
+(22)
+
+
+(19)
+
+
+(20)
+
+
+(23)
+
+
+王志红,等:基于强化学习的MPC轻路型径货跟车自踪适控应制
+
+
+￿￿1557
+
+
+2026(  Vol.48)  No.7
+
+
+图4 TD3 算法学习流程图
+
+
+式中θ:为′ 目A标ctor 网络的参ς为数网;络噪声。新方式为
+π
+
+基于上述动作,结合环境奖y 励与ìθ←′折τ扣θ+系(1数- τ,) ′θ
+θ p p p
+
+满足y := r + γmin Q′(S ,a|θ′) 式中îíτ为θ←′π 软τπ更θ+(1新- τ系) ′π数θ,其取0,1]值。范围为[
+θ t c t + 1 p
+p = 1,2 n
+
+式中γ为: 折扣系数,用于平衡当前与2未. 4 来强奖化励学的习价设置
+本文采T用D3 算法对MPC 控制器的权重参数
+值权θ、θ分重′′; 别为C目riti标c网络Q′′、Q的参数。
+1 2 c c
+1 2 进行整定,使系统能够根据车辆行驶状态与外部环
+TD3 算法通过C双ritic 网络取最小值构建价值估计
+境动态调整权重并分配关注重点,智能体与环境交
+约束,有效抑制了价值过估计,提升了策略学习的准
+互的关系5所如示图。
+确性与稳定性。
+2. 4. 1 状态与动作空间
+当前Critic 网络参数通过均方误差损失进行更
+本文将车辆当前的e 横、航向向e误、横差误差
+新,该损失定义为当前Cri网tic 目络标预测网值络与 y φ
+向误差变ė、航化率向误差e变、化车v率速及̇ 道路
+估计值的误差。这一过C程ritic使的得网当前网络 y φ y
+曲率κ作为状态输入,以描述车辆的动态与道路环
+络 输 出 逐 步 逼 近 最 优 价 值 函 数 ,损 失 函 数 的 表 达
+境的信息。同时,为保证不同量纲的状态在训练过
+式为
+L (θ) = 1 ∑Nb (y - Q (S ,a|θ))2 [-程1,1]区中具有间。一致的数值尺度,将所有状态量归一化至
+p N θ cp t t p
+
+b 1 在动作空间设计上,本文选q 、取横向误差权重
+式中N:为样本批次p大∈1小,2{ };;θ为当C前ritic 1
+b p
+
+网络Q 的参数。
+c
+p
+
+Actor 网络参θ采数 用策略梯度法更新,损失函
+π
+
+数为
+
+L (θ) = - 1 ∑Nb Q (S ,π(S |θ))
+π N c1 t t π
+
+式中π(S |θ)为b 1当A前ctor 网络在状S 态下输出的
+t π t
+
+动作。
+目标网络参数并非直接复制当前网络,而是通
+过软更新逐步向Ac其tor 与靠Crit近ic 目。标网络更 图5 智能体与环境关系图
+
+
+(27)
+
+
+(24)
+
+
+(25)
+
+
+(26)
+
+
+￿￿1558
+
+
+汽
+
+
+车
+
+
+工
+
+
+程
+
+
+2026 年( 第 48 卷 第) 7 期
+
+
+航向误差q权及重分步长权重λ分作配为系动数作的稳定性,其权重设置在适中范围;动作变化惩罚项
+
+3
+
+变量,以实MP现C控对制器参数的自适应用调于节抑。制而控制量的频繁波动,同时避免过度削弱智
+
+其 余 权 重 保 持 固q 定= q 值= 0、q,即= 50、R= 能体的动作表达能力,因此设置为较小权重。在上
+
+2 4 5
+
+[10 ]。为便于网络对策略空间3的个有述效原探则索基,上础述上,经调试后最终确定的权重参数如表
+
+动作输出的取值范围在离-1散,1]化,后2 所归示一。化至[
+
+具体取值范1所围示如。表3上个述动作在每一个 表2 各奖励项的权重系数
+
+MPC 控制周期内TD3均策由略网络重新输出,其中 参数 数值
+
+q 和q 直接构成该周期的误差状Q态,项权重矩阵k 300
+1 3 α y
+
+用于确定代价函数的λ全则在局基权础重权;而重 kφ 50
+
+确定后,根22)据对式预(测步长Q内权的重逐步分 kδ 60
+
+αi kq 15
+
+配。由此,全局层权重与分步层权重在同1 一控制周
+
+kq 15
+
+2
+
+期内以递进方式更新。
+
+k 20
+
+λ
+
+
+表1 动作空间范围定义
+2. 4. 3 智能体训练
+参数 数值
+在基于TD3 的优化过程中,训练参数的选择对
+q {25,55,85,115,155,200,240}
+1
+
+q {100,300,500,700,900,1 000,1 100,1 300} 算法稳定性与最终控制性能起着关键作用。本文选
+2
+
+λ {-1. 0,-0. 7,-0. 5,-0. 3,0,0. 3,0. 5,1. 0} 取的超参数与噪3所声示数。值M基如AT于L表AB/
+Simulink 与TruckSim 仿真平台搭建智能体模型与环
+2. 4. 2 奖励函数设计 境模型,仿真L车arge型 Euro为pean Van,并选择双
+在强化学习中,奖励函数的构移建线决轨定迹了作TD智3为算能法的体训练场景,车辆动力学参
+对各类性能指标的侧重。考虑轨迹数跟如4表所踪的示核。6由可图以心目 看出,随着迭代轮数的增
+
+标,本文设置横向误r 和差惩航罚向项误差惩罚加项,平均奖励逐渐提升,说明智能体在路径跟踪中的
+y
+
+r 作为主要激励2项,通误过差对的这约束引导性智能能不断优化。
+φ
+
+体优先保证跟踪精度;为抑制车辆频繁或剧烈的转
+表3 TD3 训练参数
+向,将前轮转角纳入奖励结构,设置转角变化惩罚项
+参数 数值
+r 。同时引入动,作以r 惩提罚升项智能体动作的连
+δ a 采样时/s 间 0. 01
+贯性。各项奖励分别设置如下: 未来奖励折扣因子 0. 99
+-k | e | Actor 网络学习率 0. 000 1
+r = y y
+y eˉ Critic 网络学习率 0. 000 8
+y
+-k | e | 目标网络平滑因子 0. 01
+r = φ φ 目标网络更新系数 10
+φ eˉ
+φ 经验缓冲区大小 100 000
+
+r = -k δ2 (30) 随机小批量大小 256
+
+rδ= -(kδ q 2 + k q 2 + k λ2 ) (31) 探索噪声初始值 0. 4
+a q 1 q 2 λ
+1 2
+
+式中k:y、kφ、kδ、kq 、kq 和kλ分别为各奖励的权重系 表4 仿真车辆参数
+1 2
+
+数;eˉy、分eˉφ 别为横向误差阈值、航向误差阈值。参数 数值
+
+本文设计的总奖励函数由各单项奖整励车质求量m/kg和构 2 500
+成,其表达式为 前轴到质心lf/距m 离 1. 35
+
+r = r + r + r + r (32) 后轴到质心lr/距m 离 3. 05
+t y φ δ a 绕 z 轴转动惯(/I 量kg∙m2) 4 116
+各奖励项的权重系数依据其在轨迹跟踪任务z 中
+前轴总侧偏C (/刚N∙r度ad-1) 173 000
+αf
+
+的相对重要性进行设定。横向误差对跟后踪轴总性能侧偏C的(/刚N∙主r度ad-1) 173 000
+αr
+
+导作用最为明确,因此横向误差惩罚项赋予转向较传高权动比 25
+
+重;航向误差与转角惩罚项主要用于维持车离辆散姿时态Ts间/s 0. 01
+
+
+(28)
+
+
+(29)
+
+
+王志红,等:基于强化学习的MPC轻路型径货跟车自踪适控应制
+
+
+￿￿1559
+
+
+2026(  Vol.48)  No.7
+
+
+估本文所提出控制方法的有效性和优越性。选取变
+附着双移线路面与蛇形路面作为测试工况。为验证
+所提出双层次变权重机制的效果,本文同时构建了
+单层次变M权PC 作重为对比方案,M其PC 代仅价在
+函数中引T入D3 调由节的全局权重系数,而预测域
+内各步长的权重保持一致。最终,将双层次变权重
+MPC(TD3-MPC-D)与固定M权PC 及重单层次变权
+重MPC(TD3-MPC-A)进行对比,以验证控制器在复
+杂工况下的路径跟踪性能。
+3. 1 变附着双移线路面工况
+
+在双移线路面基础上,将0~路70 m径纵向位移
+区间的路面附着0系.6,数70~设120 置m区为间设
+置为0. 4。同时在车2厢 000 增kg 负加载,但MPC 控
+制器中的质量参数保持不变50 加。速车辆速度由
+
+通过联合仿真平台对复杂工况进至7行0 k验m/h证。,以仿评真结果7所如示图。
+
+
+图6 TD3 算法训练过程
+
+
+3 仿真分析
+
+
+  
+
+
+  
+
+
+图7 双移线路面算法仿真结果图
+
+
+图7(a)描述3了种控制器在双移线工况对跟下踪的误路差抑制的作5展用示明了显具。体表的控
+
+径跟踪效果。可TD3-以MP看C-D出控,制器相较制另性能统计学指标。TD3可-MP以C-D看控出制,器
+
+外2 种控制器能最紧密地贴合参考的路横径向。误差和航向误差标准MP差C相较固定权重
+
+图7(b)和7图(c)分别展示了车辆的横控向制误器差分 别4减0. 32%少和了21. 43%,相 较TD3-
+
+与航向误差变化情况TD。3-M可PC-以D控看制出M,PC-A 控制器分别21减.28%少和了8. 33%。图7
+
+器 的 最 大 横 向-0. 误219 m差,为最 大 航 向 误(d)描差 为 述3了种控制器的输出转向盘转角。在低附
+
+0. 069 rad,跟踪效果最4. 5佳 s 左。右在路面附着着系段TD3,-MPC-D 控制器的转向盘转角波动相对较
+数发生变T化D3时-MP,C-D 控制器通过权重自小适,相应 比固定M权PC 控重制器TD3与具有更好的转
+
+
+￿￿1560
+
+
+汽
+
+
+车
+
+
+工
+
+
+程
+
+
+2026 年( 第 48 卷 第) 7 期
+
+
+角平稳性。结T果D3-表MPC明-D 控,制器有效提不升变。
+了轻型货车的路径跟踪性能。
+表5 双移线路面仿真算法对比
+图8(a)和8图(b)展 示T了D3-MPC-D 控 制 器
+评价指标 最大值 标准差
+动态调节的误差权重与分步长权重系数变化情况。
+固定权MPC重横向误/m 差 -0. 352 0. 124
+可以看出,当横向误差较大时,控制器倾向增大横
+TD3-MPC-A 横向误/m 差 -0. 302 0. 094
+向误差权重;当航向误差较大时,则倾向增大误差
+TD3-MPC-D 横向误/m 差 -0. 219 0. 074
+
+权重以保持车辆航向稳定。当横向固误定差权M与PC重航航向向误/rad差误 0. 084 0. 028
+差同时较大时,控制器更侧重末端权TD重3-M增PC-A大航向。误/r其ad差 他 0. 081 0. 024
+情况,控制器倾向近端权重增大或保TD3-持MP分C-D 航步向长误/ra权d差 重 0. 069 0. 022
+
+
+  
+
+
+图8 双移线路面权重系数变化图
+
+
+3. 2 蛇形路面工况 70 km/h。同时在车辆车厢部3分 000额 kg外的增加
+在蛇形路面工况下,0.最023。大曲路率面为负载,而MPC 控制器仍采用未更新的质量参数。仿
+附 着 系 数0. 6为,仿 真 车 辆 速 度40 逐由渐 加 速 至真结果如9所图示。
+
+
+  
+
+
+  
+
+
+图9 蛇形路面算法仿真结果图
+
+
+王志红,等:基于强化学习的MPC轻路型径货跟车自踪适控应制
+
+
+￿￿1561
+
+
+2026(  Vol.48)  No.7
+
+
+图9(a)所示为各控制器在蛇形道路的实际行驶
+轨迹,可TD见3-MPC-D 控制器能够更准确跟踪参
+考轨迹。
+
+图9(b)和9图(c)分别展示了车辆在路径跟踪控
+制过程中的横向误差与航向误差变化情况。可以看
+出T,D3-MPC-D 控制器的最大横0. 2向72 m误,差为
+最大航向误-0. 0差49为 rad,表现出最优的跟踪效
+果。6为表3种控制器的路径跟踪误差对比结果。
+TD3-MPC-D 控制器的标准差相M比P固C控定权重
+制 器 ,横 向 和 航 向 标 准44. 3差8%分和别 降 低
+27. 27%,相 较 于TD3-MPC-A 控 制 器 分 别 降 低
+9. 57% 和7. 69%。图9(d)给出3了种控制器的转向
+盘转角响应对比。从结TD果3-M可PC-D以控看出,
+制 器 的 转 向 盘 转TD3角-MP峰C-A值控与制 器 相
+近,整体波动仍处于可接受范围内。
+
+
+表6 蛇形路面仿真算法对比
+
+评价指标 最大值 标准差
+
+固定权MPC重横向误/m 差 0. 401 0. 187
+
+TD3-MPC-A 横向误/m 差 0. 342 0. 115
+
+TD3-MPC-D 横向误/m 差 0. 272 0. 104
+
+固定权MPC重航向误/rad差 -0. 065 0. 033
+
+TD3-MPC-A 航向误/rad差 -0. 051 0. 026
+
+TD3-MPC-D 航向误/rad差 -0. 049 0. 024
+
+
+图10 蛇形路面权重系数变化图
+
+
+图10(a)和1图0(b)展示T了D3-MPC-D 控制器
+在蛇形路面工况下的误差权重与分步长权重系数变
+化情况。可以看出,控制器在预测时域内实现分步
+长权重的差异化调节。在该工况下,航向误差幅值
+较小,当横向误差较大时,控制器更侧重于增大预测
+步长近端的状态量权重,从而有效缩减横向误差。
+
+
+4 实车试验
+
+
+图11 实车试验平台
+
+
+为验证所提控制器的控制性能通与过U自DP适协应议能与力系,统模块实现数据交互。系统模块
+选用东E风V18 自动驾驶轻型货车作为试经验由M平CU台与。底盘进行通信,最终实现车辆控制。车
+该车辆配备线控底盘5系枚统激,装光有雷达,并辆集纵向速度PID由算法调节,横纵向控制频率均设为
+成摄像G头NSS、、IMU、超声波及毫米雷达等100 H多z。源试传验选取武汉市经济开发区的开放道路作
+感器,如11图所示。 为测试场景,期望路径基于实车定位数据生成并经平
+
+本文所用实车试验车辆的动力学滑参处数理与。仿试真验车车15速 k设m/h,定各为控制器权重参
+
+辆模型一致,但由于侧偏刚度和数均为最优配置。相应的试验结果如图1质心位置难以精确 2 所示。
+
+测定,所以存在一定偏差。该车试验平台的软件系统图12(a)为3种控制器对于参考路径的跟踪效
+由定位、控制、系4个统模管块理组及成底。盘定果位。对比结果TD3表-MP明C-D 控制器在整体路径
+模块部署于域控制R器OS2 中消,息通过机制向一控制致性上优2于个其控制他器。
+模块传输位姿信息;控Sim制ulin模k搭块建,基并于 图12(b)和1图2(c)分别展示了车辆在路径跟
+
+
+￿￿1562
+
+
+汽
+
+
+车
+
+
+工
+
+
+程
+
+
+2026 年( 第 48 卷 第) 7 期
+
+
+  
+
+
+  
+
+
+图12 控制器试验结果图
+
+
+踪控制过程中的横向误差与航向误当差,整变体化情转况角。响结应平稳。结T合D3跟-踪精度来看,
+果 显T示D3-,MPC-D 控 制 器 的 最 大 横 向MP误C-D差控为制器表现出最佳的控制效果。
+-0. 154 m,最大航向误-0. 3差61为 rad,表现出最优 图13(a)和1图3(b)展示T了D3-MPC-D 控制器
+的跟踪效果7列。出表3了种控制器在路径跟在试踪验中下的误差权重与分步长权重系数变化情况。
+的误差数据对TD比3-。MPC-D 控制器的横向可误以差看出,控制器能够依据车辆运行状态对横向误
+标准差相比固定MPC权控重制器TD3与-MPC-A 控 差与航向误差权重进行自适应分配,并在预测时域
+制器分别24.降07低%和21. 15%;3种控制器的内航实现分步长的差异化调节。可以看出,当航向误
+向误差标准差差异较12(小d)。展示图3了种控制差较大时,控制器更侧重于增大预测步长近端的状
+器在试验工况下的转向盘转角响态应量对权比。重,以结果实表现对航向误差的快速修正,从而带动
+明T,D3-MPC-D 控制器在测试路段的转横向向盘误转角差同峰步减小。在整个跟踪过程中,所提方法
+值与固定MPC权控重制器TD3及-MPC-A 控制器相始终保持最优的跟踪精度。
+
+
+  
+
+
+图13 控制器试验权重系数变化
+
+
+王志红,等:基于强化学习的MPC轻路型径货跟车自踪适控应制
+
+
+￿￿1563
+
+
+2026(  Vol.48)  No.7
+
+
+53-66.
+
+[ 5] Al-Jumaili M H, Özok Y E. New control model for autonomous 
+
+vehicles using integration of model predictive and Stanley based 
+
+controllers[J]. Scientific Reports, 2024, 14(1): 19872.
+
+[ 6] 胡杰 钟,鑫凯 陈,瑞楠 等. ,基于模LQ糊R的智能汽车路径跟
+
+踪控制J].[ 汽车工程 202,2, 44(1): 17-25,43.
+
+Hu Jie, Zhang Xinkai, Chen Ruinan, et al. Path tracking control 
+
+of intelligent vehicles based on fuzzy LQR[J]. Automotive Engi⁃
+
+neering, 2022, 44(1): 17-25,43.
+
+[ 7] Cheng Shuo, Li Liang, Chen Xiang, et al. Model-predictive-con⁃
+
+trol-based path tracking controller of autonomous vehicle consid⁃
+
+ering parametric uncertainties and velocity-varying[J]. IEEE 
+
+Transactions on Industrial Electronics, 2020, 68(9): 8698-
+
+8707.
+本文针对轻型货车在复杂工况下采用固定权重
+[ 8] 唐爽 付,锐 孙, 秦豫 等., 基于多约束自适应模型预测控制的
+MPC 控制器导致的跟踪精度下降的问题,提出了一
+智 能 车 路 径 跟 踪 与 稳 定J]. 中性集国成公控路制 [学 报 ,
+种基T于D3 的自适M应PC 控制方法。首先,构建202双5, 38(3): 65-81.
+层次变权重的转M角PC 控增制量器式,在代价函数Tang Shuang, Fu Rui, Sun Qinyu, et al. Integrated path tracking 
+中引入可调的全局误差权重,并通过分and 步stabilit长y co权ntrol o重f int系elligent vehicles based on multi-con⁃
+straint adaptive model predictive control[J]. China Journal of 
+数在预测时域内生成差异化的误差权重,从而在必
+Highway and Transport, 2025, 38(3): 65-81.
+要时优先增强对近期或远期误差的响应能力。随
+[ 9] Chen Yang, Sun Yonping, Li Junming, et al. Tube-based robust 
+
+后,设计合理的智能体状态空间与负m值odel 奖predict励ive co函ntrol f数or a,设utonomous vehicle with complex 
+计TD3 智能体的状态空间与奖励机制roa,对d scen上arios[J].述 A权pplied 重Sciences, 2025, 15(12): 6471.
+进行协同自适应整定,使控制器能[ 10] 随何车智 辆王成煜,状态凡 韦宝,与侣 路等,. 基于优化动力学模型的路径跟
+况动态调整。仿真和实车试验表明,所踪控提制方研J].究 法中[国的机跟械 20工24程, 35,(6): 1000-1009.
+He Zhicheng, Wang Yufan, Wei Baolv, et al. Research on path 
+踪精度和自适应性均优于MPC固控定制权器重与
+tracking control based on optimized dynamic model[J]. Chinese 
+
+单层次变M权PC 控重制器。 Journal of Mechanical Engineering, 2024, 35(6): 1000-1009.
+本文在实车低速场景下验证了[ 1离1] 线Wan强g Jun化nian学, Teng习 Fei, 训Li Jing, et al. Intelligent vehicle lane 
+练智能体的效果,但其在高车速条件cha下nge tr的ajector适y co用ntro性l a仍lgorithm based on weight coefficient 
+有待研究。 adaptive adjustment[J]. Advances in Mechanical Engineering, 
+2021, 13(3): 16878140211003393.
+
+[ 12] 李韶华 杨,泽 坤王雪,.玮 基于T-S 模糊变权MPC重的智能车
+
+轨迹跟踪控J].制 机[械工程 学2023报, 59,(4): 199-212.
+
+[ 1] 熊璐 杨,兴 卓,桂 等荣. 无,人驾驶车辆的运动控制发L展i Sh现aoh状ua, Yang Zekun, Wang Xuewei, et al. Trajectory track⁃
+
+综述[J]. 机械工程 学2020报, 56,(10): 127-143. ing control of an intelligent vehicle based on T-S fuzzy variable 
+Xiong Lu, Yang Xing, Zhuo Guirong, et al. Review on motion weight MPC[J]. Journal of Mechanical Engineering, 2023, 59
+
+control of autonomous vehicles[J]. Journal of Mechanical Engi⁃ (4): 199-212.
+
+neering, 2020, 56(10): 127-143. [ 13] Tang Xianzhi, Shi Longfei, Wang Bo, et al. Weight adaptive 
+
+[ 2] Cui Ketian, He Jilong, Yao Xinxin, et al. Adaptive model predic⁃ path tracking control for autonomous vehicles based on PSO-BP 
+tive control based on stability index for path tracking of autono⁃ neural network[J]. Sensors, 2023, 23(1): 412.
+
+mous vehicles considering model error[J]. Proceedings of the In⁃ [ 14] 罗彪 胡,天萌 周,育 等豪. 多,智能体强化学习控制与决策研
+
+stitution of Mechanical Engineers, Part C: Journal of Mechanical 究综述J][. 自动化学 202报5, ,51(3): 510-539.
+
+Engineering Science, 2024, 238(19): 9372-9396. Luo Biao, Hu Tianmeng, Zhou Yuhao, et al. Survey on multi-
+
+[ 3] Li Runmei, Deng Shangjie, Hu Yongchao. Autonomous vehicle agent reinforcement learning for control and decision-making[J]. 
+modeling and velocity control based on decomposed fuzzy PID[J]. Acta Automatica Sinica, 2025, 51(3): 510-539.
+
+International Journal of Fuzzy Systems, 2022, 24(5): 2354- [ 15] Li Lingyu, Wu Defeng, Huang Youqiang, et al. A path planning 
+
+2362. strategy unified with a COLREGS collision avoidance function 
+
+[ 4] Kim S, Lee J, Han K, et al. Vehicle path tracking control using based on deep reinforcement learning and artificial potential field
+pure pursuit with MPC-based look-ahead distance optimization [J]. Applied Ocean Research, 2021, 113: 102759.
+
+[J]. IEEE Transactions on Vehicular Technology, 2023, 73(1): [ 16] Chen Xinqiang, Liu Shuhao, Zhao Jiansen, et al. Autonomous 
+
+
+表7 试验算法对比
+
+评价指标 最大值 标准差
+
+固定权MPC重横向误/m 差 -0. 205 0. 054
+
+TD3-MPC-A 横向误/m 差 0. 162 0. 052
+
+TD3-MPC-D 横向误/m 差 -0. 154 0. 041
+
+固定权MPC重航向误/rad差 -0. 376 0. 109
+
+TD3-MPC-A 航向误/rad差 -0. 368 0. 107
+
+TD3-MPC-D 航向误/rad差 -0. 361 0. 106
+
+
+5 结论
+
+
+参考文献
+
+
+￿￿1564
+
+
+汽
+
+
+车
+
+
+工
+
+
+程
+
+
+2026 年( 第 48 卷 第) 7 期
+
+
+port management based AGV path planning and optimization via driven weights-varying model predictive control for autonomous 
+
+an ensemble reinforcement learning framework[J]. Ocean & vehicle motion control[C]. 2024 IEEE Intelligent Vehicles Sym⁃
+
+Coastal Management, 2024, 251: 107087. posium( IV). Piscataway: IEEE, 2024: 1401-1408.
+
+[ 17] Chen Pengzhan, Pei Jiean, Lu Weiqing, et al. A deep reinforce⁃ [ 21] Qazani M R C, Asadi H, Shajari A, et al. A development of 
+
+ment learning based method for real-time path planning and dy⁃ time-varying weight model predictive control for autonomous vehi⁃
+
+namic obstacle avoidance[J]. Neurocomputing, 2022, 497: cles[C]. 2023 IEEE International Conference on Systems, Man, 
+
+64-75. and Cybernetics( SMC). Piscataway: IEEE, 2023: 3480-3486.
+
+[ 18] Xu Jiahui, Shao Wenbo, Wang Weida, et al. From component to [ 22] Li Yaohua, Dong Guoqing, Wang Jiangwu, et al. Trajectory 
+
+system: a task-unified planning system with planning-oriented tracking control of intelligent vehicles based on integrated MPC 
+
+predictor [J]. IEEE Transactions on Vehicular Technology, with fuzzy adaptive weighting[J]. International Journal of Automo⁃
+
+2024, 74(4): 5335-5348. tive Technology, 2025, 26(7): 1819-1830.
+
+[ 19] 汪洪波 王,春阳 赵,林峰 等,. 基于强化学习的智能[ 2车3] 辆杨路泽 径李坤韶,华 王,振峰. 基于自适应变MPC参的数分布式
+
+跟 踪 变M参PC 多数目 标 控J]制. 中[国 公 路 2学024,报 37 , 驱动智能车轨迹跟J]. 机踪控械制工程[ 学2024报, 6,0(6): 
+
+(3): 157-169. 363-377.
+
+Wang Hongbo, Wang Chunyang, Zhao Linfeng, et al. Variable- Yang Zekun, Li Shaohua, Wang Zhenfeng, et al. Trajectory 
+
+parameter MPC multi-objective control for intelligent vehicle tracking control of distributed driving intelligent vehicles based 
+
+path tracking based on reinforcement learning[J]. China Journal on adaptive variable parameter MPC[J]. Journal of Mechanical 
+
+of Highway and Transport, 2024, 37(3): 157-169. Engineering, 2024, 60(6): 363-377.
+
+[ 20] Zarrouki B, Spanakakis M, Betz J. A safe reinforcement learning 
+
+
+(上接15第11 页)
+
+
+[ 31] Yan X, Gao J, Li J, et al. Sparse single sweep lidar point cloud sion and Pattern Recognition, 2020: 9601-9610.
+
+segmentation via learning contextual shape priors from scene com⁃ [ 34] Cortinhal T, Tzelepis G, Erdal Aksoy E. Salsanext: fast, uncer⁃
+
+pletion[C]. Proceedings of the AAAI Conference on Artificial In⁃ tainty-aware semantic segmentation of lidar point clouds[C]. Ad⁃
+
+telligence, 2021, 35(4): 3101-3109. vances in Visual Computing: 15th International Symposium, IS⁃
+
+[ 32] Milioto A, Vizzo I, Behley J, et al. RangeNet++: fast and accu⁃ VC 2020, San Diego, CA, USA, October 5-7, 2020, Proceed⁃
+
+rate lidar semantic segmentation[C]. 2019 IEEE/RSJ Internation⁃ ings, Part II 15. Springer International Publishing, 2020: 
+
+al Conference on Intelligent Robots and Systems (IROS). IEEE, 207-222.
+
+2019: 4213-4220. [ 35] Zhu X, Zhou H, Wang T, et al. Cylindrical and asymmetrical 3D 
+
+[ 33] Zhang Y, Zhou Z, David P, et al. PolarNet: an improved grid convolution networks for lidar segmentation[C]. Proceedings of 
+
+representation for online lidar point clouds semantic segmentation the IEEE/CVF Conference on Computer Vision and Pattern Rec⁃
+
+[C]. Proceedings of the IEEE/CVF Conference on Computer Vi⁃ ognition, 2021: 9939-9948.
