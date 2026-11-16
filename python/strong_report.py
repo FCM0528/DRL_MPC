@@ -40,7 +40,8 @@ def main():
     trace=Path(candidates[0]['trace']);data=control_trace(trace)
     original_path=next((root/'baseline_original_0').glob('*/simulation.csv'))
     strong_path=next((root/'baseline_strong_0').glob('*/simulation.csv'))
-    controls={'original MPC':control_trace(original_path),'strong MPC':control_trace(strong_path),'best legal TD3':data}
+    controls={'original MPC':control_trace(original_path),'strong MPC':control_trace(strong_path),
+              'best legal '+manifest['algorithm'].upper():data}
     plot(out/'tracking.png',[(key,[(label,d['x_m'],d[key]) for label,d in controls.items()]) for key in ('ey_m','epsi_rad')])
     plot(out/'parameters.png',[(key,[(key,data['x_m'],data[key])]) for key in ('np','q_y','q_psi','r_delta')])
     plot(out/'actions_and_execution.png',[(key,[(name,data['x_m'],data[name]) for name in names]) for key,names in

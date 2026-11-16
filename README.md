@@ -1,10 +1,10 @@
 # CarSim · LTV-MPC · DRL
 
-CarSim提供真实车辆状态，C++增量式LTV-MPC求解转向，Python Stable-Baselines3学习控制权重动作。当前优先研究固定Np的TD3；统一比较原始MPC、强MPC、重调恒定Qy和动态策略，不预设算法排名。
+研究主线为三自由度车辆预测模型与增量式LTV-MPC，使用TQC自适应调节MPC参数，并与TD3、DDPG统一比较。CarSim提供真实车辆闭环状态；DRL输出Np、Qy、Qpsi、Rdelta参数请求，C++ MPC求解转向。三维权重方案是首个统一预实验，受限四维保留完整参数自适应研究位置，不预设算法排名。
 
-当前结果见[固定Np实验](docs/TD3_Fixed_Np_Experiments.md)，工程整理见[清理审计](docs/PROJECT_CLEANUP_AUDIT.md)，全部资料见[文档索引](docs/INDEX.md)。旧入口全文保存在[历史快照](docs/archive/README_legacy_20261114.md)。
+当前入口见[主线恢复报告](docs/DRL_MPC_Mainline_Recovery.md)。[固定Np实验](docs/TD3_Fixed_Np_Experiments.md)及一维TD3五种子结果作为动作消融保留；全部资料见[文档索引](docs/INDEX.md)。
 
-2026-11-16新增[一维Qy五种子稳定性与机制对照](docs/TD3_Qy_Stability_and_Generalization.md)，以及[正式比较计划](docs/Formal_DRL_MPC_Comparison_Plan.md)。目前独立且兼容的验证/测试工况尚未就绪；正式脚本默认一维Qy，只生成预检计划，不自动执行15组训练。
+独立且兼容的验证/测试工况尚未就绪。formal_compare默认研究profile为weights3；--profile qy1保留原一维复现，weights2与full4分别对应二维权重和受限四维。只生成预检计划，不自动执行15组训练。[一维稳定性与机制对照](docs/TD3_Qy_Stability_and_Generalization.md)及[当时的一维正式计划](docs/Formal_DRL_MPC_Comparison_Plan.md)保留为历史研究资料。
 
 ## 构建和检查
 
@@ -23,8 +23,10 @@ uv run --no-project --with-requirements python/requirements.txt --with pytest py
 |---|---|
 | configs/default.ini | 原始MPC：40/13/11500/2800/10800 |
 | configs/mpc_strong.ini | 强MPC：36/13/18400/8960/10800 |
-| configs/strong_qy_only.ini | 新一维策略，仅Qy；Np固定36 |
-| configs/strong_qy_qpsi.ini | 新二维策略，Qy+Qpsi；Np固定36 |
+| configs/strong_qy_only.ini | 一维动作消融，仅Qy；Np固定36 |
+| configs/strong_qy_qpsi.ini | 二维动作消融，Qy+Qpsi；Np固定36 |
+| configs/strong_weights3.ini | 主线三维权重：Qy+Qpsi+Rdelta；Np固定36 |
+| configs/strong_full4.ini | 完整四维：Np+Qy+Qpsi+Rdelta；Np每决策最多变化2步 |
 | configs/strong_actions2/3/4.ini | 旧Np前缀动作消融，保持原语义 |
 | configs/rl_training_pilot.ini | 网络、学习率、预热、噪声等设置 |
 
@@ -35,12 +37,11 @@ uv run --no-project --with-requirements python/requirements.txt --with pytest py
 输出根目录应是新的唯一目录。以下命令明确使用7900决策，不启动500回合套件。使用python或uv运行均可。
 
 ```powershell
-python python/parity.py --config configs/strong_qy_only.ini --blocks 200 --out runs/parity_NEW
-python python/fixed_np_experiments.py scan --simfile <冻结开发工况.sim> --out runs/constant_qy_NEW
-python python/train.py --algorithm td3 --config configs/strong_qy_only.ini --fixed-config configs/default.ini --train-config configs/rl_training_pilot.ini --simfile <冻结开发工况.sim> --seed 42 --episodes 100 --total-decisions 7900 --eval-frequency 790 --joint-selection --training-only --keep-training-traces --out runs/qy_only_NEW
+python python/parity.py --config configs/strong_weights3.ini --blocks 200 --out runs/parity_NEW
+python python/train.py --algorithm tqc --config configs/strong_weights3.ini --fixed-config configs/default.ini --train-config configs/rl_training_pilot.ini --simfile <冻结开发工况.sim> --seed 42 --episodes 100 --total-decisions 7900 --eval-frequency 790 --joint-selection --training-only --keep-training-traces --out runs/weights3_tqc_NEW
 ```
 
-替换为strong_qy_qpsi.ini即二维试验。经验从空缓存开始，车辆状态和奖励来自真实CarSim；静态参数只在开发工况选择。
+相同三维配置与预算分别使用ddpg、td3、tqc完成统一预实验。1D/2D按对应历史配置复现；full4先做632决策技术试验。经验从空缓存开始，车辆状态和奖励来自真实CarSim；静态参数只在开发工况选择。
 
 ## 验证与模型选择
 

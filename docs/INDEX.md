@@ -2,8 +2,9 @@
 
 ## 当前入口
 
-- [一维Qy五种子稳定性、后期退化与反馈归因](TD3_Qy_Stability_and_Generalization.md)
-- [正式三算法公平比较计划与阻塞预检](Formal_DRL_MPC_Comparison_Plan.md)
+- [TQC-MPC主线恢复、三算法统一预实验与受限四维](DRL_MPC_Mainline_Recovery.md)
+- [一维Qy五种子动作消融与反馈归因](TD3_Qy_Stability_and_Generalization.md)
+- [一维profile的历史公平比较计划与阻塞预检](Formal_DRL_MPC_Comparison_Plan.md)
 - [固定Np的TD3与恒定Qy对照](TD3_Fixed_Np_Experiments.md)
 - [文件、依赖、备份与清理审计](PROJECT_CLEANUP_AUDIT.md)
 - [强MPC与多工况训练流程](Strong_MPC_DRL_Training_Plan.md)

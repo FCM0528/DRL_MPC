@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from envs.carsim_mpc_env import CarSimMPCEnv
 from scenario import resolve_simfile, read_scenario
 
 
-def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42):
+def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, *, export_report=False):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     from action_mapping import check_model_contract
@@ -26,14 +27,18 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42):
         raise ValueError(f"Policy spaces do not match {env.observation_profile}; use its training configuration")
     total_reward = 0.0
     decisions = 0
+    inference_ms = []
     try:
         obs, _ = env.reset(seed=seed)
         with (output / "applied_actions.csv").open("w", newline="", encoding="utf-8") as file:
             writer = csv.writer(file)
             writer.writerow(["decision", *['a_'+name for name in env.policy_action_names],
-                             "executed_np", "x_m", "ey_m", "reward", "terminated", "truncated", "failed"])
+                             "executed_np", "x_m", "ey_m", "reward", "terminated", "truncated", "failed",
+                             *(['policy_inference_ms'] if export_report else [])])
             while True:
+                prediction_start=time.perf_counter()
                 action, _ = model.predict(obs, deterministic=True)
+                inference_ms.append((time.perf_counter()-prediction_start)*1000)
                 action = np.asarray(action, dtype=np.float64)
                 if action.shape != env.action_space.shape or not np.all(np.isfinite(action)):
                     raise ValueError("Policy returned an invalid tuning action")
@@ -41,14 +46,19 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42):
                 decisions += 1
                 total_reward += reward
                 writer.writerow([decisions, *action.tolist(), info["np"], info["x_m"],
-                                 info["ey_m"], reward, int(terminated), int(truncated), int(info["failed"])])
+                                 info["ey_m"], reward, int(terminated), int(truncated), int(info["failed"]),
+                                 *([inference_ms[-1]] if export_report else [])])
                 if terminated or truncated:
                     break
+        if export_report:env.export_report(algorithm)
     finally:
         env.close()
     summary = {"decisions": decisions, "return": total_reward, "distance_m": info["x_m"],
                "terminated": terminated, "truncated": truncated, "failed": info["failed"],
                "trace": str(output / "solver" / "episode_000001" / "bridge_trace.csv")}
+    if export_report:
+        summary.update(policy_inference_mean_ms=float(np.mean(inference_ms)),
+                       policy_inference_p95_ms=float(np.percentile(inference_ms,95)))
     (output / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary
 
@@ -62,12 +72,13 @@ def main():
     p.add_argument("--simfile", help="CarSim Simfile; defaults to carsim.simfile from config")
     p.add_argument("--out", help="Policy output directory")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument('--export-report',action='store_true',help='Export full C++ trajectory and QP timing diagnostics')
     args = p.parse_args()
     simfile = resolve_simfile(args.config, args.simfile)
     output = args.out or str(Path("runs/python_policy_run") /
         f"{args.algorithm}_{read_scenario(simfile)['speed_token']}_{datetime.now():%Y%m%d_%H%M%S}")
     print(json.dumps(run_policy(args.algorithm, args.model, args.bridge, args.config,
-                                simfile, output, args.seed), indent=2))
+                                simfile, output, args.seed, export_report=args.export_report), indent=2))
 
 
 if __name__ == "__main__":

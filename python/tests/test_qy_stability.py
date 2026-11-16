@@ -56,7 +56,7 @@ def test_formal_default_is_named_qy_only_and_missing_sets_only_make_plan(tmp_pat
     monkeypatch.setattr(formal_compare,'freeze_sets',lambda *args:{'train':[dict(frozen_simfile='unit_test_only.sim',
         experiment_signature='fixture',vehicle_sha256='fixture',reference_table=['fixture'])],'validation':[],'test':[]})
     out=tmp_path/'plan'
-    monkeypatch.setattr(sys,'argv',['formal_compare.py','--scenario-set','unit_test_only.json','--total-decisions','7900','--out',str(out)])
+    monkeypatch.setattr(sys,'argv',['formal_compare.py','--profile','qy1','--scenario-set','unit_test_only.json','--total-decisions','7900','--out',str(out)])
     formal_compare.main()
     plan=json.loads((out/'plan.json').read_text())
     assert plan['policy_action_names']==['q_y']

@@ -441,6 +441,21 @@ void testCarSimMpcModel() {
     std::cout << "PASS: CarSim solver echo supplies the MPC vehicle and tire model\n";
 }
 void testRlModule() {
+    const auto weights3 = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/strong_weights3.ini");
+    const auto full4 = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/strong_full4.ini");
+    require(weights3.rl.policy_action_names == "q_y, q_psi, r_delta" &&
+            full4.rl.max_np_change_per_decision == 2,
+            "Mainline weight actions and bounded full horizon profile must remain distinct");
+    auto limited = neutralRlAction(full4.rl);
+    for (int i = 0; i < 20; ++i) {
+        const auto prior = limited;
+        const double request = i % 2 ? -1.0 : 1.0;
+        limited = advanceRlTuning({request, request, request, request}, prior, full4.rl);
+        require(std::abs(limited.np - prior.np) <= 2 && limited.np >= full4.mpc.nc &&
+                limited.np >= full4.rl.min_np && limited.np <= full4.rl.max_np &&
+                limited.q_y / prior.q_y <= 1.08 + 1e-12 && prior.q_y / limited.q_y <= 1.08 + 1e-12,
+                "Full4 tuning must respect integer horizon and weight slew bounds");
+    }
     for (const auto& item : {std::pair<const char*, int>{"strong_qy_only.ini", 1}, {"strong_qy_qpsi.ini", 2}}) {
         const auto named = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/" + item.first);
         const auto a = neutralRlAction(named.rl);

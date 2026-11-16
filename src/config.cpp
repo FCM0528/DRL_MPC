@@ -432,7 +432,7 @@ void validateConfig(const AppConfig& c) {
         std::string compact;
         for (char ch : rl.policy_action_names)
             if (!std::isspace(static_cast<unsigned char>(ch)) && ch != '[' && ch != ']' && ch != '\'' && ch != '"') compact += ch;
-        const std::set<std::string> supported{"q_y", "q_y,q_psi", "np,q_y", "np,q_y,q_psi", "np,q_y,q_psi,r_delta"};
+        const std::set<std::string> supported{"q_y", "q_y,q_psi", "q_y,q_psi,r_delta", "np,q_y", "np,q_y,q_psi", "np,q_y,q_psi,r_delta"};
         const int dims = 1 + static_cast<int>(std::count(compact.begin(), compact.end(), ','));
         if (!supported.count(compact) || dims != rl.policy_action_dims)
             throw std::invalid_argument("Invalid policy_action_names or dimension mismatch");

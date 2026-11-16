@@ -5,7 +5,7 @@ import numpy as np
 from scenario import resolve_config_value
 
 BRIDGE_NAMES = ('np', 'q_y', 'q_psi', 'r_delta')
-SUPPORTED = {('q_y',), ('q_y','q_psi'), BRIDGE_NAMES[:2], BRIDGE_NAMES[:3], BRIDGE_NAMES}
+SUPPORTED = {('q_y',), ('q_y','q_psi'), ('q_y','q_psi','r_delta'), BRIDGE_NAMES[:2], BRIDGE_NAMES[:3], BRIDGE_NAMES}
 
 
 def action_contract(config):

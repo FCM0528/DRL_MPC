@@ -9,18 +9,31 @@ from scenario_sets import freeze_sets
 from scenario import snapshot_config, resolve_config_value
 from action_mapping import action_contract
 
+PROFILES={
+    'qy1':('configs/strong_qy_only.ini',('q_y',)),
+    'weights2':('configs/strong_qy_qpsi.ini',('q_y','q_psi')),
+    'weights3':('configs/strong_weights3.ini',('q_y','q_psi','r_delta')),
+    'full4':('configs/strong_full4.ini',('np','q_y','q_psi','r_delta')),
+}
+
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--scenario-set',required=True)
     p.add_argument('--total-decisions',required=True,type=int)
-    p.add_argument('--config',default='configs/strong_qy_only.ini')
+    p.add_argument('--profile',choices=PROFILES,help='Defaults to weights3; explicit legacy --config infers its matching profile')
+    p.add_argument('--config',help='Optional matching config; defaults to selected profile')
     p.add_argument('--train-config',default='configs/rl_training.ini')
     p.add_argument('--out',required=True)
     p.add_argument('--execute',action='store_true')
     p.add_argument('--baseline-proof')
     p.add_argument('--selection-lock')
     args=p.parse_args()
+    args.config=args.config or PROFILES[args.profile or 'weights3'][0]
+    if args.profile is None:
+        configured_names=action_contract(args.config)[0]
+        args.profile=next((name for name,(_,names) in PROFILES.items() if names==configured_names),None)
+        if args.profile is None:p.error('Config has no formal research profile; retain it as historical ablation')
     if args.total_decisions<1: p.error('Positive decision budget required')
     root=Path(args.out).resolve();root.mkdir(parents=True,exist_ok=False)
     sets=freeze_sets(args.scenario_set,root/'frozen_cases')
@@ -28,7 +41,9 @@ def main():
     if not all(sets[s] for s in ('train','validation','test')):
         blockers.append('Physically independent nonempty real train/validation/test sets are required')
     names,version=action_contract(args.config)
-    if names!=('q_y',):blockers.append('Formal one-dimensional comparison requires q_y-only actions')
+    if names!=PROFILES[args.profile][1]:blockers.append('Action contract differs from selected research profile')
+    if args.profile=='full4' and int(resolve_config_value(args.config,'rl','max_np_change_per_decision'))!=2:
+        blockers.append('Full4 requires the registered two-step per-decision Np slew limit')
     for section,key,expected in [('mpc','np',36),('weights','q_psi',8960),('weights','r_delta',10800),
                                  ('mpc','dt_s',.04),('rl','decision_steps',2),('rl','max_weight_ratio_per_decision',1.08)]:
         if float(resolve_config_value(args.config,section,key))!=expected:
@@ -73,7 +88,7 @@ def main():
                 '--eval-frequency',str(max(1,args.total_decisions//10)),
                 '--joint-selection','--training-only','--out',str(root/f'{algorithm}_seed{seed}')])
     (root/'plan.json').write_text(json.dumps(dict(commands=commands,
-        ready=not blockers,blockers=blockers,policy_action_names=names,action_mapping_version=version,
+        ready=not blockers,blockers=blockers,profile=args.profile,policy_action_names=names,action_mapping_version=version,
         config_sha256={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in frozen_config.parent.glob('*.ini')},
         training_config_sha256={algorithm:hashlib.sha256(Path(selected.get(algorithm,{}).get('train_config',args.train_config)).read_bytes()).hexdigest() for algorithm in ('ddpg','td3','tqc')},
         hyperparameter_search={'trials_per_algorithm':4,'decisions_per_trial':7900,'seed':42,

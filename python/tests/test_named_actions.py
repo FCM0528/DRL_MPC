@@ -7,7 +7,7 @@ import pytest
 from action_mapping import action_contract, bridge_action, check_model_contract
 
 
-@pytest.mark.parametrize('names',[('q_y',),('q_y','q_psi'),('np','q_y'),('np','q_y','q_psi'),('np','q_y','q_psi','r_delta')])
+@pytest.mark.parametrize('names',[('q_y',),('q_y','q_psi'),('q_y','q_psi','r_delta'),('np','q_y'),('np','q_y','q_psi'),('np','q_y','q_psi','r_delta')])
 def test_named_mapping_preserves_neutral_coordinates(tmp_path,names):
     ini=tmp_path/'config.ini';ini.write_text(f'[rl]\npolicy_action_dims={len(names)}\npolicy_action_names={",".join(names)}\n')
     actual,version=action_contract(ini)
