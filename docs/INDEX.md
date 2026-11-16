@@ -2,6 +2,7 @@
 
 ## 当前入口
 
+- [80km/h、mu=0.8验收与60/70/80三训练源切换](CarSim_80kmh_Training_Case.md)
 - [60km/h、mu=0.8训练源验收与真实训练集回合切换](CarSim_60kmh_Training_Case.md)
 - [70km/h、mu=0.6预留测试源冻结与固定MPC验收](CarSim_70kmh_mu06_Preflight.md)
 - [多工况准备、75km/h验证与真实回合切换审计](DRL_MPC_Multi_Scenario_Preparation.md)
