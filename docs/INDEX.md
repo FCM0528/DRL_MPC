@@ -2,6 +2,7 @@
 
 ## 当前入口
 
+- [多工况准备、75km/h验证与真实回合切换审计](DRL_MPC_Multi_Scenario_Preparation.md)
 - [65km/h真实工况、双MPC预检与冻结三算法跨速度验证](CarSim_65kmh_Validation.md)
 - [当前优化目标、三维动作、TQC训练审计与独立工况待办](DRL_MPC_Next_Stage_Analysis.md)
 - [TQC-MPC主线恢复、三算法统一预实验与受限四维](DRL_MPC_Mainline_Recovery.md)

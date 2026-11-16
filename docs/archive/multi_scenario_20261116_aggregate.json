@@ -1,0 +1,125 @@
+{
+  "scope": "Fixed original registry on development cases; no checkpoint/model reselection",
+  "models": [
+    {
+      "algorithm": "ddpg",
+      "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\best_legal_model.zip",
+      "diagnostic_only": true,
+      "legal": true,
+      "original_dual": true,
+      "strong_dual": true,
+      "score": 0.00600970610867213,
+      "rmse_y_m": 0.0870281144830134,
+      "rmse_heading_deg": 0.9412317952574234,
+      "legal_case_fraction": 1.0,
+      "case_improvements": [
+        {
+          "case": 65,
+          "legal": true,
+          "rmse_y_m": 0.04335167915413858,
+          "rmse_heading_deg": 0.6002923300852169,
+          "strong_iy": 0.04612631233983722,
+          "strong_ih": 0.019428354112204893
+        },
+        {
+          "case": 75,
+          "legal": true,
+          "rmse_y_m": 0.13070454981188823,
+          "rmse_heading_deg": 1.2821712604296298,
+          "strong_iy": 0.00600970610867213,
+          "strong_ih": 0.011002145686842213
+        }
+      ],
+      "original_dual_case_fraction": 1.0,
+      "original_iy_mean": 0.13610506909934256,
+      "original_iy_worst": 0.050611536436727445,
+      "original_ih_mean": 0.13162266787309201,
+      "original_ih_worst": 0.08784893379978442,
+      "strong_dual_case_fraction": 1.0,
+      "strong_iy_mean": 0.026068009224254673,
+      "strong_iy_worst": 0.00600970610867213,
+      "strong_ih_mean": 0.015215249899523553,
+      "strong_ih_worst": 0.011002145686842213
+    },
+    {
+      "algorithm": "td3",
+      "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_td3_20261116_v1\\td3_v70kmh_100episodes_seed42_20261116_184139\\best_legal_model.zip",
+      "diagnostic_only": true,
+      "legal": true,
+      "original_dual": true,
+      "strong_dual": false,
+      "score": -0.0033469230254186133,
+      "rmse_y_m": 0.0877544620526728,
+      "rmse_heading_deg": 0.9372646739553993,
+      "legal_case_fraction": 1.0,
+      "case_improvements": [
+        {
+          "case": 65,
+          "legal": true,
+          "rmse_y_m": 0.04357402626466484,
+          "rmse_heading_deg": 0.6032922539048486,
+          "strong_iy": 0.041233974548164465,
+          "strong_ih": 0.014528007914317076
+        },
+        {
+          "case": 75,
+          "legal": true,
+          "rmse_y_m": 0.13193489784068077,
+          "rmse_heading_deg": 1.2712370940059499,
+          "strong_iy": -0.0033469230254186133,
+          "strong_ih": 0.019436172766889914
+        }
+      ],
+      "original_dual_case_fraction": 1.0,
+      "original_iy_mean": 0.12964049989985654,
+      "original_iy_worst": 0.04167475323840297,
+      "original_ih_mean": 0.13345155964589345,
+      "original_ih_worst": 0.09562762286354354,
+      "strong_dual_case_fraction": 0.5,
+      "strong_iy_mean": 0.018943525761372926,
+      "strong_iy_worst": -0.0033469230254186133,
+      "strong_ih_mean": 0.016982090340603495,
+      "strong_ih_worst": 0.014528007914317076
+    },
+    {
+      "algorithm": "tqc",
+      "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_tqc_20261116_v1\\tqc_v70kmh_100episodes_seed42_20261116_184412\\best_legal_model.zip",
+      "diagnostic_only": true,
+      "legal": true,
+      "original_dual": true,
+      "strong_dual": false,
+      "score": -0.0029866330311425493,
+      "rmse_y_m": 0.08830169818166084,
+      "rmse_heading_deg": 0.9560253713269125,
+      "legal_case_fraction": 1.0,
+      "case_improvements": [
+        {
+          "case": 65,
+          "legal": true,
+          "rmse_y_m": 0.04534264813230436,
+          "rmse_heading_deg": 0.6117439423314762,
+          "strong_iy": 0.0023187146117875646,
+          "strong_ih": 0.0007222575895502459
+        },
+        {
+          "case": 75,
+          "legal": true,
+          "rmse_y_m": 0.1312607482310173,
+          "rmse_heading_deg": 1.3003068003223488,
+          "strong_iy": 0.0017798929086904058,
+          "strong_ih": -0.0029866330311425493
+        }
+      ],
+      "original_dual_case_fraction": 1.0,
+      "original_iy_mean": 0.11621063235486279,
+      "original_iy_worst": 0.0465715212778578,
+      "original_ih_mean": 0.11730638585881314,
+      "original_ih_worst": 0.07494710659479997,
+      "strong_dual_case_fraction": 0.5,
+      "strong_iy_mean": 0.002049303760238985,
+      "strong_iy_worst": 0.0017798929086904058,
+      "strong_ih_mean": -0.0011321877207961517,
+      "strong_ih_worst": -0.0029866330311425493
+    }
+  ]
+}

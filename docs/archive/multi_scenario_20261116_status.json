@@ -1,0 +1,144 @@
+{
+  "base_commit": "bf8afd5",
+  "cases": {
+    "train70": {
+      "simfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\simfile.sim",
+      "parsfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\Run_all.par",
+      "simfile_sha256": "c677b4c89981a6f5febd4244a9232296a54283c6ece2ecdd1dad3f628b221e4c",
+      "parsfile_sha256": "bb878204652e1351e0fa30e7c6c66654ff61539475e4d06846acbacfc198be7e",
+      "target_speed_kmh": 70.0,
+      "grip_description": [
+        "MU_ROAD_COMBINE ADD",
+        "MU_ROAD_CONSTANT 0.8",
+        "MU_ROAD_L_CONSTANT 0"
+      ],
+      "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+      "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+      "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+      "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+      "experiment_signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7"
+    },
+    "validation65": {
+      "simfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\validation_65_mu08_20261116_195607\\source_65\\simfile.sim",
+      "parsfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\validation_65_mu08_20261116_195607\\source_65\\Run_all.par",
+      "simfile_sha256": "b57b9372d5d14e5bb7c856697f0627df10866f9de4f57671945327f35263a38d",
+      "parsfile_sha256": "4f8836368263906abe771c65100d69ef80425ed3d8df32189ea9665e293aa0bc",
+      "target_speed_kmh": 65.0,
+      "grip_description": [
+        "MU_ROAD_COMBINE ADD",
+        "MU_ROAD_CONSTANT 0.8",
+        "MU_ROAD_L_CONSTANT 0"
+      ],
+      "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+      "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+      "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+      "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+      "experiment_signature": "34db60360e2714ac115dc734d7e701a8a2b986f9b42fd7f58edbb995d3b083dd"
+    },
+    "validation75": {
+      "simfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\multi_scenario_preparation_20261116_202836\\source_75\\simfile.sim",
+      "parsfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\multi_scenario_preparation_20261116_202836\\source_75\\Run_all.par",
+      "simfile_sha256": "5fb47e58da8a482695c7af698b77ef2f0c677bb3433d559e056eb726c2628929",
+      "parsfile_sha256": "082160018decf32e218787694059d37a9378aa02c6cd9aac99f4c52f14e73ef2",
+      "target_speed_kmh": 75.0,
+      "grip_description": [
+        "MU_ROAD_COMBINE ADD",
+        "MU_ROAD_CONSTANT 0.8",
+        "MU_ROAD_L_CONSTANT 0"
+      ],
+      "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+      "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+      "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+      "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+      "experiment_signature": "9f33c9f2d89737f3ae7913d8603761cc8be92450632d313b60c963b9f685cd1a"
+    }
+  },
+  "new75_native_source": {
+    "simfile": "D:\\Program Files (x86)\\CarSim2024_Date\\simfile.sim",
+    "parsfile": "D:\\Program Files (x86)\\CarSim2024_Date\\Results\\Run_6cb07365-85a3-4a3b-95f9-c5c844687601\\Run_all.par",
+    "simfile_sha256": "9b2f81682b4e350e69d2c820923265faabcfc5f3a9157756d00c884716f3ab6e",
+    "parsfile_sha256": "082160018decf32e218787694059d37a9378aa02c6cd9aac99f4c52f14e73ef2",
+    "target_speed_kmh": 75.0,
+    "grip_description": [
+      "MU_ROAD_COMBINE ADD",
+      "MU_ROAD_CONSTANT 0.8",
+      "MU_ROAD_L_CONSTANT 0"
+    ],
+    "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+    "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+    "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+    "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+    "experiment_signature": "9f33c9f2d89737f3ae7913d8603761cc8be92450632d313b60c963b9f685cd1a"
+  },
+  "pending_test": {
+    "speed_kmh": 70,
+    "mu": 0.6,
+    "simfile": null,
+    "status": "No compatible native source found; not run; not accepted"
+  },
+  "pending_training_speeds": [
+    60,
+    80
+  ],
+  "all_paths_same_LTARG": true,
+  "trajectory_generalization_claim": false,
+  "search": {
+    "roots": [
+      "D:\\Program Files (x86)\\CarSim2024_Date",
+      "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC",
+      "C:\\Users\\fengchengmin\\Desktop\\C++\\myfcm\\MPC_DoubleLaneChange_Tunable_VisualStudio\\MPC_DoubleLaneChange_Tunable"
+    ],
+    "listed": 10078,
+    "read": 7157,
+    "unique_parsfiles": 329,
+    "errors": 7
+  },
+  "reuse65": {
+    "reused_metrics": "runs\\validation_65_mu08_20261116_195607\\dual_baseline_metrics.csv",
+    "metrics_sha256": "a741431fe7222ce61b0c8f7ae01c77bec58e275d2d9168dece37ccfd18a40365",
+    "model_lock_sha256": "4bd8d231db479a88101e1a06736d2cdec3fe2ed7829344ab8503621679528385",
+    "models_config_scenario_hashes_match": true,
+    "controller_and_bridge_hashes_match": true,
+    "no_checkpoint_reselection": true
+  },
+  "post_verification": {
+    "snapshots70_65_75_unchanged": true,
+    "models_and_config_chains_unchanged": true,
+    "solver_echoes75_checked": 9,
+    "io_and_units_pass": true,
+    "no_training_or_model_reselection": true
+  },
+  "native_automation": {
+    "com_registration": {
+      "Registry32": false,
+      "Registry64": false
+    },
+    "manual": "D:\\Program Files (x86)\\CarSim2024.1_Prog\\Help\\Manuals\\VehicleSim_COM.pdf",
+    "manual_sha256": "80f5352be221cdd9b2a5af477d416f18a6e4bf11a31ee5b7d707caa3510b65e8",
+    "registered_or_activated_by_agent": false,
+    "source_datasets_modified": false
+  },
+  "formal_preflight": {
+    "ready": false,
+    "blockers": [
+      "Physically independent nonempty real train/validation/test sets are required",
+      "Multi-speed formal training requires at least two verified distinct training speeds",
+      "Baseline proof is incomplete or failed",
+      "Validation-selected hyperparameter configuration lock is required before launch"
+    ],
+    "executed": false,
+    "note": "Plan only in this round. Real dual-MPC baseline replay and locked hyperparameter selection are required before launch."
+  },
+  "runtime": {
+    "python": "3.14.7 (main, Aug  5 2026, 16:11:39) [MSC v.1944 64 bit (AMD64)]",
+    "packages": {
+      "numpy": "2.5.5",
+      "torch": "2.15.0",
+      "gymnasium": "1.4.0",
+      "stable-baselines3": "2.9.2",
+      "sb3-contrib": "2.9.2"
+    },
+    "OMP_NUM_THREADS": 1,
+    "MKL_NUM_THREADS": 1
+  }
+}

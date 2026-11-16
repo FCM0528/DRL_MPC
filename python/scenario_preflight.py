@@ -2,11 +2,25 @@
 import argparse
 import json
 import hashlib
+import math
 from pathlib import Path
 from evaluate import fixed_episode
 from scenario_sets import freeze_sets
 from scenario import snapshot_config
 from lateral_regression import write_rows
+
+
+def preflight_baseline(controller, simfile, output, config):
+    """Keep solver errors and missing measurements visible rather than losing the whole batch."""
+    try:
+        result=fixed_episode(controller,simfile,output,config,require_complete=False)
+        ay,beta=result['peak_measured_ay_mps2'],result['peak_measured_beta_deg']
+        stable=(isinstance(ay,(int,float)) and isinstance(beta,(int,float)) and
+            math.isfinite(ay) and math.isfinite(beta) and 0<=ay<=.85*9.80665 and 0<=beta<=5)
+        return dict(stable=stable,error='',**{k:str(v) if isinstance(v,Path) else v for k,v in result.items()})
+    except (RuntimeError,ValueError,OSError) as exc:
+        return dict(stable=False,error=str(exc),terminated=False,truncated=True,failed=True,
+            qp_failures=None,run_output=str(output))
 
 
 def main():
@@ -20,12 +34,11 @@ def main():
     for split,cases in sets.items():
         for index,case in enumerate(cases):
             for label,config in configs.items():
-                result=fixed_episode(args.controller,case['frozen_simfile'],root/f'{split}_{index}_{label}',config,require_complete=False)
-                stable=(result['peak_measured_ay_mps2']<=.85*9.80665 and result['peak_measured_beta_deg']<=5)
+                result=preflight_baseline(args.controller,case['frozen_simfile'],root/f'{split}_{index}_{label}',config)
                 rows.append(dict(split=split,case=index,baseline=label,experiment_signature=case['experiment_signature'],
-                    stable=stable,**{k:str(v) if isinstance(v,Path) else v for k,v in result.items()}))
-    write_rows(root/'baseline_metrics.csv',rows)
-    ready=all(sets[s] for s in sets) and all(r['terminated'] and r['qp_failures']==0 and r['stable'] for r in rows)
+                    **result))
+                write_rows(root/'baseline_metrics.csv',rows)
+    ready=all(sets[s] for s in sets) and all(r['terminated'] and not r['truncated'] and not r['failed'] and r['qp_failures']==0 and r['stable'] for r in rows)
     (root/'baseline_proof.json').write_text(json.dumps(dict(ready=bool(ready),cases=rows,
         config_sha256={label:{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in path.parent.glob('*.ini')} for label,path in configs.items()}),indent=2))
     print(root)

@@ -300,7 +300,12 @@ def main():
         p.error("Online validation options cannot be used with --training-only")
     if args.fixed_config is not None:
         args.fixed_config = str(args.fixed_config.resolve(strict=True))
-    args.simfile = str(resolve_simfile(args.config, args.simfile))
+    from scenario_sets import training_source, SAMPLING_RULE
+    try:
+        args.simfile = str(training_source(args.config,args.simfile,scenario_set=args.scenario_set,
+            validation_simfile=args.validation_simfile,joint_selection=args.joint_selection))
+    except ValueError as exc:
+        p.error(str(exc))
     if args.validation_simfile:
         args.validation_simfile = str(Path(args.validation_simfile).resolve(strict=True))
     scenario = read_scenario(args.simfile)
@@ -355,6 +360,7 @@ def main():
                                     deterministic_design(args.algorithm, settings))
     manifest["tire_model"] = "carsim_tire_carpet_from_zero_v2"
     manifest["training_data"] = {
+        "scenario_sampling_rule": SAMPLING_RULE,
         "source": "online_carsim_closed_loop",
         "transition": "observation, requested_action, bridge_reward, next_observation, done",
         "vehicle_feedback": "current CarSim solver state via C++ bridge",
@@ -476,7 +482,10 @@ def main():
         manifest["training_data"].update(
             collected_decisions=int(model.num_timesteps) - manifest["training_start_timesteps"],
             final_replay_decisions=int(model.replay_buffer.size()),
-            gradient_updates=int(model._n_updates) - start_updates)
+            gradient_updates=int(model._n_updates) - start_updates,
+            decisions_by_simfile=dict(train_env.unwrapped.scenario_decision_counts))
+        if sum(train_env.unwrapped.scenario_decision_counts.values())!=manifest['training_data']['collected_decisions']:
+            raise RuntimeError('Real environment decision counts differ from learner interaction budget')
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         best_model = root / "best" / "best_model.zip"
     finally:

@@ -5,7 +5,7 @@ import subprocess
 import sys
 import hashlib
 from pathlib import Path
-from scenario_sets import freeze_sets
+from scenario_sets import freeze_sets, SAMPLING_RULE
 from scenario import snapshot_config, resolve_config_value
 from action_mapping import action_contract
 
@@ -40,6 +40,8 @@ def main():
     blockers=[]
     if not all(sets[s] for s in ('train','validation','test')):
         blockers.append('Physically independent nonempty real train/validation/test sets are required')
+    if len({c.get('target_speed_kmh') for c in sets['train'] if c.get('target_speed_kmh') is not None})<2:
+        blockers.append('Multi-speed formal training requires at least two verified distinct training speeds')
     names,version=action_contract(args.config)
     if names!=PROFILES[args.profile][1]:blockers.append('Action contract differs from selected research profile')
     if args.profile=='full4' and int(resolve_config_value(args.config,'rl','max_np_change_per_decision'))!=2:
@@ -97,6 +99,7 @@ def main():
             'tqc':[{'actor_lr':1e-4 if d%2==0 else 3e-4,'drop':d,'target_entropy':'auto' if d<2 else -2.0} for d in range(4)],
             'selection':'Validation only; maximize worst-case min(Iy,Iheading) among legal checkpoints; same four-trial interaction budget. No assumption on algorithm ordering.'},
         algorithm_interaction_budget=args.total_decisions,hyperparameter_trials_per_algorithm=4,
+        scenario_sampling_rule=SAMPLING_RULE,
         seeds=[42,43,44,45,46],ranking='measured, no assumed ordering',
         test_policy='separate evaluate_dual.py call using a prelocked model registry'),indent=2))
     if args.execute:

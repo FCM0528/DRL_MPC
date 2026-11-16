@@ -9,6 +9,7 @@ from gymnasium import spaces
 from bridge.client import BridgeClient, BridgeError
 from scenario import resolve_config_value
 from action_mapping import action_contract, bridge_action
+from scenario_sets import SAMPLING_RULE
 
 
 class CarSimMPCEnv(gym.Env):
@@ -39,6 +40,8 @@ class CarSimMPCEnv(gym.Env):
         self._episode_id = 0
         self._done = False
         self.scenario_pool = [self.simfile]
+        self.scenario_decision_counts = {}
+        self._case_index = 0
         for file in (self.executable, self.config, self.simfile):
             if not file.is_file():
                 raise FileNotFoundError(file)
@@ -57,11 +60,13 @@ class CarSimMPCEnv(gym.Env):
         self.close()
         self._episode_id += 1
         selected = int(self.np_random.integers(len(self.scenario_pool)))
+        self._case_index = selected
         self.simfile = Path(self.scenario_pool[selected]).resolve(strict=True)
         import json
         with (self.output_root / "episode_scenarios.jsonl").open("a", encoding="utf-8") as log:
             log.write(json.dumps(dict(episode=self._episode_id, case_index=selected,
-                                      simfile=str(self.simfile), seed=seed)) + "\n")
+                                      simfile=str(self.simfile), seed=seed,
+                                      sampling_rule=SAMPLING_RULE,pool_size=len(self.scenario_pool))) + "\n")
         base = self.output_root / f"episode_{self._episode_id:06d}"
         self._bridge = BridgeClient(
             self.executable, self.config, self.simfile,
@@ -74,7 +79,8 @@ class CarSimMPCEnv(gym.Env):
             self.close()
             raise
         # The seed does not randomize the selected CarSim source.
-        return obs, {"episode_id": self._episode_id, "seed": seed}
+        return obs, {"episode_id": self._episode_id, "seed": seed,
+                     "case_index":selected,"simfile":str(self.simfile)}
 
     def step(self, action):
         if self._bridge is None or self._done:
@@ -110,6 +116,9 @@ class CarSimMPCEnv(gym.Env):
             raise BridgeError("C++ bridge returned nonpositive prediction horizon")
         if not np.isfinite(reward):
             raise BridgeError("Nonfinite reward")
+        path=str(self.simfile)
+        self.scenario_decision_counts[path]=self.scenario_decision_counts.get(path,0)+1
+        info.update(case_index=self._case_index,simfile=path)
         return obs, reward, terminated, truncated, info
 
     def close(self):

@@ -6,6 +6,30 @@ from pathlib import Path
 
 from scenario import read_scenario, snapshot_scenario
 
+SAMPLING_RULE = 'uniform_episode_v1'
+
+
+def training_source(config, simfile=None, *, scenario_set=None, validation_simfile=None, joint_selection=False):
+    """Anchor metadata/parity to the real train collection, never the mutable Browser default."""
+    from scenario import resolve_simfile
+    if not scenario_set:
+        return resolve_simfile(config,simfile)
+    if validation_simfile:
+        raise ValueError('Use scenario-set validation entries instead of --validation-simfile')
+    if not joint_selection:
+        raise ValueError('Scenario-set training requires --joint-selection for all validation cases')
+    source=Path(scenario_set).resolve(strict=True)
+    sets=json.loads(source.read_text(encoding='utf-8-sig'))
+    if not sets.get('train') or not sets.get('validation'):
+        raise ValueError('Scenario-set training requires nonempty real train and validation collections')
+    paths=[(Path(p) if Path(p).is_absolute() else source.parent/p).resolve(strict=True) for p in sets['train']]
+    if simfile is not None:
+        signature=describe_case(simfile)['experiment_signature']
+        for path in paths:
+            if describe_case(path)['experiment_signature']==signature:return path
+        raise ValueError('Explicit --simfile is outside the train physical collection')
+    return paths[0]
+
 
 def describe_case(simfile):
     info = read_scenario(simfile)
@@ -85,8 +109,8 @@ def freeze_sets(manifest, output):
                 if vehicle_contract is not None and contract!=vehicle_contract:
                     raise ValueError('Vehicle or I/O content differs across scenario sets')
                 vehicle_contract=contract
-            if signature in seen and seen[signature] != split:
-                raise ValueError(f'Physically identical case appears in {seen[signature]} and {split}')
+            if signature in seen:
+                raise ValueError(f'Physically identical case appears more than once in {seen[signature]} and {split}; duplicate entries bias sampling')
             seen[signature] = split
             frozen = snapshot_scenario(info, output / f'{split}_{index:03d}')
             result[split].append(dict(info, split=split, frozen_simfile=str(frozen)))

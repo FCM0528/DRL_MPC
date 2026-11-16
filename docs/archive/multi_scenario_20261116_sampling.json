@@ -1,0 +1,68 @@
+{
+  "scope": "Solver interface test using 70/65 snapshots, not training; no replay/gradient updates",
+  "sampling_rule": "uniform_episode_v1",
+  "fresh_solver_each_episode": true,
+  "old_solvers_closed": true,
+  "decisions_by_simfile": {
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\simfile.sim": 158,
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\validation_65_mu08_20261116_195607\\source_65\\simfile.sim": 170
+  },
+  "rows": [
+    {
+      "episode": 1,
+      "case_index": 0,
+      "selected_speed_kmh": 70.0,
+      "first_measured_vx_kmh": 69.97350473660984,
+      "process_id": 35648,
+      "decisions": 79,
+      "completed": true,
+      "observation_dim": 20,
+      "signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7",
+      "rmse_y_m": 0.07895276057784469,
+      "rmse_heading_deg": 0.9190924968237199,
+      "qp_failures": 0
+    },
+    {
+      "episode": 2,
+      "case_index": 1,
+      "selected_speed_kmh": 65.0,
+      "first_measured_vx_kmh": 64.97581063790564,
+      "process_id": 42768,
+      "decisions": 85,
+      "completed": true,
+      "observation_dim": 20,
+      "signature": "34db60360e2714ac115dc734d7e701a8a2b986f9b42fd7f58edbb995d3b083dd",
+      "rmse_y_m": 0.045448029161265335,
+      "rmse_heading_deg": 0.6121860984219313,
+      "qp_failures": 0
+    },
+    {
+      "episode": 3,
+      "case_index": 1,
+      "selected_speed_kmh": 65.0,
+      "first_measured_vx_kmh": 64.97581063790564,
+      "process_id": 45320,
+      "decisions": 85,
+      "completed": true,
+      "observation_dim": 20,
+      "signature": "34db60360e2714ac115dc734d7e701a8a2b986f9b42fd7f58edbb995d3b083dd",
+      "rmse_y_m": 0.045448029161265335,
+      "rmse_heading_deg": 0.6121860984219313,
+      "qp_failures": 0
+    },
+    {
+      "episode": 4,
+      "case_index": 0,
+      "selected_speed_kmh": 70.0,
+      "first_measured_vx_kmh": 69.97350473660984,
+      "process_id": 13828,
+      "decisions": 79,
+      "completed": true,
+      "observation_dim": 20,
+      "signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7",
+      "rmse_y_m": 0.07895276057784469,
+      "rmse_heading_deg": 0.9190924968237199,
+      "qp_failures": 0
+    }
+  ]
+}
