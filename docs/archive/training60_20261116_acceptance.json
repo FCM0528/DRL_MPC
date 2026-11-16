@@ -1,0 +1,191 @@
+{
+  "all_ten_baselines_pass": true,
+  "echoes": [
+    {
+      "baseline": "original",
+      "echo": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\training_case_60_mu08_20261116_212330\\preflight\\train_1_original\\mpc_fixed_carsim_Np40_Nc13_20261116-212350\\carsim_native\\LastRun_echo.par",
+      "imports": [
+        "IMPORT IMP_STEER_L1 REPLACE 0 ; deg ! #1. Road wheel L1 steer due to steering",
+        "IMPORT IMP_STEER_R1 REPLACE 0 ; deg ! #2. Road wheel R1 steer due to steering"
+      ],
+      "exports": [
+        "XCG_TM",
+        "YCG_TM",
+        "VX",
+        "VY",
+        "YAW",
+        "AVZ",
+        "AX",
+        "AY",
+        "STEER_L1",
+        "STEER_R1",
+        "BETA",
+        "RHO_ROAD",
+        "ALPHL_L1",
+        "ALPHL_R1",
+        "ALPHL_L2",
+        "ALPHL_R2",
+        "FY_L1",
+        "FY_R1",
+        "FY_L2",
+        "FY_R2"
+      ]
+    },
+    {
+      "baseline": "strong",
+      "echo": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\training_case_60_mu08_20261116_212330\\preflight\\train_1_strong\\mpc_fixed_carsim_Np36_Nc13_20261116-212350\\carsim_native\\LastRun_echo.par",
+      "imports": [
+        "IMPORT IMP_STEER_L1 REPLACE 0 ; deg ! #1. Road wheel L1 steer due to steering",
+        "IMPORT IMP_STEER_R1 REPLACE 0 ; deg ! #2. Road wheel R1 steer due to steering"
+      ],
+      "exports": [
+        "XCG_TM",
+        "YCG_TM",
+        "VX",
+        "VY",
+        "YAW",
+        "AVZ",
+        "AX",
+        "AY",
+        "STEER_L1",
+        "STEER_R1",
+        "BETA",
+        "RHO_ROAD",
+        "ALPHL_L1",
+        "ALPHL_R1",
+        "ALPHL_L2",
+        "ALPHL_R2",
+        "FY_L1",
+        "FY_R1",
+        "FY_L2",
+        "FY_R2"
+      ]
+    }
+  ],
+  "previous_snapshots_and_models_unchanged": true,
+  "validation_and_test_membership_unchanged": true,
+  "no_training_or_policy_reselection": true,
+  "base_commit": "5cd28d8",
+  "source": {
+    "simfile": "D:\\Program Files (x86)\\CarSim2024_Date\\simfile.sim",
+    "parsfile": "D:\\Program Files (x86)\\CarSim2024_Date\\Results\\Run_6cb07365-85a3-4a3b-95f9-c5c844687601\\Run_all.par",
+    "simfile_sha256": "9b2f81682b4e350e69d2c820923265faabcfc5f3a9157756d00c884716f3ab6e",
+    "parsfile_sha256": "574c0ee5f28994e7c6b8ba6d2ba851558b0147a8d8e9653a86f41c3eeebfb9ea",
+    "target_speed_kmh": 60.0,
+    "grip_description": [
+      "MU_ROAD_COMBINE ADD",
+      "MU_ROAD_CONSTANT 0.8",
+      "MU_ROAD_L_CONSTANT 0"
+    ],
+    "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+    "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+    "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+    "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+    "experiment_signature": "c3795eb276ef9ab53a0f10c0d4ff95f82a566bd0733c3f2a3056044b922c8792"
+  },
+  "frozen": {
+    "simfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\training_case_60_mu08_20261116_212330\\source_60_mu08\\simfile.sim",
+    "parsfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\training_case_60_mu08_20261116_212330\\source_60_mu08\\Run_all.par",
+    "simfile_sha256": "1bd306ba05267c7b382e592560033f4cd086beb5b7463039abd6ee7397d25096",
+    "parsfile_sha256": "574c0ee5f28994e7c6b8ba6d2ba851558b0147a8d8e9653a86f41c3eeebfb9ea",
+    "target_speed_kmh": 60.0,
+    "grip_description": [
+      "MU_ROAD_COMBINE ADD",
+      "MU_ROAD_CONSTANT 0.8",
+      "MU_ROAD_L_CONSTANT 0"
+    ],
+    "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+    "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+    "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+    "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+    "experiment_signature": "c3795eb276ef9ab53a0f10c0d4ff95f82a566bd0733c3f2a3056044b922c8792"
+  },
+  "neutral_parity": {
+    "passed": true,
+    "control_steps": 183,
+    "decision_steps": 2,
+    "decision_duration_s": 0.08,
+    "gamma_per_decision": 0.995967610541,
+    "reward_scheme": "joint_tracking_v1"
+  },
+  "train_switch_probe": {
+    "scope": "Zero-action real interface test on train sources only; no learner, experience buffer, model selection or gradient updates",
+    "sampling_rule": "uniform_episode_v1",
+    "seed": 42,
+    "rows": [
+      {
+        "episode": 1,
+        "case_index": 0,
+        "speed_kmh": 70.0,
+        "first_measured_vx_kmh": 69.97350473660984,
+        "pid": 32204,
+        "decisions": 79,
+        "observation_dim": 20,
+        "completed": true,
+        "rmse_y_m": 0.07895276057784469,
+        "rmse_heading_deg": 0.9190924968237199,
+        "qp_failures": 0,
+        "source": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\simfile.sim",
+        "signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7"
+      },
+      {
+        "episode": 2,
+        "case_index": 1,
+        "speed_kmh": 60.0,
+        "first_measured_vx_kmh": 59.977968299532336,
+        "pid": 47292,
+        "decisions": 92,
+        "observation_dim": 20,
+        "completed": true,
+        "rmse_y_m": 0.029035128081022023,
+        "rmse_heading_deg": 0.38763524041543546,
+        "qp_failures": 0,
+        "source": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\training_case_60_mu08_20261116_212330\\source_60_mu08\\simfile.sim",
+        "signature": "c3795eb276ef9ab53a0f10c0d4ff95f82a566bd0733c3f2a3056044b922c8792"
+      },
+      {
+        "episode": 3,
+        "case_index": 1,
+        "speed_kmh": 60.0,
+        "first_measured_vx_kmh": 59.977968299532336,
+        "pid": 46544,
+        "decisions": 92,
+        "observation_dim": 20,
+        "completed": true,
+        "rmse_y_m": 0.029035128081022023,
+        "rmse_heading_deg": 0.38763524041543546,
+        "qp_failures": 0,
+        "source": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\training_case_60_mu08_20261116_212330\\source_60_mu08\\simfile.sim",
+        "signature": "c3795eb276ef9ab53a0f10c0d4ff95f82a566bd0733c3f2a3056044b922c8792"
+      },
+      {
+        "episode": 4,
+        "case_index": 0,
+        "speed_kmh": 70.0,
+        "first_measured_vx_kmh": 69.97350473660984,
+        "pid": 44264,
+        "decisions": 79,
+        "observation_dim": 20,
+        "completed": true,
+        "rmse_y_m": 0.07895276057784469,
+        "rmse_heading_deg": 0.9190924968237199,
+        "qp_failures": 0,
+        "source": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\simfile.sim",
+        "signature": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7"
+      }
+    ],
+    "decisions_by_source": {
+      "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\mainline_weights3_ddpg_20261116_v1\\ddpg_v70kmh_100episodes_seed42_20261116_183902\\source_case\\simfile.sim": 158,
+      "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\training_case_60_mu08_20261116_212330\\source_60_mu08\\simfile.sim": 184
+    }
+  },
+  "formal_preflight": {
+    "ready": false,
+    "blockers": [
+      "Validation-selected hyperparameter configuration lock is required before launch"
+    ],
+    "executed": false,
+    "note": "Plan only in this round. Real dual-MPC baseline replay and locked hyperparameter selection are required before launch."
+  },
+  "model_registry_sha256": "4bd8d231db479a88101e1a06736d2cdec3fe2ed7829344ab8503621679528385"
+}
