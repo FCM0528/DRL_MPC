@@ -79,6 +79,7 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
         return;
     }
     if (key == "rl.weight_action_mode") { c.rl.weight_action_mode = lower(value); return; }
+    if (key == "rl.policy_action_dims") { c.rl.policy_action_dims = readInt(value, key); return; }
     if (key == "rl_reward.mode") { c.rl.reward.mode = lower(value); return; }
     if (key == "rl_reward.w_heading") { c.rl.reward.w_heading = readDouble(value, key); return; }
     if (key == "rl_reward.w_course") { c.rl.reward.w_course = readDouble(value, key); return; }
@@ -423,6 +424,8 @@ void validateConfig(const AppConfig& c) {
         throw std::invalid_argument("Invalid rl.observation_profile");
     if (rl.weight_action_mode != "legacy" && rl.weight_action_mode != "continuous_weights")
         throw std::invalid_argument("Invalid rl.weight_action_mode");
+    if (rl.policy_action_dims < 2 || rl.policy_action_dims > 4)
+        throw std::invalid_argument("rl.policy_action_dims must be 2, 3 or 4");
     if (rl.reward.mode != "legacy" && rl.reward.mode != "joint_tracking")
         throw std::invalid_argument("Invalid rl_reward.mode");
     if (rl.min_np < 2 ||
@@ -611,6 +614,7 @@ std::string configToIni(const AppConfig& c) {
         << "\nroad_preview_max_m = " << c.rl.road_preview_max_m
         << "\nobservation_profile = " << c.rl.observation_profile
         << "\nweight_action_mode = " << c.rl.weight_action_mode
+        << "\npolicy_action_dims = " << c.rl.policy_action_dims
         << "\ngrip_demand_clip = " << c.rl.grip_demand_clip
         << "\npenalize_qp_failure = " << c.rl.penalize_qp_failure
         << std::setprecision(15)

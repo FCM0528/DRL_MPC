@@ -71,6 +71,7 @@ class Episode {
     int total_steps_ = 0;
     int max_steps_ = 0;
     std::ofstream trace_;
+    std::ofstream decision_trace_;
     std::vector<SimulationRecord> records_;
 
     double gripAtCurrentX() const { return model_.road_grip.at(state_.x); }
@@ -120,12 +121,15 @@ public:
         max_steps_ = static_cast<int>(2.5 * cfg_.distance_m /
                                     (budget_speed * cfg_.mpc.dt)) + 1000;
         trace_.open(dir_ / "bridge_trace.csv");
+        decision_trace_.open(dir_ / "decision_reward.csv");
         if (!trace_) throw std::runtime_error("Cannot create bridge_trace.csv");
+        if (!decision_trace_) throw std::runtime_error("Cannot create decision_reward.csv");
+        decision_trace_ << "decision,steps,qp_failures,failed,incomplete,step_reward_sum,normalized_mean,qp_penalty,terminal_penalty,decision_reward\n";
         trace_ << std::setprecision(17)
                << "step,x_m,y_m,vx_mps,ey_m,epsi_rad,steer_rad,np,q_y,q_psi,r_delta,qp_failed,vy_mps,psi_rad,yaw_rate_radps,sideslip_rad,"
                   "time_s,body_ax_mps2,body_ay_mps2,measured_beta_rad,driver_curvature_inv_m,"
                   "front_lateral_force_n,rear_lateral_force_n,actual_steer_rad,reference_curvature_inv_m,"
-                  "front_lagged_slip_rad,rear_lagged_slip_rad,e_heading_rad,e_course_rad,e_yaw_rate_radps,reward_y_loss,reward_heading_loss,reward_course_loss,requested_np,requested_q_y,requested_q_psi,requested_r_delta\n";
+                  "front_lagged_slip_rad,rear_lagged_slip_rad,e_heading_rad,e_course_rad,e_yaw_rate_radps,reward_y_loss,reward_heading_loss,reward_course_loss,action_np_normalized,action_q_y_normalized,action_q_psi_normalized,action_r_delta_normalized,target_np,target_q_y,target_q_psi,target_r_delta,reward_peak_loss,reward_growth_loss,reward_steering_loss,reward_parameter_switch_loss,reward_safety_loss,reward_other_loss,reward_total_loss,reward_step\n";
     }
 
     RoadPreviewObservation observation() const {
@@ -144,6 +148,10 @@ public:
         if (ended_) throw std::logic_error("Episode ended; start a new bridge process");
         const MpcTuningAction previous_action = current_;
         current_ = advanceRlTuning(action, previous_action, cfg_.rl);
+        auto target_config = cfg_.rl;
+        target_config.max_np_change_per_decision = 0;
+        target_config.max_weight_ratio_per_decision = 1.0e6; // diagnostic target without slew
+        const auto target_action = advanceRlTuning(action, neutralRlAction(cfg_.rl), target_config);
         // Keep exactly the same MPC object if the policy repeats its action.
         // Otherwise, transfer the previous MPC solution.
         const bool changed = !controller_ ||
@@ -205,6 +213,12 @@ public:
                     i == 0 ? previous_action.np : current_.np,
                     current_, reward_previous_action, state_.vy,
                     state_.r - state_.vx * next.curvature, sideslip, lateralErrorRate(state_, next));
+                const auto terms = cfg_.rl.reward.mode == "joint_tracking" ?
+                    jointRewardTerms(ey, epsi, command.steer, current_.np, cfg_.mpc,
+                        cfg_.rl, prior_steer, i == 0 ? previous_action.np : current_.np,
+                        current_, reward_previous_action, state_.vy,
+                        state_.r - state_.vx * next.curvature, sideslip,
+                        lateralErrorRate(state_, next)) : JointRewardTerms{};
                 step_reward_sum += row.reward;
                 if (!cfg_.rl.reward.tracking_v2 && bad_qp && cfg_.rl.penalize_qp_failure)
                     row.reward -= cfg_.rl.reward.reward_scale * cfg_.rl.reward.failure_penalty;
@@ -224,13 +238,12 @@ public:
                        << ',' << state_.alpha_rear << ',' << epsi << ','
                        << angleDifference(epsi + sideslip, 0.0) << ','
                        << state_.r - state_.vx * next.curvature << ','
-                       << (cfg_.rl.reward.mode == "joint_tracking" ? cfg_.rl.reward.w_y *
-                           std::pow(std::clamp(ey / cfg_.rl.reward.ey_scale_m, -20.0, 20.0), 2) : 0.0) << ','
-                       << (cfg_.rl.reward.mode == "joint_tracking" ? cfg_.rl.reward.w_heading *
-                           std::pow(std::clamp(epsi / cfg_.rl.reward.heading_scale_rad, -20.0, 20.0), 2) : 0.0) << ','
-                       << (cfg_.rl.reward.mode == "joint_tracking" ? cfg_.rl.reward.w_course *
-                           std::pow(std::clamp(angleDifference(epsi + sideslip, 0.0) / cfg_.rl.reward.heading_scale_rad, -20.0, 20.0), 2) : 0.0) << ','
-                       << action[0] << ',' << action[1] << ',' << action[2] << ',' << action[3] << '\n';
+                       << terms.lateral << ',' << terms.heading << ',' << terms.course << ','
+                       << action[0] << ',' << action[1] << ',' << action[2] << ',' << action[3] << ','
+                       << target_action.np << ',' << target_action.q_y << ',' << target_action.q_psi
+                       << ',' << target_action.r_delta << ',' << terms.peak << ',' << terms.growth
+                       << ',' << terms.steering << ',' << terms.parameter_switch << ',' << terms.safety
+                       << ',' << terms.other << ',' << terms.total() << ',' << row.reward << '\n';
             } catch (const std::exception& e) {
                 std::cerr << "BRIDGE_STEP_FAILURE " << e.what() << '\n';
                 failed = true;
@@ -254,6 +267,17 @@ public:
         const bool incomplete = ended_ && state_.x < cfg_.distance_m;
         const double reward = rlDecisionReward(step_reward_sum, steps, qp_failed_count,
                                                failed, incomplete, cfg_.rl);
+        if (cfg_.rl.reward.mode == "joint_tracking") {
+            const int valid = std::max(1, steps - static_cast<int>(failed));
+            const double mean = step_reward_sum / (valid * cfg_.rl.reward.reward_scale);
+            const double qp_penalty = cfg_.rl.penalize_qp_failure ?
+                qp_failed_count * cfg_.rl.reward.qp_failure_penalty : 0.0;
+            const double terminal = failed ? cfg_.rl.reward.failure_penalty :
+                (incomplete ? cfg_.rl.reward.incomplete_episode_penalty : 0.0);
+            decision_trace_ << total_steps_ << ',' << steps << ',' << qp_failed_count << ','
+                << failed << ',' << incomplete << ',' << step_reward_sum << ',' << mean
+                << ',' << qp_penalty << ',' << terminal << ',' << reward << '\n';
+        }
         const auto point = reference_->at(state_.x);
         const auto obs = observation();
         std::cout << "BRIDGE_STEP" << std::setprecision(17);

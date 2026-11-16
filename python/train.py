@@ -19,7 +19,7 @@ from envs.carsim_mpc_env import CarSimMPCEnv
 from evaluate import DEFAULT_FIXED_CONFIG, evaluate_models, fixed_episode, require_same_distance, _episode
 from parity import check_neutral_parity
 from report import control_trace
-from scenario import read_scenario, resolve_simfile, snapshot_config, snapshot_scenario, resolve_config_value
+from scenario import read_scenario, resolve_simfile, snapshot_config, snapshot_scenario, resolve_config_value, same_scenario_content
 
 REJECTED_LATERAL_SCORE = -1.0e6
 
@@ -295,11 +295,18 @@ def main():
     if args.validation_simfile:
         args.validation_simfile = str(Path(args.validation_simfile).resolve(strict=True))
     scenario = read_scenario(args.simfile)
+    if args.validation_simfile:
+        validation_scenario = read_scenario(args.validation_simfile)
+        if same_scenario_content(scenario, validation_scenario):
+            p.error("Validation Simfile/Parsfile contents match training")
+    else:
+        validation_scenario = None
     run_name = (f"{args.algorithm}_{scenario['speed_token']}_{args.episodes}episodes_"
                 f"seed{args.seed}_{datetime.now():%Y%m%d_%H%M%S}")
     root = Path(args.out).resolve() / run_name
     root.mkdir(parents=True, exist_ok=False)
     frozen_simfile = snapshot_scenario(scenario, root / "source_case")
+    frozen_validation = snapshot_scenario(validation_scenario, root / "validation_case") if validation_scenario else None
     source_config = Path(args.config).resolve(strict=True)
     frozen_config = snapshot_config(source_config, root / "source_configs")
     fixed_config = None
@@ -316,7 +323,10 @@ def main():
                 "fixed_config": str(fixed_config) if fixed_config else None,
                 "simfile": str(Path(args.simfile).resolve()),
                 "snapshot_simfile": str(frozen_simfile)}
+    manifest["validation_scenario"] = validation_scenario
+    manifest["frozen_validation_simfile"] = str(frozen_validation) if frozen_validation else None
     manifest["weight_action_mode"] = resolve_config_value(frozen_config, "rl", "weight_action_mode", "legacy").lower()
+    manifest["policy_action_dims"] = resolve_config_value(frozen_config, "rl", "policy_action_dims", "4")
     manifest["reward_mode"] = resolve_config_value(frozen_config, "rl_reward", "mode", "legacy").lower()
     manifest["algorithm_design"] = (tqc_design(args.tqc_profile, args.tqc_drop, settings)
                                     if args.algorithm == "tqc" else
@@ -367,6 +377,7 @@ def main():
             previous = json.loads(previous_manifest.read_text(encoding="utf-8"))
             if (previous.get("reward_scheme") != manifest["reward_scheme"] or
                 previous.get("weight_action_mode", "legacy") != manifest["weight_action_mode"] or
+                previous.get("policy_action_dims", "4") != manifest["policy_action_dims"] or
                 previous.get("reward_mode", "legacy") != manifest["reward_mode"] or
                 previous.get("observation_profile") != manifest["observation_profile"] or
                 previous.get("tire_model") != manifest["tire_model"] or
@@ -385,7 +396,8 @@ def main():
                           gamma=parity["gamma_per_decision"], **manifest["algorithm_design"])
             if args.algorithm in ("ddpg", "td3"):
                 sigma = settings[f"{args.algorithm}_exploration_noise_sigma"]
-                kwargs["action_noise"] = NormalActionNoise(np.zeros(4), np.full(4, sigma))
+                dims = train_env.action_space.shape[0]
+                kwargs["action_noise"] = NormalActionNoise(np.zeros(dims), np.full(dims, sigma))
             model = cls("MlpPolicy", train_env, **kwargs)
         prepare_online_training(model, settings["learning_starts"])
         manifest["training_start_timesteps"] = int(model.num_timesteps)
@@ -426,7 +438,7 @@ def main():
     if args.joint_selection:
         from joint_selection import select_checkpoints
         select_checkpoints(root, cls, args.bridge, args.controller, args.config,
-                           args.validation_simfile or args.simfile, fixed_config,
+                           str(frozen_validation) if frozen_validation else args.simfile, fixed_config,
                            args.seed, config_hashes)
     if args.training_only:
         print(f"Final model: {root / 'final_model.zip'}")

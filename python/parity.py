@@ -74,7 +74,7 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10)
     try:
         env.reset(seed=42)
         for _ in range(blocks):
-            _, reward, terminated, truncated, info = env.step(np.zeros(4, dtype=np.float32))
+            _, reward, terminated, truncated, info = env.step(np.zeros(env.action_space.shape, dtype=np.float32))
             rewards.append(reward)
             if truncated or info["failed"]:
                 raise AssertionError("Neutral parity episode failed or was truncated")

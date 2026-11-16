@@ -23,6 +23,50 @@ double lateralErrorRate(const VehicleState& state, const ReferencePoint& referen
     return y_dot - reference.dydx * x_dot;
 }
 
+JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
+    const MpcParameters& mpc, const RlConfig& config, double previous_steer,
+    int previous_np, const MpcTuningAction& action,
+    const MpcTuningAction& previous_action, double vy, double yaw_error,
+    double sideslip, double ey_dot) {
+    const auto& r = config.reward;
+    JointRewardTerms t;
+    const double heading = angleDifference(epsi, 0.0);
+    const double course = angleDifference(heading + sideslip, 0.0);
+    t.lateral = r.w_y * std::pow(clip(ey / r.ey_scale_m, -20.0, 20.0), 2);
+    t.heading = r.w_heading * std::pow(clip(heading / r.heading_scale_rad, -20.0, 20.0), 2);
+    t.course = r.w_course * std::pow(clip(course / r.heading_scale_rad, -20.0, 20.0), 2);
+    const double peak = std::max(0.0, std::abs(ey) - r.peak_threshold_m) / r.peak_threshold_m;
+    t.peak = r.w_peak * peak * peak;
+    const double growth = std::max(0.0, std::abs(ey + r.lateral_growth_preview_s * ey_dot)
+        - std::abs(ey)) / r.ey_scale_m;
+    t.growth = r.w_lateral_growth * growth * growth;
+    const double steer_rate = (steer - previous_steer) / (r.steer_rate_scale_rad_s * mpc.dt);
+    t.steering = r.w_steer * std::pow(clip(steer / mpc.max_steer, -1.0, 1.0), 2) +
+        r.w_steer_rate * std::pow(clip(steer_rate, -5.0, 5.0), 2);
+    const double slip = std::max(0.0, std::abs(sideslip) / r.sideslip_threshold_rad - 1.0);
+    t.safety = r.w_sideslip * slip * slip +
+        r.w_yaw_error * std::pow(clip(yaw_error / 0.25, -3.0, 3.0), 2);
+    const double span_np = static_cast<double>(config.max_np - config.min_np);
+    const double np_change = previous_np < config.min_np ? 0.0 :
+        clip(std::abs(np - previous_np) / span_np, 0.0, 1.0);
+    t.parameter_switch = r.w_np_change * np_change * np_change;
+    const std::array<double, 3> weights{action.q_y, action.q_psi, action.r_delta};
+    const std::array<double, 3> old{previous_action.q_y, previous_action.q_psi,
+                                     previous_action.r_delta};
+    for (std::size_t i = 0; i < weights.size(); ++i) {
+        const std::size_t k = i == 2 ? 5 : i;
+        const double center = neutralWeight(config, k);
+        const double span = 0.5 * std::log(config.maxWeight(k) / config.minWeight(k));
+        const double diff = clip(std::log(weights[i] / old[i]) / span, -2.0, 2.0);
+        const double deviation = clip(std::log(weights[i] / center) / span, -1.0, 1.0);
+        t.parameter_switch += r.w_weight_change * diff * diff / 3.0;
+        t.other += r.w_weight_deviation * deviation * deviation / 3.0;
+    }
+    t.other += r.w_horizon * clip((np - config.min_np) / span_np, 0.0, 1.0) +
+        r.w_vy * std::pow(clip(vy / 2.0, -3.0, 3.0), 2);
+    return t;
+}
+
 double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           const MpcParameters& mpc, const RlConfig& config,
                           double previous_steer, int previous_np,
@@ -31,20 +75,9 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           double vy, double yaw_error, double sideslip, double ey_dot) {
     const auto& r = config.reward;
     if (r.mode == "joint_tracking") {
-        const double heading = angleDifference(epsi, 0.0);
-        const double course = angleDifference(heading + sideslip, 0.0);
-        const double ey_loss = r.w_y * std::pow(clip(ey / r.ey_scale_m, -20.0, 20.0), 2);
-        const double heading_loss = r.w_heading * std::pow(clip(heading / r.heading_scale_rad, -20.0, 20.0), 2);
-        const double course_loss = r.w_course * std::pow(clip(course / r.heading_scale_rad, -20.0, 20.0), 2);
-        const double steer_rate = (steer - previous_steer) / (r.steer_rate_scale_rad_s * mpc.dt);
-        const double slip_excess = std::max(0.0, std::abs(sideslip) / r.sideslip_threshold_rad - 1.0);
-        const double peak_excess = std::max(0.0, std::abs(ey) - r.peak_threshold_m) / r.peak_threshold_m;
-        const double loss = ey_loss + heading_loss + course_loss +
-            r.w_peak * peak_excess * peak_excess +
-            r.w_steer * std::pow(steer / mpc.max_steer, 2) +
-            r.w_steer_rate * std::pow(clip(steer_rate, -5.0, 5.0), 2) +
-            r.w_sideslip * slip_excess * slip_excess;
-        return -r.reward_scale * loss;
+        return -r.reward_scale * jointRewardTerms(ey, epsi, steer, np, mpc,
+            config, previous_steer, previous_np, action, previous_action,
+            vy, yaw_error, sideslip, ey_dot).total();
     }
     const double normalized_ey = ey / r.ey_scale_m;
     if (r.tracking_v2 && mpc.track_course)

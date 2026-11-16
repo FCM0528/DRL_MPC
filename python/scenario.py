@@ -79,6 +79,12 @@ def read_scenario(simfile):
             "parsfile_sha256": hashlib.sha256(payload).hexdigest()}
 
 
+def same_scenario_content(left, right):
+    """Conservatively reject splits sharing either full source file content."""
+    return (left["simfile_sha256"] == right["simfile_sha256"] or
+            left["parsfile_sha256"] == right["parsfile_sha256"])
+
+
 def resolve_config_value(config, section, key, default=None):
     config = Path(config).resolve()
     active = set()

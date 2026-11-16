@@ -249,6 +249,9 @@ MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previ
     if (!(front_peak_slip > 0.0 && rear_peak_slip > 0.0))
         throw std::runtime_error("MPC tire slip penalty requires positive force-peak slip angles");
     const int error_count = penalize_slip ? 6 : 4;
+    std::vector<std::array<double, 6>> stage_base(np);
+    std::vector<std::vector<std::array<double, 6>>> stage_sensitivity(np);
+    std::vector<double> stage_ff(np), stage_terminal(np);
     const bool use_feedforward = p_.steer_feedforward && p_.r_steer > 0.0;
     const double peak_accel = use_feedforward ? 2.0 *
         (tires_.peakLateralForce(front_load) + tires_.peakLateralForce(rear_load)) /
@@ -305,6 +308,10 @@ MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previ
                                    nominal_increments_[j];
         const double terminal = (stage == np - 1 ? p_.terminal_scale : 1.0) *
             std::exp(p_.stage_weight_lambda * (stage + 1.0) / np);
+        stage_base[stage] = {error_offset[0], error_offset[1], error_offset[2],
+                             error_offset[3], error_offset[4], error_offset[5]};
+        stage_sensitivity[stage] = error_sensitivity;
+        stage_terminal[stage] = terminal;
         for (int j = 0; j < nc; ++j) {
             for (int d = 0; d < error_count; ++d)
                 gradient[j] += 2.0 * terminal * q[d] *
@@ -325,6 +332,7 @@ MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previ
             ff = std::clamp((wheelbase + understeer) *
                 std::clamp(curvature, -curve_limit, curve_limit), -p_.max_steer, p_.max_steer);
         }
+        stage_ff[stage] = ff;
         // Absolute steering = prev + prefix sum of optimized increments.
         for (int j = 0; j <= active; ++j) {
             gradient[j] += 2.0 * p_.r_steer * (prev - ff);
@@ -404,6 +412,26 @@ MpcResult LateralMpc::solve(const VehicleState& plant, double prev, double previ
         last_solution_[i] = last;
     }
     status.steer = last_solution_[0];
+    std::vector<double> applied_u(nc);
+    for (int j = 0; j < nc; ++j)
+        applied_u[j] = last_solution_[j] - (j == 0 ? prev : last_solution_[j - 1]);
+    for (int stage = 0; stage < np; ++stage) {
+        const int active = std::min(stage, nc - 1);
+        for (int d = 0; d < error_count; ++d) {
+            double error = stage_base[stage][d];
+            for (int j = 0; j < nc; ++j)
+                error += stage_sensitivity[stage][j][d] * applied_u[j];
+            status.cost_terms[d] += stage_terminal[stage] * q[d] * error * error;
+        }
+        const double steer_error = last_solution_[active] - stage_ff[stage];
+        status.cost_terms[6] += p_.r_steer * steer_error * steer_error;
+    }
+    for (int j = 0; j < nc; ++j) {
+        status.cost_terms[7] += p_.r_delta * applied_u[j] * applied_u[j];
+        const double change = applied_u[j] - (j == 0 ? previous_increment : applied_u[j - 1]);
+        status.cost_terms[8] += p_.r_delta_change * change * change;
+    }
+    if (nc < np) status.cost_terms[8] += p_.r_delta_change * applied_u.back() * applied_u.back();
     has_solution_ = true;
     return status;
 }

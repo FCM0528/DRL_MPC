@@ -21,7 +21,11 @@ class CarSimMPCEnv(gym.Env):
         self.simfile = Path(simfile).resolve()
         self.output_root = Path(output_root).resolve()
         self.output_root.mkdir(parents=True, exist_ok=True)
-        self.action_space = spaces.Box(-1.0, 1.0, shape=(4,), dtype=np.float32)
+        self.policy_action_dims = int(resolve_config_value(
+            self.config, "rl", "policy_action_dims", "4"))
+        if self.policy_action_dims not in (2, 3, 4):
+            raise ValueError("policy_action_dims must be 2, 3 or 4")
+        self.action_space = spaces.Box(-1.0, 1.0, shape=(self.policy_action_dims,), dtype=np.float32)
         self.observation_profile = resolve_config_value(
             self.config, "rl", "observation_profile", "road_preview_v2"
         ).lower()
@@ -70,11 +74,13 @@ class CarSimMPCEnv(gym.Env):
         if self._bridge is None or self._done:
             raise RuntimeError("Call reset() before step(), or after episode termination")
         a = np.asarray(action, dtype=np.float64)
-        if a.shape != (4,) or not np.all(np.isfinite(a)):
-            raise ValueError("Action must be 4 finite numbers: np, q_y, q_psi, r_delta")
+        if a.shape != (self.policy_action_dims,) or not np.all(np.isfinite(a)):
+            raise ValueError(f"Action must be {self.policy_action_dims} finite numbers")
         if np.any(a < -1.0) or np.any(a > 1.0):
             raise ValueError("Action is outside [-1, 1]")
-        data = self._bridge.exchange("STEP " + " ".join(format(x, ".17g") for x in a),
+        bridge_action = np.zeros(4, dtype=np.float64)
+        bridge_action[:self.policy_action_dims] = a
+        data = self._bridge.exchange("STEP " + " ".join(format(x, ".17g") for x in bridge_action),
                                      "BRIDGE_STEP")
         n = self._observation_size
         if len(data) != n + 12:

@@ -15,6 +15,7 @@ struct SimulationRecord {
     double heading_error = 0.0;       // psi - psiref [rad]
     double steer = 0.0;               // front-wheel steering [rad]
     double reward = 0.0;              // C++ per-control-step reward
+    std::array<double, 9> mpc_cost_terms{};
     double yaw_rate_ref = 0.0;        // [rad/s]
     double feedforward_curvature = 0.0; // [1/m], before friction limit
     double road_grip = 0.0;           // road-map estimate at CG station, not a tire measurement

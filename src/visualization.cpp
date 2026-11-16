@@ -255,6 +255,7 @@ SimulationRecord recordSample(const VehicleState& state, const DoubleLaneChange&
     row.lateral_error = state.y - row.reference.y;
     row.heading_error = angleDifference(state.psi, row.reference.psi);
     row.steer = command.steer;
+    row.mpc_cost_terms = command.cost_terms;
     row.yaw_rate_ref = state.vx * row.reference.curvature;
     row.feedforward_curvature = reference.controlCurvature(state.x, curvature_sigma_m);
     row.road_grip = road_grip;
@@ -380,7 +381,7 @@ SimulationMetrics exportResults(
                    "reference_curvature_inv_m,front_lagged_slip_rad,rear_lagged_slip_rad,"
                    "front_left_wheel_steer_deg,front_right_wheel_steer_deg,feedforward_curvature_inv_m,"
                    "body_ax_mps2,body_ay_mps2,measured_beta_rad,driver_curvature_inv_m,"
-                   "front_lateral_force_n,rear_lateral_force_n\n";
+                   "front_lateral_force_n,rear_lateral_force_n,mpc_cost_y,mpc_cost_course,mpc_cost_lateral_rate,mpc_cost_yaw_rate,mpc_cost_front_slip,mpc_cost_rear_slip,mpc_cost_steer,mpc_cost_delta,mpc_cost_delta_change\n";
         out << std::fixed << std::setprecision(9);
         for (const auto& p : rows) {
                 out << p.time << ',' << 3.6 * p.s.vx << ',' << 3.6 * std::hypot(p.s.vx, p.s.vy)
@@ -404,7 +405,9 @@ SimulationMetrics exportResults(
                 if (std::isfinite(p.s.steer_front_right)) out << p.s.steer_front_right * rad2deg;
                 out << ',' << p.feedforward_curvature << ',' << p.s.body_ax << ',' << p.s.body_ay
                     << ',' << p.s.measured_beta << ',' << p.s.driver_curvature
-                    << ',' << p.s.fy_front << ',' << p.s.fy_rear << '\n';
+                    << ',' << p.s.fy_front << ',' << p.s.fy_rear;
+                for (double cost : p.mpc_cost_terms) out << ',' << cost;
+                out << '\n';
         }
     }
 

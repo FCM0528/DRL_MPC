@@ -2,7 +2,17 @@ import pytest
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scenario import read_scenario
+from scenario import read_scenario, same_scenario_content
+
+
+def test_same_content_rejects_renamed_cases(tmp_path):
+    pars = tmp_path / "one.par"
+    pars.write_text("SPEED_TARGET_CONSTANT 70\n")
+    (tmp_path / "two.par").write_bytes(pars.read_bytes())
+    first, second = tmp_path / "first.sim", tmp_path / "second.sim"
+    first.write_text("INPUT one.par\n")
+    second.write_text("INPUT two.par\n")
+    assert same_scenario_content(read_scenario(first), read_scenario(second))
 
 def test_relative_macro_and_fractional_speed(tmp_path):
     pars = tmp_path / "case.par"

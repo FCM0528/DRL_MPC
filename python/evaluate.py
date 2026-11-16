@@ -107,7 +107,7 @@ def _episode(bridge, config, simfile, output, model=None, seed=42, label="neutra
         total = 0.0
         decisions = 0
         while True:
-            action = model.predict(obs, deterministic=True)[0] if model else np.zeros(4)
+            action = model.predict(obs, deterministic=True)[0] if model else np.zeros(env.action_space.shape)
             obs, reward, terminated, truncated, info = env.step(action)
             total += reward
             decisions += 1
@@ -143,6 +143,7 @@ def evaluate_models(algorithm, models, bridge, config, simfile, seeds, output,
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             for key, section, option, default in (
                 ("weight_action_mode", "rl", "weight_action_mode", "legacy"),
+                ("policy_action_dims", "rl", "policy_action_dims", "4"),
                 ("reward_mode", "rl_reward", "mode", "legacy"),
                 ("observation_profile", "rl", "observation_profile", "road_preview_v2")):
                 expected = resolve_config_value(config, section, option, default).lower()

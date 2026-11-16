@@ -2,6 +2,7 @@
 #include "reference.h"
 #include "vehicle.h"
 #include <functional>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,10 @@ double effectiveSteerRate(const MpcParameters& settings, double vx);
 
 // MPC result structure
 struct MpcResult {
+    // Predicted QP objective contributions after applied-move projection:
+    // y, course/heading, lateral-rate, yaw-rate, front slip, rear slip,
+    // steering/feedforward, increment, increment-change.
+    std::array<double, 9> cost_terms{};
     double steer = 0.0;                // [rad]
     int iterations = 0;
     double primal_residual = 0.0;

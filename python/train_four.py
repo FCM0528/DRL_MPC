@@ -13,7 +13,7 @@ from algorithms import ALGORITHMS
 from compare_four import compare_four, comparison_limits
 from evaluate import DEFAULT_CONTROLLER, DEFAULT_FIXED_CONFIG
 from report import render_training_summary
-from scenario import read_scenario, resolve_simfile, snapshot_config, snapshot_scenario
+from scenario import read_scenario, resolve_simfile, snapshot_config, snapshot_scenario, same_scenario_content
 
 
 def main():
@@ -48,9 +48,15 @@ def main():
     controller = Path(args.controller).resolve(strict=True)
     simfile = resolve_simfile(config, args.simfile)
     scenario = read_scenario(simfile)
-    if args.test_simfile and Path(args.test_simfile).resolve() in {
-            Path(simfile).resolve(), Path(args.validation_simfile).resolve() if args.validation_simfile else Path(simfile).resolve()}:
-        parser.error("--test-simfile must differ from training and validation cases")
+    validation_case = read_scenario(args.validation_simfile) if args.validation_simfile else None
+    test_case = read_scenario(args.test_simfile) if args.test_simfile else None
+    if validation_case and same_scenario_content(validation_case, scenario):
+        parser.error("Validation Simfile/Parsfile contents match training")
+    if test_case and (same_scenario_content(test_case, scenario) or
+                      validation_case and same_scenario_content(test_case, validation_case)):
+        parser.error("Test Simfile/Parsfile contents match training or validation")
+    if test_case and not validation_case:
+        parser.error("A held-out test requires --validation-simfile")
     fixed_source = Path(args.fixed_config) if args.fixed_config else config.with_name("default.ini")
     if args.fixed_config is None and not fixed_source.is_file():
         fixed_source = DEFAULT_FIXED_CONFIG
@@ -59,6 +65,8 @@ def main():
         f"four_{scenario['speed_token']}_{args.episodes}ep_seed{args.seed}_{datetime.now():%Y%m%d_%H%M%S}")
     root.mkdir(parents=True, exist_ok=False)
     frozen = snapshot_scenario(scenario, root / "case")
+    frozen_validation = snapshot_scenario(validation_case, root / "validation_case") if validation_case else None
+    frozen_test = snapshot_scenario(test_case, root / "test_case") if test_case else None
     frozen_config = snapshot_config(config, root / "configs")
     fixed_config = snapshot_config(fixed_source, root / "fixed_configs")
     frozen_train_config = root / "rl_training.ini"
@@ -67,6 +75,7 @@ def main():
             "training_data_source": "online_carsim_closed_loop",
             "model_selection": "joint_validation",
             "comparison_split": "held_out_test" if args.test_simfile else "training_case_repeat",
+            "validation_scenario": validation_case, "test_scenario": test_case,
             "segment_cuts_m": args.segments,
             "fixed_config": str(fixed_config),
             "source_config": str(config), "frozen_config": str(frozen_config),
@@ -91,7 +100,7 @@ def main():
                        "--simfile", str(frozen), "--out", str(output), "--training-only",
                        "--joint-selection", "--fixed-config", str(fixed_config)]
             if args.validation_simfile:
-                command.extend(("--validation-simfile", str(Path(args.validation_simfile).resolve(strict=True))))
+                command.extend(("--validation-simfile", str(frozen_validation)))
             print(f"Starting {algorithm.upper()}: {args.episodes} episodes. Log: {output / 'training.log'}", flush=True)
             environment = os.environ.copy()
             environment["PYTHONIOENCODING"] = "utf-8"
@@ -105,18 +114,25 @@ def main():
             if len(runs) != 1:
                 raise RuntimeError(f"Expected exactly one completed {algorithm.upper()} run in {output}")
             selection = json.loads((runs[0] / "checkpoint_selection.json").read_text(encoding="utf-8"))
-            info["models"][algorithm] = str(runs[0] / "best_joint_model.zip" if selection["qualified"]
-                                            else runs[0] / "final_model.zip")
+            if selection["qualified"]:
+                info["models"][algorithm] = str(runs[0] / "best_joint_model.zip")
+            else:
+                info.setdefault("diagnostic_final_models", {})[algorithm] = str(runs[0] / "final_model.zip")
             info.setdefault("selection", {})[algorithm] = selection
             training_run = json.loads((runs[0] / "manifest.json").read_text(encoding="utf-8"))
             info.setdefault("training_data", {})[algorithm] = training_run["training_data"]
             monitors[algorithm] = runs[0] / "train_monitor.csv"
             save()
-            print(f"{algorithm.upper()} complete: {info['models'][algorithm]}", flush=True)
+            print(f"{algorithm.upper()} complete; qualified={selection['qualified']}", flush=True)
         info["training_summary"] = str(render_training_summary(root, monitors, args.episodes, args.seed))
+        if len(info["models"]) != len(ALGORITHMS):
+            info["status"] = "no_joint_qualified_model"
+            save()
+            print("At least one algorithm has no dual-improvement checkpoint; no qualified comparison", flush=True)
+            return
         info["status"] = "evaluating"
         save()
-        comparison_case = Path(args.test_simfile).resolve(strict=True) if args.test_simfile else frozen
+        comparison_case = frozen_test if frozen_test else frozen
         report = compare_four(info["models"], bridge, frozen_config, comparison_case,
                               root / "comparison", args.seed, controller, fixed_config,
                               segments=args.segments)

@@ -476,6 +476,16 @@ void testRlModule() {
             std::abs(joint_reward(3.141592653589793 - 0.01, 0) -
                      joint_reward(-3.141592653589793 + 0.01, 0)) < 1e-9,
             "Joint reward must distinguish heading, ignore beta when course is disabled, and wrap angles");
+    const auto joint_changed = advanceRlTuning({0, 1, 1, 1}, neutral, joint);
+    const auto terms = jointRewardTerms(0.1, 0.02, 0.01, neutral.np + 1,
+        config.mpc, joint, 0.0, neutral.np, joint_changed, neutral,
+        0.2, 0.01, 0.0, 0.5);
+    const double total_reward = scalarizedRlReward(0.1, 0.02, 0.01,
+        neutral.np + 1, config.mpc, joint, 0.0, neutral.np,
+        joint_changed, neutral, 0.2, 0.01, 0.0, 0.5);
+    require(terms.growth > 0 && terms.parameter_switch > 0 &&
+            std::abs(total_reward + joint.reward.reward_scale * terms.total()) < 1e-10,
+            "Joint reward components must include growth and switching and sum to scalar reward");
     require(neutral.np == config.mpc.np &&
             std::abs(neutral.q_y - config.mpc.q_y) < 1e-12 &&
             std::abs(neutral.q_psi - config.mpc.q_psi) < 1e-12 &&

@@ -43,6 +43,7 @@ struct RlRewardConfig {
 };
 
 struct RlConfig {
+    int policy_action_dims = 4; // Python policy uses first 2, 3, or 4 bridge actions
     std::string weight_action_mode = "legacy"; // legacy | continuous_weights
     std::string mode = "fixed";       // C++ defaults to MPC control
     std::string action_profile = "full"; // full | compact | np_only
@@ -87,6 +88,20 @@ struct MpcTuningAction {
     double r_steer = 10.0;
     double r_delta = 350.0;
 };
+
+struct JointRewardTerms {
+    double lateral = 0, heading = 0, course = 0, peak = 0, growth = 0;
+    double steering = 0, parameter_switch = 0, safety = 0, other = 0;
+    double total() const {
+        return lateral + heading + course + peak + growth + steering +
+               parameter_switch + safety + other;
+    }
+};
+JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
+    const MpcParameters& mpc, const RlConfig& config, double previous_steer,
+    int previous_np, const MpcTuningAction& action,
+    const MpcTuningAction& previous_action, double vy, double yaw_error,
+    double sideslip, double ey_dot);
 
 MpcTuningAction neutralRlAction(const RlConfig& config);
 MpcTuningAction advanceRlTuning(const std::array<double, 4>& action,

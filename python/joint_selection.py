@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from evaluate import _episode, fixed_episode
+from scenario import read_scenario
 
 
 def rank_candidate(row, baseline):
@@ -21,14 +22,21 @@ def select_checkpoints(root, cls, bridge, controller, config, simfile, fixed_con
     baseline = fixed_episode(controller, simfile, root / "joint_validation_fixed", fixed_config)
     if baseline["qp_failures"] or not baseline["terminated"]:
         raise ValueError("Fixed validation baseline must complete without QP failures")
-    candidates = sorted((root / "checkpoints").glob("*.zip")) + [root / "final_model.zip"]
+    checkpoints = sorted((root / "checkpoints").glob("*.zip"))
+    if not checkpoints:
+        raise ValueError("Joint selection requires at least one periodic checkpoint")
+    candidates = checkpoints + [root / "final_model.zip"]
     rows = []
     for i, path in enumerate(candidates):
         model = cls.load(path, device="cpu")
         result = _episode(bridge, config, simfile, root / f"joint_validation_{i:04d}",
                           model, seed, path.stem, export_report=False)
         eligible, dual, score, iy, ih = rank_candidate(result, baseline)
-        rows.append(dict(checkpoint=str(path), eligible=eligible, dual_improvement=dual,
+        diagnostic_only = path.name == "final_model.zip"
+        rows.append(dict(checkpoint=str(path), diagnostic_only=diagnostic_only,
+                         diagnostic_dual_improvement=dual,
+                         eligible=eligible and not diagnostic_only,
+                         dual_improvement=dual and not diagnostic_only,
                          min_improvement=score, improvement_y=iy, improvement_heading=ih,
                          **{k: v for k, v in result.items() if k != "trace"}))
     with (root / "joint_validation.csv").open("w", newline="", encoding="utf-8") as file:
@@ -68,6 +76,8 @@ def select_checkpoints(root, cls, bridge, controller, config, simfile, fixed_con
                   qualified=bool(chosen), selected=chosen["checkpoint"] if chosen else None,
                   pareto_candidates=pareto, baseline_y_rmse_m=baseline["rmse_y_m"],
                   baseline_heading_rmse_deg=baseline["rmse_heading_deg"],
-                  validation_simfile=str(simfile), config_sha256=config_hashes, seed=seed)
+                  validation_simfile=str(simfile), validation_case_sha256={
+                      key: read_scenario(simfile)[key] for key in ("simfile_sha256", "parsfile_sha256")},
+                  config_sha256=config_hashes, seed=seed)
     (root / "checkpoint_selection.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
