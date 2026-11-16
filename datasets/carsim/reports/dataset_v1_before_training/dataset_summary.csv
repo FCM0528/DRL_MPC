@@ -1,0 +1,7 @@
+﻿scenario_id,scenario_type,target_speed_kmh,speed_profile,road_friction,friction_profile,trajectory_type,start_station_m,end_station_m,split,scenario_count,training_episodes,actual_decisions,completed_episodes,qp_failures,mean_episode_return,sample_fraction
+cs_4b2833a3a0ee9d260693,double_lane_change,70.0,constant,0.8,constant,ltarg_table,0.0,120.0,train,1,,,,,,
+cs_c3795eb276ef9ab53a0f,double_lane_change,60.0,constant,0.8,constant,ltarg_table,0.0,120.0,train,1,,,,,,
+cs_3666b760495501987d4d,double_lane_change,80.0,constant,0.8,constant,ltarg_table,0.0,120.0,train,1,,,,,,
+cs_34db60360e2714ac115d,double_lane_change,65.0,constant,0.8,constant,ltarg_table,0.0,120.0,validation,1,,,,,,
+cs_9f33c9f2d89737f3ae79,double_lane_change,75.0,constant,0.8,constant,ltarg_table,0.0,120.0,validation,1,,,,,,
+cs_37580cac3f141fec7281,double_lane_change,70.0,constant,0.6,constant,ltarg_table,0.0,120.0,test,1,,,,,,

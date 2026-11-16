@@ -81,3 +81,28 @@ def test_preflight_solver_failure_is_retained_without_zero_qp_claim(tmp_path,mon
         qp_failures=3,rmse_y_m=.5,peak_measured_ay_mps2=9.,peak_measured_beta_deg=6.))
     row=scenario_preflight.preflight_baseline('exe','case',tmp_path/'partial','config')
     assert row['rmse_y_m']==.5 and row['qp_failures']==3 and not row['stable']
+
+
+def test_online_exposure_counts_partial_episodes_and_per_decision_qp(tmp_path,monkeypatch):
+    import envs.carsim_mpc_env as module
+    config,_=sources(tmp_path);exe=tmp_path/'bridge';exe.write_text('fixture')
+    class Bridge:
+        def __init__(self,*args):self.steps=0
+        def exchange(self,command,*args):
+            if command=='RESET':return [0.]*20
+            self.steps+=1
+            return [0.]*20+[-2.,int(self.steps==3),0,120.,0,0,0,int(self.steps<=2),0,2,0,36]
+        def close(self):pass
+    monkeypatch.setattr(module,'BridgeClient',Bridge)
+    env=CarSimMPCEnv(exe,config,tmp_path/'60.sim',tmp_path/'exposure')
+    env.reset(seed=42)
+    for _ in range(3):env.step(np.zeros(4))
+    env.reset();env.step(np.zeros(4));env.close()
+    counts=env.scenario_exposure[str(tmp_path/'60.sim')]
+    assert counts==dict(episodes=2,completed=1,decisions=4,reward_sum=-8.,qp_failures=3)
+    # An automatic reset after a terminal step must not inflate sample/episode counts.
+    env.reset();env.close()
+    assert counts['episodes']==2 and counts['decisions']==4
+    rows=[json.loads(s) for s in (tmp_path/'exposure/episode_outcomes.jsonl').read_text().splitlines()]
+    assert [r['decisions'] for r in rows]==[3,1]
+    assert [r['qp_failures'] for r in rows]==[2,1]

@@ -15,6 +15,9 @@
 /docs/reference_figure_from_user.png
 ~$*
 /runs/
+# Native licensed CarSim payloads remain local; versioned metadata is tracked.
+/datasets/carsim/scenarios/*/simfile.sim
+/datasets/carsim/scenarios/*/Run_all.par
 **/__pycache__/
 **/slprj/
 *.slxc

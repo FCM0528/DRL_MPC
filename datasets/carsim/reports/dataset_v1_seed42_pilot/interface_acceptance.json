@@ -1,0 +1,110 @@
+{
+  "dataset_manifest": "datasets/carsim/manifests/dataset_v1.json",
+  "episodes": [
+    {
+      "episode": 1,
+      "scenario_id": "cs_4b2833a3a0ee9d260693",
+      "case_index": 0,
+      "decisions": 79,
+      "pid": 44896,
+      "end_x_m": 120.0019775253077,
+      "qp_failures": 0
+    },
+    {
+      "episode": 2,
+      "scenario_id": "cs_3666b760495501987d4d",
+      "case_index": 2,
+      "decisions": 69,
+      "pid": 46828,
+      "end_x_m": 120.00905558306172,
+      "qp_failures": 0
+    },
+    {
+      "episode": 3,
+      "scenario_id": "cs_c3795eb276ef9ab53a0f",
+      "case_index": 1,
+      "decisions": 92,
+      "pid": 11664,
+      "end_x_m": 120.00487167262172,
+      "qp_failures": 0
+    },
+    {
+      "episode": 4,
+      "scenario_id": "cs_c3795eb276ef9ab53a0f",
+      "case_index": 1,
+      "decisions": 92,
+      "pid": 45276,
+      "end_x_m": 120.00487167262172,
+      "qp_failures": 0
+    },
+    {
+      "episode": 5,
+      "scenario_id": "cs_c3795eb276ef9ab53a0f",
+      "case_index": 1,
+      "decisions": 92,
+      "pid": 47004,
+      "end_x_m": 120.00487167262172,
+      "qp_failures": 0
+    },
+    {
+      "episode": 6,
+      "scenario_id": "cs_3666b760495501987d4d",
+      "case_index": 2,
+      "decisions": 69,
+      "pid": 42772,
+      "end_x_m": 120.00905558306172,
+      "qp_failures": 0
+    }
+  ],
+  "exposure": {
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\cases\\train_000\\simfile.sim": {
+      "episodes": 1,
+      "completed": 1,
+      "decisions": 79,
+      "reward_sum": -33.01488138906385,
+      "qp_failures": 0
+    },
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\cases\\train_002\\simfile.sim": {
+      "episodes": 2,
+      "completed": 2,
+      "decisions": 138,
+      "reward_sum": -274.8595005354796,
+      "qp_failures": 0
+    },
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\cases\\train_001\\simfile.sim": {
+      "episodes": 3,
+      "completed": 3,
+      "decisions": 276,
+      "reward_sum": -18.647245416947417,
+      "qp_failures": 0
+    }
+  },
+  "parity": {
+    "cs_4b2833a3a0ee9d260693": {
+      "passed": true,
+      "control_steps": 157,
+      "decision_steps": 2,
+      "decision_duration_s": 0.08,
+      "gamma_per_decision": 0.995967610541,
+      "reward_scheme": "joint_tracking_v1"
+    },
+    "cs_c3795eb276ef9ab53a0f": {
+      "passed": true,
+      "control_steps": 183,
+      "decision_steps": 2,
+      "decision_duration_s": 0.08,
+      "gamma_per_decision": 0.995967610541,
+      "reward_scheme": "joint_tracking_v1"
+    },
+    "cs_3666b760495501987d4d": {
+      "passed": true,
+      "control_steps": 137,
+      "decision_steps": 2,
+      "decision_duration_s": 0.08,
+      "gamma_per_decision": 0.995967610541,
+      "reward_scheme": "joint_tracking_v1"
+    }
+  },
+  "training": false,
+  "test_evaluation": false
+}

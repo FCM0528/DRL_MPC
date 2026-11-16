@@ -1,0 +1,20 @@
+[
+  {
+    "algorithm": "tqc",
+    "peak_ay_mps2": 7.332744218069466,
+    "peak_beta_deg": 4.676720477951003,
+    "threshold_exceeding_episodes": []
+  },
+  {
+    "algorithm": "td3",
+    "peak_ay_mps2": 7.317761203047174,
+    "peak_beta_deg": 4.794495125314885,
+    "threshold_exceeding_episodes": []
+  },
+  {
+    "algorithm": "ddpg",
+    "peak_ay_mps2": 7.321664335614665,
+    "peak_beta_deg": 4.863811309552209,
+    "threshold_exceeding_episodes": []
+  }
+]

@@ -31,7 +31,7 @@ def reference_bounds(parsfile):
     return entries[0], entries[-1]
 
 
-def read_scenario(simfile):
+def read_scenario(simfile, *, parsfile_override=None):
     simfile = Path(simfile).resolve()
     macros = {}
     input_value = None
@@ -63,7 +63,9 @@ def read_scenario(simfile):
     parsfile = Path(input_value)
     if not parsfile.is_absolute():
         parsfile = Path(data_dir) / parsfile if data_dir else simfile.parent / parsfile
-    parsfile = parsfile.resolve()
+    # Dataset records carry an explicitly hashed, byte-identical local Parsfile.
+    # The archived native Simfile is left untouched; runtime snapshots redirect INPUT.
+    parsfile = Path(parsfile_override).resolve(strict=True) if parsfile_override else parsfile.resolve()
     payload = parsfile.read_bytes()
     speeds = []
     for line in payload.decode("utf-8-sig", errors="replace").splitlines():

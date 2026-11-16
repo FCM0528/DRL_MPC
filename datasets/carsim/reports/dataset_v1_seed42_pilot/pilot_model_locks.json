@@ -1,0 +1,74 @@
+[
+  {
+    "algorithm": "tqc",
+    "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250\\best_legal_model.zip",
+    "sha256": "e5afacd1b509050be5dd1dd3ebb773a41fde6c15250cf97977eb0283de266424",
+    "config": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250\\source_configs\\strong_weights3.ini",
+    "config_chain_sha256": {
+      "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+      "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+      "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+      "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+    },
+    "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250\\checkpoints\\joint_7110_steps.zip",
+    "dataset_version": "dataset_v1",
+    "dataset_hash": "920bec95afaee29ab441a8ce60cc1f5b11c04bcdb04325f7bf8287debaa5dc9f",
+    "policy_action_names": [
+      "q_y",
+      "q_psi",
+      "r_delta"
+    ],
+    "action_mapping_version": "named_actions_v1",
+    "seed": 42,
+    "final_model_sha256": "5ef62a0246f0d736406711ca7837dc41d87526e93e4f0111129471a6418dbda3",
+    "validation_qualified": true
+  },
+  {
+    "algorithm": "td3",
+    "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044\\best_legal_model.zip",
+    "sha256": "b4e51334018c01047adbeb63f4e669dac1f352aeeb960f0b9f506f8697ebb44a",
+    "config": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044\\source_configs\\strong_weights3.ini",
+    "config_chain_sha256": {
+      "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+      "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+      "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+      "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+    },
+    "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044\\checkpoints\\joint_7900_steps.zip",
+    "dataset_version": "dataset_v1",
+    "dataset_hash": "920bec95afaee29ab441a8ce60cc1f5b11c04bcdb04325f7bf8287debaa5dc9f",
+    "policy_action_names": [
+      "q_y",
+      "q_psi",
+      "r_delta"
+    ],
+    "action_mapping_version": "named_actions_v1",
+    "seed": 42,
+    "final_model_sha256": "f8155352af59ccb4df41b379236a429c52efe825653f618dcede41765da1288d",
+    "validation_qualified": true
+  },
+  {
+    "algorithm": "ddpg",
+    "model": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402\\best_legal_model.zip",
+    "sha256": "fb9b249abe0be6a2767de0ff7bf19d1e90c203cb34df8fdc1c8b43bb84d95abe",
+    "config": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402\\source_configs\\strong_weights3.ini",
+    "config_chain_sha256": {
+      "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+      "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+      "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+      "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+    },
+    "checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402\\checkpoints\\joint_2370_steps.zip",
+    "dataset_version": "dataset_v1",
+    "dataset_hash": "920bec95afaee29ab441a8ce60cc1f5b11c04bcdb04325f7bf8287debaa5dc9f",
+    "policy_action_names": [
+      "q_y",
+      "q_psi",
+      "r_delta"
+    ],
+    "action_mapping_version": "named_actions_v1",
+    "seed": 42,
+    "final_model_sha256": "6b93af839aa5f68106250e036b8e257636daa78a341d243f5e23e2212b9182a2",
+    "validation_qualified": false
+  }
+]

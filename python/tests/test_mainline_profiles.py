@@ -39,7 +39,8 @@ def test_formal_profiles_keep_mainline_and_ablation_contracts(tmp_path,monkeypat
     monkeypatch.chdir(Path(__file__).resolve().parents[2])
     monkeypatch.setattr(formal_compare,'freeze_sets',lambda *args:{'train':[dict(frozen_simfile='unit_test_only.sim',
         experiment_signature='fixture',vehicle_sha256='fixture',reference_table=['fixture'])],'validation':[],'test':[]})
-    argv=['formal_compare.py','--scenario-set','fixture.json','--total-decisions','7900','--out',str(tmp_path/'plan')]
+    source=tmp_path/'fixture.json';source.write_text(json.dumps(dict(train=[],validation=[],test=[])))
+    argv=['formal_compare.py','--scenario-set',str(source),'--total-decisions','7900','--out',str(tmp_path/'plan')]
     if profile:argv+=['--profile',profile]
     monkeypatch.setattr(sys,'argv',argv)
     formal_compare.main()

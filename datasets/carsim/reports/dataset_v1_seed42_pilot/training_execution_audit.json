@@ -1,0 +1,331 @@
+{
+  "base_commit": "00a68f82a471bc537341e83910f31d91e9a9441a",
+  "python": "3.14.7 (main, Aug  5 2026, 16:11:39) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "versions": {
+    "stable-baselines3": "2.9.2",
+    "sb3-contrib": "2.9.2",
+    "torch": "2.15.0",
+    "numpy": "2.5.5",
+    "gymnasium": "1.4.0",
+    "matplotlib": "3.11.2"
+  },
+  "bridge_sha256": "3626a45d29efe8d225b7f6f4b5cf8c7c6f4a6c33e5473573aea06887a789cb3e",
+  "controller_sha256": "ea3d88a9217c85d6af02c5ce522fe203855c91eaeba384217c7a1a2d6eaf01f3",
+  "test_policy_evaluated": false,
+  "total_actual_decisions": 23700,
+  "runs": [
+    {
+      "algorithm": "tqc",
+      "run": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250",
+      "dataset": {
+        "dataset_name": "carsim_lateral",
+        "dataset_version": "dataset_v1",
+        "dataset_hash": "920bec95afaee29ab441a8ce60cc1f5b11c04bcdb04325f7bf8287debaa5dc9f",
+        "task_profile": "lateral_ltarg_v1",
+        "sampling_strategy": "uniform_episode_v1",
+        "random_seed": 42,
+        "scenario_ids": {
+          "train": [
+            "cs_4b2833a3a0ee9d260693",
+            "cs_c3795eb276ef9ab53a0f",
+            "cs_3666b760495501987d4d"
+          ],
+          "validation": [
+            "cs_34db60360e2714ac115d",
+            "cs_9f33c9f2d89737f3ae79"
+          ],
+          "test": [
+            "cs_37580cac3f141fec7281"
+          ]
+        },
+        "scenario_signatures": {
+          "cs_4b2833a3a0ee9d260693": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7",
+          "cs_c3795eb276ef9ab53a0f": "c3795eb276ef9ab53a0f10c0d4ff95f82a566bd0733c3f2a3056044b922c8792",
+          "cs_3666b760495501987d4d": "3666b760495501987d4d2aed740c6bf967efc572ad035d4d2872509ac4ddd39e",
+          "cs_34db60360e2714ac115d": "34db60360e2714ac115dc734d7e701a8a2b986f9b42fd7f58edbb995d3b083dd",
+          "cs_9f33c9f2d89737f3ae79": "9f33c9f2d89737f3ae7913d8603761cc8be92450632d313b60c963b9f685cd1a",
+          "cs_37580cac3f141fec7281": "37580cac3f141fec7281d15b32610f24ee39dff6f195bb6cb873d2bcbfc257f0"
+        }
+      },
+      "training": {
+        "scenario_sampling_rule": "uniform_episode_v1",
+        "source": "online_carsim_closed_loop",
+        "transition": "observation, requested_action, bridge_reward, next_observation, done",
+        "vehicle_feedback": "current CarSim solver state via C++ bridge",
+        "road_preview": "CarSim LTARG reference and road grip tables at current vehicle position",
+        "replay_prefilled": false,
+        "synthetic_rollouts": false,
+        "fixed_mpc_labels": false,
+        "validation_used_for_updates": false,
+        "weights_initialization": "random",
+        "initial_replay_decisions": 0,
+        "warmup_decisions": 550,
+        "collected_decisions": 7900,
+        "final_replay_decisions": 7900,
+        "gradient_updates": 7350,
+        "decisions_by_simfile": {
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250\\scenario_sets\\train_000\\simfile.sim": 2104,
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250\\scenario_sets\\train_002\\simfile.sim": 2760,
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250\\scenario_sets\\train_001\\simfile.sim": 3036
+        },
+        "exposure_by_scenario": {
+          "cs_4b2833a3a0ee9d260693": {
+            "episodes": 27,
+            "completed": 26,
+            "decisions": 2104,
+            "reward_sum": -884.9240047537893,
+            "qp_failures": 0
+          },
+          "cs_c3795eb276ef9ab53a0f": {
+            "episodes": 33,
+            "completed": 33,
+            "decisions": 3036,
+            "reward_sum": -203.51885118234821,
+            "qp_failures": 0
+          },
+          "cs_3666b760495501987d4d": {
+            "episodes": 40,
+            "completed": 40,
+            "decisions": 2760,
+            "reward_sum": -5426.447396832829,
+            "qp_failures": 0
+          }
+        }
+      },
+      "configuration_sha256": {
+        "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+        "magic_tire.csv": "49d30c66ecdfe9e139456214b6cdac0cab563ca1e90068da81017e390f527d21",
+        "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+        "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+        "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+      },
+      "training_config_sha256": "8810ce4861dabdb5e396825c955cc8ed71425374b2c6f1fc9bc007c65497bb46",
+      "seed": 42,
+      "periodic_checkpoints": 10,
+      "validation_episodes": 22,
+      "qualified": true,
+      "best_checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250\\checkpoints\\joint_7110_steps.zip",
+      "best_model_sha256": "e5afacd1b509050be5dd1dd3ebb773a41fde6c15250cf97977eb0283de266424",
+      "final_model_sha256": "5ef62a0246f0d736406711ca7837dc41d87526e93e4f0111129471a6418dbda3",
+      "best_joint_model_exists": true,
+      "artifact_hashes": {
+        "manifest.json": "afcf068905ed0550c94b79fe1b3718f7cd8344f62d37c3ef517d7df98a828207",
+        "joint_validation.csv": "67366a22b2667cc63753acb94840651f52a0454554cbf5531fd386db8190676c",
+        "checkpoint_selection.json": "d2ef68a92f11055f12126928ffaf87c6858cf913267111aed1968b5bc5e3b46e",
+        "train_monitor.csv": "23d7707901061b2c5979877c8cd0d9c31a155273f56eb433106ada2eaa3e9041",
+        "training_logs/progress.csv": "36c862f2c81b0127e549f81b4c5746d6cd88ce2d325f14b7ea42d36b9713822b",
+        "solver_train/episode_scenarios.jsonl": "b4f55e5e3b090e909ae0a812c284baa9071b9a5d8dea1e9b040d8ca691d7a25c",
+        "solver_train/episode_outcomes.jsonl": "8c1868f3d0900c4fb324d3b2b0b080cf8a0a87804c4276533b0e728cc7b95755"
+      }
+    },
+    {
+      "algorithm": "td3",
+      "run": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044",
+      "dataset": {
+        "dataset_name": "carsim_lateral",
+        "dataset_version": "dataset_v1",
+        "dataset_hash": "920bec95afaee29ab441a8ce60cc1f5b11c04bcdb04325f7bf8287debaa5dc9f",
+        "task_profile": "lateral_ltarg_v1",
+        "sampling_strategy": "uniform_episode_v1",
+        "random_seed": 42,
+        "scenario_ids": {
+          "train": [
+            "cs_4b2833a3a0ee9d260693",
+            "cs_c3795eb276ef9ab53a0f",
+            "cs_3666b760495501987d4d"
+          ],
+          "validation": [
+            "cs_34db60360e2714ac115d",
+            "cs_9f33c9f2d89737f3ae79"
+          ],
+          "test": [
+            "cs_37580cac3f141fec7281"
+          ]
+        },
+        "scenario_signatures": {
+          "cs_4b2833a3a0ee9d260693": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7",
+          "cs_c3795eb276ef9ab53a0f": "c3795eb276ef9ab53a0f10c0d4ff95f82a566bd0733c3f2a3056044b922c8792",
+          "cs_3666b760495501987d4d": "3666b760495501987d4d2aed740c6bf967efc572ad035d4d2872509ac4ddd39e",
+          "cs_34db60360e2714ac115d": "34db60360e2714ac115dc734d7e701a8a2b986f9b42fd7f58edbb995d3b083dd",
+          "cs_9f33c9f2d89737f3ae79": "9f33c9f2d89737f3ae7913d8603761cc8be92450632d313b60c963b9f685cd1a",
+          "cs_37580cac3f141fec7281": "37580cac3f141fec7281d15b32610f24ee39dff6f195bb6cb873d2bcbfc257f0"
+        }
+      },
+      "training": {
+        "scenario_sampling_rule": "uniform_episode_v1",
+        "source": "online_carsim_closed_loop",
+        "transition": "observation, requested_action, bridge_reward, next_observation, done",
+        "vehicle_feedback": "current CarSim solver state via C++ bridge",
+        "road_preview": "CarSim LTARG reference and road grip tables at current vehicle position",
+        "replay_prefilled": false,
+        "synthetic_rollouts": false,
+        "fixed_mpc_labels": false,
+        "validation_used_for_updates": false,
+        "weights_initialization": "random",
+        "initial_replay_decisions": 0,
+        "warmup_decisions": 550,
+        "collected_decisions": 7900,
+        "final_replay_decisions": 7900,
+        "gradient_updates": 7350,
+        "decisions_by_simfile": {
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044\\scenario_sets\\train_000\\simfile.sim": 2104,
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044\\scenario_sets\\train_002\\simfile.sim": 2760,
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044\\scenario_sets\\train_001\\simfile.sim": 3036
+        },
+        "exposure_by_scenario": {
+          "cs_4b2833a3a0ee9d260693": {
+            "episodes": 27,
+            "completed": 26,
+            "decisions": 2104,
+            "reward_sum": -883.9399629094332,
+            "qp_failures": 0
+          },
+          "cs_c3795eb276ef9ab53a0f": {
+            "episodes": 33,
+            "completed": 33,
+            "decisions": 3036,
+            "reward_sum": -195.67117992230453,
+            "qp_failures": 0
+          },
+          "cs_3666b760495501987d4d": {
+            "episodes": 40,
+            "completed": 40,
+            "decisions": 2760,
+            "reward_sum": -5473.624618892514,
+            "qp_failures": 0
+          }
+        }
+      },
+      "configuration_sha256": {
+        "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+        "magic_tire.csv": "49d30c66ecdfe9e139456214b6cdac0cab563ca1e90068da81017e390f527d21",
+        "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+        "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+        "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+      },
+      "training_config_sha256": "8810ce4861dabdb5e396825c955cc8ed71425374b2c6f1fc9bc007c65497bb46",
+      "seed": 42,
+      "periodic_checkpoints": 10,
+      "validation_episodes": 22,
+      "qualified": true,
+      "best_checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044\\checkpoints\\joint_7900_steps.zip",
+      "best_model_sha256": "b4e51334018c01047adbeb63f4e669dac1f352aeeb960f0b9f506f8697ebb44a",
+      "final_model_sha256": "f8155352af59ccb4df41b379236a429c52efe825653f618dcede41765da1288d",
+      "best_joint_model_exists": true,
+      "artifact_hashes": {
+        "manifest.json": "1bc5a13dbdbe412fff90d6e1052fd3741ac7d0b6434e7c86fb13b9f8c95ad314",
+        "joint_validation.csv": "2a86c5f1f62475ef91954d4031f5d9e1f8660629f18a9880620f48d165e50b2a",
+        "checkpoint_selection.json": "664d79c504f691692abcda3550ef12c4ef2f8dec9a205d2405fe18e21ffa2892",
+        "train_monitor.csv": "30dbfad5a1e79b71b205e4cbebf40dede1f8599412bfcc9557b1c2f526f0bc83",
+        "training_logs/progress.csv": "e385df2ebe7cbfeee419f33c4587b82927ace5c0f609c9e9fe6f074277a5552a",
+        "solver_train/episode_scenarios.jsonl": "9738503c3daa924222340529d4d39acb9d3d232657e36acb48d20100badaa465",
+        "solver_train/episode_outcomes.jsonl": "892f4012020ac02fb176a55b1f4ebbd8ec52d061b748ae3a35be504a767a8c84"
+      }
+    },
+    {
+      "algorithm": "ddpg",
+      "run": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402",
+      "dataset": {
+        "dataset_name": "carsim_lateral",
+        "dataset_version": "dataset_v1",
+        "dataset_hash": "920bec95afaee29ab441a8ce60cc1f5b11c04bcdb04325f7bf8287debaa5dc9f",
+        "task_profile": "lateral_ltarg_v1",
+        "sampling_strategy": "uniform_episode_v1",
+        "random_seed": 42,
+        "scenario_ids": {
+          "train": [
+            "cs_4b2833a3a0ee9d260693",
+            "cs_c3795eb276ef9ab53a0f",
+            "cs_3666b760495501987d4d"
+          ],
+          "validation": [
+            "cs_34db60360e2714ac115d",
+            "cs_9f33c9f2d89737f3ae79"
+          ],
+          "test": [
+            "cs_37580cac3f141fec7281"
+          ]
+        },
+        "scenario_signatures": {
+          "cs_4b2833a3a0ee9d260693": "4b2833a3a0ee9d26069398a2de361ed49c293399e1ff9a67543336fc70687aa7",
+          "cs_c3795eb276ef9ab53a0f": "c3795eb276ef9ab53a0f10c0d4ff95f82a566bd0733c3f2a3056044b922c8792",
+          "cs_3666b760495501987d4d": "3666b760495501987d4d2aed740c6bf967efc572ad035d4d2872509ac4ddd39e",
+          "cs_34db60360e2714ac115d": "34db60360e2714ac115dc734d7e701a8a2b986f9b42fd7f58edbb995d3b083dd",
+          "cs_9f33c9f2d89737f3ae79": "9f33c9f2d89737f3ae7913d8603761cc8be92450632d313b60c963b9f685cd1a",
+          "cs_37580cac3f141fec7281": "37580cac3f141fec7281d15b32610f24ee39dff6f195bb6cb873d2bcbfc257f0"
+        }
+      },
+      "training": {
+        "scenario_sampling_rule": "uniform_episode_v1",
+        "source": "online_carsim_closed_loop",
+        "transition": "observation, requested_action, bridge_reward, next_observation, done",
+        "vehicle_feedback": "current CarSim solver state via C++ bridge",
+        "road_preview": "CarSim LTARG reference and road grip tables at current vehicle position",
+        "replay_prefilled": false,
+        "synthetic_rollouts": false,
+        "fixed_mpc_labels": false,
+        "validation_used_for_updates": false,
+        "weights_initialization": "random",
+        "initial_replay_decisions": 0,
+        "warmup_decisions": 550,
+        "collected_decisions": 7900,
+        "final_replay_decisions": 7900,
+        "gradient_updates": 7350,
+        "decisions_by_simfile": {
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402\\scenario_sets\\train_000\\simfile.sim": 2104,
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402\\scenario_sets\\train_002\\simfile.sim": 2760,
+          "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402\\scenario_sets\\train_001\\simfile.sim": 3036
+        },
+        "exposure_by_scenario": {
+          "cs_4b2833a3a0ee9d260693": {
+            "episodes": 27,
+            "completed": 26,
+            "decisions": 2104,
+            "reward_sum": -906.1773647240717,
+            "qp_failures": 0
+          },
+          "cs_c3795eb276ef9ab53a0f": {
+            "episodes": 33,
+            "completed": 33,
+            "decisions": 3036,
+            "reward_sum": -204.67925715051254,
+            "qp_failures": 0
+          },
+          "cs_3666b760495501987d4d": {
+            "episodes": 40,
+            "completed": 40,
+            "decisions": 2760,
+            "reward_sum": -5489.852039211767,
+            "qp_failures": 0
+          }
+        }
+      },
+      "configuration_sha256": {
+        "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+        "magic_tire.csv": "49d30c66ecdfe9e139456214b6cdac0cab563ca1e90068da81017e390f527d21",
+        "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3",
+        "strong_actions4.ini": "2340972dd439d6963446ce4bfb1420e2bf4a5714bee89f31cad2f981ab9214a8",
+        "strong_weights3.ini": "69b8ac15c9a0404ba90416b1678883240f6e6132c50bbfcd123acd2184942a0c"
+      },
+      "training_config_sha256": "8810ce4861dabdb5e396825c955cc8ed71425374b2c6f1fc9bc007c65497bb46",
+      "seed": 42,
+      "periodic_checkpoints": 10,
+      "validation_episodes": 22,
+      "qualified": false,
+      "best_checkpoint": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402\\checkpoints\\joint_2370_steps.zip",
+      "best_model_sha256": "fb9b249abe0be6a2767de0ff7bf19d1e90c203cb34df8fdc1c8b43bb84d95abe",
+      "final_model_sha256": "6b93af839aa5f68106250e036b8e257636daa78a341d243f5e23e2212b9182a2",
+      "best_joint_model_exists": false,
+      "artifact_hashes": {
+        "manifest.json": "b3fe76ff28460ca3bad09d5ba9f1e2c64b45fffa451fb5793f81fd53def6b3fe",
+        "joint_validation.csv": "59cc282255432272db54c1af8053288a7e97f083658763e957ca2e3adc64096b",
+        "checkpoint_selection.json": "b984b64bf61b8038b95774698a4406699d56ee2f0684a8573b95b64850fe50ca",
+        "train_monitor.csv": "f9136168151963687def0d8fee0290795d1bef57253b40cc3d992e3755f60439",
+        "training_logs/progress.csv": "4593a19ca2d6398e218fd86fbab8777e7da78f97eec90d5ad6aa8dad6ead0797",
+        "solver_train/episode_scenarios.jsonl": "4ad58a7f6c74ffa335733a70543c1387198dcbe591d4354346a53dd7bbfdf5c6",
+        "solver_train/episode_outcomes.jsonl": "059d6bb43dd9c273cfcda4a3c63efc01b55902db15d7dff4464a43d34ae7ee7d"
+      }
+    }
+  ]
+}

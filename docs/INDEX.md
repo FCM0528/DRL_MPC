@@ -2,6 +2,8 @@
 
 ## 当前入口
 
+- [可扩展 CarSim 原生工况库、注册、版本与样本统计](CarSim_Extensible_Dataset_System.md)
+- [版本化多工况在线训练：三算法 seed42 真实预实验](DRL_MPC_MultiScenario_Training.md)
 - [80km/h、mu=0.8验收与60/70/80三训练源切换](CarSim_80kmh_Training_Case.md)
 - [60km/h、mu=0.8训练源验收与真实训练集回合切换](CarSim_60kmh_Training_Case.md)
 - [70km/h、mu=0.6预留测试源冻结与固定MPC验收](CarSim_70kmh_mu06_Preflight.md)

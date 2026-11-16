@@ -2,9 +2,9 @@
 
 研究主线为三自由度车辆预测模型与增量式LTV-MPC，使用TQC自适应调节MPC参数，并与TD3、DDPG统一比较。CarSim提供真实车辆闭环状态；DRL输出Np、Qy、Qpsi、Rdelta参数请求，C++ MPC求解转向。三维权重方案是首个统一预实验，受限四维保留完整参数自适应研究位置，不预设算法排名。
 
-最新状态见[80km/h验收与三训练源真实切换](docs/CarSim_80kmh_Training_Case.md)、[60km/h训练源](docs/CarSim_60kmh_Training_Case.md)、[低附着预留测试验收](docs/CarSim_70kmh_mu06_Preflight.md)、[多工况准备与75km/h验证](docs/DRL_MPC_Multi_Scenario_Preparation.md)。前序[65km/h验证](docs/CarSim_65kmh_Validation.md)、[目标与训练审计](docs/DRL_MPC_Next_Stage_Analysis.md)、[主线恢复](docs/DRL_MPC_Mainline_Recovery.md)均保留。[固定Np实验](docs/TD3_Fixed_Np_Experiments.md)及一维TD3五种子结果作为动作消融保留；全部资料见[文档索引](docs/INDEX.md)。
+最新入口为[可扩展真实工况库](docs/CarSim_Extensible_Dataset_System.md)与[三算法多工况在线技术预实验](docs/DRL_MPC_MultiScenario_Training.md)。此前[80km/h验收](docs/CarSim_80kmh_Training_Case.md)、[60km/h训练源](docs/CarSim_60kmh_Training_Case.md)、[低附着预留测试](docs/CarSim_70kmh_mu06_Preflight.md)、[75km/h验证](docs/DRL_MPC_Multi_Scenario_Preparation.md)、[65km/h验证](docs/CarSim_65kmh_Validation.md)、[目标审计](docs/DRL_MPC_Next_Stage_Analysis.md)、[主线恢复](docs/DRL_MPC_Mainline_Recovery.md)和全部动作消融均保留；详见[文档索引](docs/INDEX.md)。
 
-train现为70/60/80km/h、mu=0.8；validation保持65/75，test保持70km/h、mu=0.6且未作DRL最终测试。六份真实源的12组双基线全部通过，三训练源回合切换已验证。数据准备完成，多工况DRL训练尚未执行，正式超参数锁未冻结；80强MPC峰值Beta约4.489°，后续功能试验需监控稳定性。scenario-set训练必须使用--joint-selection。formal_compare默认weights3，qy1/weights2/full4保留消融；只生成预检计划，不自动执行15组训练。[一维稳定性与机制对照](docs/TD3_Qy_Stability_and_Generalization.md)及[历史一维正式计划](docs/Formal_DRL_MPC_Comparison_Plan.md)保留。
+六份真实源已注册为不可变 dataset_v1：train=70/60/80km/h、mu=0.8；validation=65/75；test=70km/h、mu=0.6，未作DRL策略评价。三算法各完成 seed42、7900 决策的多工况真实在线预实验；TQC、TD3 有全部验证工况双改善周期模型，DDPG 未达标但保留合法模型与 Pareto 结果，不据单种子确立正式排名。正式超参数锁尚未冻结，不启动15组正式训练。现有三列表 JSON 和旧模型仍兼容，新训练推荐版本 manifest；scenario-set 必须使用 --joint-selection。formal_compare 默认 weights3，qy1/weights2/full4 继续用于消融。
 
 ## 构建和检查
 
@@ -45,7 +45,7 @@ python python/train.py --algorithm tqc --config configs/strong_weights3.ini --fi
 
 ## 验证与模型选择
 
---scenario-set sets.json支持冻结的train/validation/test工况列表，以可复现序列采样训练工况。必须提供物理不同的真实工况；单工况重复回放仅为探索性诊断。
+--scenario-set 支持旧 sets.json 及新的 datasets/carsim/manifests/dataset_v1.json，以可复现序列采样全部合法训练工况。新增真实工况用 dataset_manager.py 注册、验收并发布新版本，不需要修改训练框架。训练记录版本/hash、逐工况实际样本量；验证与测试不会进入经验池。不同工况采用相同参考轨迹时不能声称道路轨迹泛化。
 
 train.py --joint-selection按决策步在全部验证工况确定性评价，同时计算相对原始和强MPC的改善。合法要求完赛、零QP失败和既定Ay/Beta门槛；强基线达标要求每个验证工况的两项RMSE都改善。输出全部周期模型、best_legal_model.zip、final_model.zip、验证CSV、选择JSON和Pareto图。只有强基线双指标达标才生成best_joint_model.zip，final模型只诊断。
 

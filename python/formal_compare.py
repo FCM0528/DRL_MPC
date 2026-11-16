@@ -78,7 +78,16 @@ def main():
             if not case['vehicle_sha256'] or not case['reference_table']:
                 blockers.append(f'{split}: incomplete vehicle/reference provenance')
     source=root/'source_sets.json'
-    source.write_text(json.dumps({s:[c['frozen_simfile'] for c in sets[s]] for s in sets},indent=2))
+    input_sets=json.loads(Path(args.scenario_set).read_text(encoding='utf-8-sig'))
+    if 'dataset_version' in input_sets:
+        from dataset_manager import load_dataset, dataset_root
+        dataset,_=load_dataset(args.scenario_set)
+        resolved_dataset_root=dataset_root(args.scenario_set,dataset)
+        import os
+        dataset['dataset_root']=os.path.relpath(resolved_dataset_root,source.parent).replace('\\','/')
+        source.write_text(json.dumps(dataset,indent=2),encoding='utf-8')
+    else:
+        source.write_text(json.dumps({s:[c['frozen_simfile'] for c in sets[s]] for s in sets},indent=2))
     commands=[]
     for seed in (42,43,44,45,46):
         for algorithm in ('ddpg','td3','tqc'):

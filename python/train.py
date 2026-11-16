@@ -248,7 +248,7 @@ def main():
     p.add_argument("--train-config", default="configs/rl_training.ini")
     p.add_argument("--simfile", help="CarSim Simfile; defaults to carsim.simfile from config")
     p.add_argument("--validation-simfile", help="Distinct frozen validation CarSim case for joint selection")
-    p.add_argument("--scenario-set", help="JSON train/validation/test collections of real Simfiles")
+    p.add_argument("--scenario-set", help="Legacy JSON collections or immutable dataset manifest")
     p.add_argument("--total-decisions", type=int, help="Exact interaction budget; overrides episode stopping")
     p.add_argument("--strong-config", default="configs/mpc_strong.ini")
     p.add_argument("--keep-training-traces", action="store_true",
@@ -300,7 +300,7 @@ def main():
         p.error("Online validation options cannot be used with --training-only")
     if args.fixed_config is not None:
         args.fixed_config = str(args.fixed_config.resolve(strict=True))
-    from scenario_sets import training_source, SAMPLING_RULE
+    from scenario_sets import training_source, SAMPLING_RULE, load_case_sets
     try:
         args.simfile = str(training_source(args.config,args.simfile,scenario_set=args.scenario_set,
             validation_simfile=args.validation_simfile,joint_selection=args.joint_selection))
@@ -308,7 +308,9 @@ def main():
         p.error(str(exc))
     if args.validation_simfile:
         args.validation_simfile = str(Path(args.validation_simfile).resolve(strict=True))
-    scenario = read_scenario(args.simfile)
+    source_sets = load_case_sets(args.scenario_set) if args.scenario_set else None
+    scenario = (next(c for c in source_sets['train'] if Path(c['simfile'])==Path(args.simfile))
+                if source_sets else read_scenario(args.simfile))
     if args.validation_simfile:
         validation_scenario = read_scenario(args.validation_simfile)
         from scenario_sets import describe_case
@@ -351,6 +353,17 @@ def main():
                 "simfile": str(Path(args.simfile).resolve()),
                 "snapshot_simfile": str(frozen_simfile)}
     manifest["validation_scenario"] = validation_scenario
+    manifest['training_config_sha256'] = hashlib.sha256(Path(args.train_config).read_bytes()).hexdigest()
+    if args.scenario_set and 'dataset_version' in json.loads(Path(args.scenario_set).read_text(encoding='utf-8-sig')):
+        from dataset_manager import load_dataset
+        dataset, _ = load_dataset(args.scenario_set)
+        manifest['dataset'] = {k:dataset[k] for k in ('dataset_name','dataset_version','dataset_hash','task_profile','sampling_strategy')}
+        manifest['dataset'].update(random_seed=args.seed,
+            scenario_ids={s:[c['scenario_id'] for c in sets[s]] for s in sets},
+            scenario_signatures={c['scenario_id']:c['experiment_signature'] for cases in sets.values() for c in cases})
+        # This frozen manifest is immutable provenance; runtime sources use the
+        # run-private scenario_sets snapshots, never a reloaded mutable registry.
+        shutil.copy2(args.scenario_set,root/'dataset_manifest.source.json')
     manifest["frozen_validation_simfile"] = str(frozen_validation) if frozen_validation else None
     manifest["weight_action_mode"] = resolve_config_value(frozen_config, "rl", "weight_action_mode", "legacy").lower()
     manifest["policy_action_dims"] = resolve_config_value(frozen_config, "rl", "policy_action_dims", "4")
@@ -413,6 +426,7 @@ def main():
                 raise ValueError("Resume requires a run manifest with the current reward scheme")
             previous = json.loads(previous_manifest.read_text(encoding="utf-8"))
             if (previous.get("reward_scheme") != manifest["reward_scheme"] or
+                previous.get('dataset',{}).get('dataset_hash') != manifest.get('dataset',{}).get('dataset_hash') or
                 previous.get("weight_action_mode", "legacy") != manifest["weight_action_mode"] or
                 previous.get("policy_action_dims", "4") != manifest["policy_action_dims"] or
                 previous.get("reward_mode", "legacy") != manifest["reward_mode"] or
@@ -484,6 +498,10 @@ def main():
             final_replay_decisions=int(model.replay_buffer.size()),
             gradient_updates=int(model._n_updates) - start_updates,
             decisions_by_simfile=dict(train_env.unwrapped.scenario_decision_counts))
+        manifest['training_data']['exposure_by_scenario'] = {
+            c.get('scenario_id',c['frozen_simfile']):train_env.unwrapped.scenario_exposure.get(
+                c['frozen_simfile'],dict(episodes=0,completed=0,decisions=0,reward_sum=0.,qp_failures=0))
+            for c in sets['train']} if sets else dict(train_env.unwrapped.scenario_exposure)
         if sum(train_env.unwrapped.scenario_decision_counts.values())!=manifest['training_data']['collected_decisions']:
             raise RuntimeError('Real environment decision counts differ from learner interaction budget')
         (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

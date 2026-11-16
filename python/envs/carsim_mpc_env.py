@@ -41,6 +41,11 @@ class CarSimMPCEnv(gym.Env):
         self._done = False
         self.scenario_pool = [self.simfile]
         self.scenario_decision_counts = {}
+        self.scenario_exposure = {}
+        self._episode_decisions = 0
+        self._episode_return = 0.0
+        self._episode_qp = 0
+        self._episode_recorded = True
         self._case_index = 0
         for file in (self.executable, self.config, self.simfile):
             if not file.is_file():
@@ -72,13 +77,17 @@ class CarSimMPCEnv(gym.Env):
             self.executable, self.config, self.simfile,
             base, self.output_root / f"episode_{self._episode_id:06d}.log")
         self._done = False
+        self._episode_decisions = 0
+        self._episode_return = 0.0
+        self._episode_qp = 0
+        self._episode_recorded = False
         try:
             fields = self._bridge.exchange("RESET", "BRIDGE_RESET")
             obs = self._observation(fields)
         except Exception:
             self.close()
             raise
-        # The seed does not randomize the selected CarSim source.
+        # Seed controls case sampling; the source's physical content stays fixed.
         return obs, {"episode_id": self._episode_id, "seed": seed,
                      "case_index":selected,"simfile":str(self.simfile)}
 
@@ -118,10 +127,34 @@ class CarSimMPCEnv(gym.Env):
             raise BridgeError("Nonfinite reward")
         path=str(self.simfile)
         self.scenario_decision_counts[path]=self.scenario_decision_counts.get(path,0)+1
+        counts=self.scenario_exposure.setdefault(path,dict(episodes=0,completed=0,decisions=0,reward_sum=0.,qp_failures=0))
+        if self._episode_decisions == 0: counts['episodes'] += 1
+        counts['decisions'] += 1
+        counts['reward_sum'] += reward
+        # C++ emits failures within this decision block, not a cumulative counter.
+        counts['qp_failures'] += info['qp_failures']
+        self._episode_decisions += 1
+        self._episode_return += reward
+        self._episode_qp += info['qp_failures']
+        if self._done:
+            counts['completed'] += int(terminated and not truncated and not info['failed'])
+            self._record_episode(terminated and not truncated and not info['failed'])
         info.update(case_index=self._case_index,simfile=path)
         return obs, reward, terminated, truncated, info
 
+    def _record_episode(self, completed=False):
+        if self._episode_recorded or not self._episode_decisions:
+            return
+        import json
+        with (self.output_root/'episode_outcomes.jsonl').open('a',encoding='utf-8') as log:
+            log.write(json.dumps(dict(episode=self._episode_id,simfile=str(self.simfile),
+                case_index=self._case_index,decisions=self._episode_decisions,
+                return_=self._episode_return,qp_failures=self._episode_qp,
+                completed=bool(completed),sampling_rule=SAMPLING_RULE))+'\n')
+        self._episode_recorded = True
+
     def close(self):
+        self._record_episode()
         if self._bridge is not None:
             self._bridge.close()
             self._bridge = None

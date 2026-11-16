@@ -18,21 +18,21 @@ def training_source(config, simfile=None, *, scenario_set=None, validation_simfi
         raise ValueError('Use scenario-set validation entries instead of --validation-simfile')
     if not joint_selection:
         raise ValueError('Scenario-set training requires --joint-selection for all validation cases')
-    source=Path(scenario_set).resolve(strict=True)
-    sets=json.loads(source.read_text(encoding='utf-8-sig'))
+    sets=load_case_sets(scenario_set)
     if not sets.get('train') or not sets.get('validation'):
         raise ValueError('Scenario-set training requires nonempty real train and validation collections')
-    paths=[(Path(p) if Path(p).is_absolute() else source.parent/p).resolve(strict=True) for p in sets['train']]
+    paths=[Path(c['simfile']) for c in sets['train']]
     if simfile is not None:
-        signature=describe_case(simfile)['experiment_signature']
-        for path in paths:
-            if describe_case(path)['experiment_signature']==signature:return path
+        exact=next((c for c in sets['train'] if Path(c['simfile']).resolve()==Path(simfile).resolve()),None)
+        signature=(exact or describe_case(simfile))['experiment_signature']
+        for case in sets['train']:
+            if case['experiment_signature']==signature:return Path(case['simfile'])
         raise ValueError('Explicit --simfile is outside the train physical collection')
     return paths[0]
 
 
-def describe_case(simfile):
-    info = read_scenario(simfile)
+def describe_case(simfile, *, parsfile_override=None):
+    info = read_scenario(simfile, parsfile_override=parsfile_override)
     lines = Path(info['parsfile']).read_text(encoding='utf-8-sig').splitlines()
     physical, reference, grip, vehicle, io = [], [], [], [], []
     inside = False
@@ -75,9 +75,30 @@ def describe_case(simfile):
     info['io_sha256']=digest(io)
     info['reference_numeric_sha256']=digest(reference)
     info['grip_sha256']=digest(grip)
+    # Include the actual longitudinal command law, not only its constant offset.
+    # Preserve v2 signatures for the existing constant-speed sources.
+    speed_law=[]; speed_table=False
+    for line in physical:
+        key=line.split()[0]
+        if key.startswith('SPEED_TARGET'):
+            speed_law.append(line)
+            speed_table=key.endswith('TABLE')
+        elif speed_table:
+            speed_law.append(line)
+            if key=='ENDTABLE':speed_table=False
+    variable_speed=any('TABLE' in s.split()[0] for s in speed_law)
+    for s in speed_law:
+        p=s.split()
+        if p[0].startswith('SPEED_TARGET') and p[0] not in ('SPEED_TARGET_CONSTANT','SPEED_TARGET_S_CONSTANT','SPEED_TARGET_COMBINE'):
+            variable_speed=True
+        if p[0]=='SPEED_TARGET_COMBINE' and p[1:]!=['ADD']:variable_speed=True
+        if p[0]=='SPEED_TARGET_S_CONSTANT' and len(p)>1:
+            try:variable_speed |= float(p[1])!=0
+            except ValueError:variable_speed=True
     signature=[str(info['target_speed_kmh']),str(info['vehicle_sha256']),info['io_sha256'],info['reference_numeric_sha256'],info['grip_sha256']]
+    if variable_speed:signature.append(digest(speed_law))
     info['experiment_signature']=digest(signature) if vehicle and reference and grip else info['physical_sha256']
-    info['scenario_signature_version']='semantic_numeric_v2'
+    info['scenario_signature_version']='semantic_numeric_v3_speed_law' if variable_speed else 'semantic_numeric_v2'
     points=[]
     for s in reference[1:-1]:
         try:points.append([float(v) for v in re.split(r'[\s,]+',s)][:2])
@@ -90,19 +111,27 @@ def describe_case(simfile):
     return info
 
 
+def load_case_sets(manifest):
+    """Read legacy path collections or a verified immutable dataset manifest."""
+    source=Path(manifest).resolve(strict=True)
+    value=json.loads(source.read_text(encoding='utf-8-sig'))
+    if 'dataset_version' in value:
+        from dataset_manager import load_dataset
+        return load_dataset(source)[1]
+    return {s:[describe_case(Path(p) if Path(p).is_absolute() else source.parent/p)
+               for p in value.get(s,[])] for s in ('train','validation','test')}
+
+
 def freeze_sets(manifest, output):
     """Input JSON has train/validation/test lists of existing Simfile paths."""
-    source = Path(manifest).resolve()
-    sets = json.loads(source.read_text(encoding='utf-8-sig'))
+    sets = load_case_sets(manifest)
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     result, seen = {}, {}
     vehicle_contract=None
     for split in ('train', 'validation', 'test'):
         result[split] = []
-        for index, value in enumerate(sets.get(split, [])):
-            path = Path(value)
-            info = describe_case(path if path.is_absolute() else source.parent / path)
+        for index, info in enumerate(sets.get(split, [])):
             signature = info['experiment_signature']
             if info['vehicle_sha256']:
                 contract=(info['vehicle_sha256'],info['io_sha256'])
