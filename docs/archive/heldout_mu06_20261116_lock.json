@@ -1,0 +1,159 @@
+{
+  "base_commit": "9470d21",
+  "scope": "Held-out source and fixed-MPC safety preflight only; no DRL policy evaluation/selection/training",
+  "baseline_preflight_ready": true,
+  "baseline_config_sha256": {
+    "original": {
+      "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101"
+    },
+    "strong": {
+      "default.ini": "7853cb9c2799366faa2eba6c73ca70862d802173901572b4b5c4055245ce8101",
+      "mpc_strong.ini": "b5f24b5da59a8ca7b3bc7b8fadf506fdabad1244bd7777613b2b82e1701c75c3"
+    }
+  },
+  "echoes": [
+    {
+      "baseline": "original",
+      "echo": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\reserved_test_70_mu06_20261116_210820\\preflight\\test_0_original\\mpc_fixed_carsim_Np40_Nc13_20261116-210841\\carsim_native\\LastRun_echo.par",
+      "imports": [
+        "IMPORT IMP_STEER_L1 REPLACE 0 ; deg ! #1. Road wheel L1 steer due to steering",
+        "IMPORT IMP_STEER_R1 REPLACE 0 ; deg ! #2. Road wheel R1 steer due to steering"
+      ],
+      "exports": [
+        "XCG_TM",
+        "YCG_TM",
+        "VX",
+        "VY",
+        "YAW",
+        "AVZ",
+        "AX",
+        "AY",
+        "STEER_L1",
+        "STEER_R1",
+        "BETA",
+        "RHO_ROAD",
+        "ALPHL_L1",
+        "ALPHL_R1",
+        "ALPHL_L2",
+        "ALPHL_R2",
+        "FY_L1",
+        "FY_R1",
+        "FY_L2",
+        "FY_R2"
+      ],
+      "pass_": true
+    },
+    {
+      "baseline": "strong",
+      "echo": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\reserved_test_70_mu06_20261116_210820\\preflight\\test_0_strong\\mpc_fixed_carsim_Np36_Nc13_20261116-210841\\carsim_native\\LastRun_echo.par",
+      "imports": [
+        "IMPORT IMP_STEER_L1 REPLACE 0 ; deg ! #1. Road wheel L1 steer due to steering",
+        "IMPORT IMP_STEER_R1 REPLACE 0 ; deg ! #2. Road wheel R1 steer due to steering"
+      ],
+      "exports": [
+        "XCG_TM",
+        "YCG_TM",
+        "VX",
+        "VY",
+        "YAW",
+        "AVZ",
+        "AX",
+        "AY",
+        "STEER_L1",
+        "STEER_R1",
+        "BETA",
+        "RHO_ROAD",
+        "ALPHL_L1",
+        "ALPHL_R1",
+        "ALPHL_L2",
+        "ALPHL_R2",
+        "FY_L1",
+        "FY_R1",
+        "FY_L2",
+        "FY_R2"
+      ],
+      "pass_": true
+    }
+  ],
+  "force_check": [
+    {
+      "baseline": "original",
+      "mu": 0.6,
+      "mass_kg": 1513.0,
+      "peak_front_axle_lateral_force_N": 5308.670081474,
+      "peak_rear_axle_lateral_force_N": 3009.44797587,
+      "peak_body_lateral_force_N": 8248.050177533732,
+      "peak_ay_over_mu_g": 0.9403678667026967,
+      "peak_force_over_mu_mg": 0.9264893689674628,
+      "force_balance_rmse_mps2": 0.026446275428727566
+    },
+    {
+      "baseline": "strong",
+      "mu": 0.6,
+      "mass_kg": 1513.0,
+      "peak_front_axle_lateral_force_N": 5303.786952488,
+      "peak_rear_axle_lateral_force_N": 3030.118636435,
+      "peak_body_lateral_force_N": 8305.616533535154,
+      "peak_ay_over_mu_g": 0.945394988774624,
+      "peak_force_over_mu_mg": 0.9329556992755383,
+      "force_balance_rmse_mps2": 0.03124917535723432
+    }
+  ],
+  "original_training_validation_snapshots_unchanged": true,
+  "models_and_config_chains_unchanged": true,
+  "model_registry_sha256": "4bd8d231db479a88101e1a06736d2cdec3fe2ed7829344ab8503621679528385",
+  "accepted_sets_sha256": "bac77e7a7f316dc9711e0a5ce9d6d1ee67035af97d9aff2f51e1a56fb418ef29",
+  "test_policy": "No tuning, hyperparameter or checkpoint selection; policy testing only after final registry lock",
+  "limitations": "No per-wheel Fx/Fz in the 2x20 contract; force ratios are nominal aggregate indicators, not a combined-slip friction-circle certificate",
+  "source": {
+    "simfile": "D:\\Program Files (x86)\\CarSim2024_Date\\simfile.sim",
+    "parsfile": "D:\\Program Files (x86)\\CarSim2024_Date\\Results\\Run_6cb07365-85a3-4a3b-95f9-c5c844687601\\Run_all.par",
+    "simfile_sha256": "9b2f81682b4e350e69d2c820923265faabcfc5f3a9157756d00c884716f3ab6e",
+    "parsfile_sha256": "5c786ae2233b8edacd5dea4923f23d835a202f9a17213bc5eee5599d093450cd",
+    "target_speed_kmh": 70.0,
+    "grip_description": [
+      "MU_ROAD_COMBINE ADD",
+      "MU_ROAD_CONSTANT 0.6",
+      "MU_ROAD_L_CONSTANT 0"
+    ],
+    "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+    "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+    "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+    "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+    "experiment_signature": "37580cac3f141fec7281d15b32610f24ee39dff6f195bb6cb873d2bcbfc257f0"
+  },
+  "frozen": {
+    "simfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\reserved_test_70_mu06_20261116_210820\\source_70_mu06\\simfile.sim",
+    "parsfile": "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\reserved_test_70_mu06_20261116_210820\\source_70_mu06\\Run_all.par",
+    "simfile_sha256": "6b791108878521c633411b136badbee39c1859f88ed5e87798d384a39c0b5b24",
+    "parsfile_sha256": "5c786ae2233b8edacd5dea4923f23d835a202f9a17213bc5eee5599d093450cd",
+    "target_speed_kmh": 70.0,
+    "grip_description": [
+      "MU_ROAD_COMBINE ADD",
+      "MU_ROAD_CONSTANT 0.6",
+      "MU_ROAD_L_CONSTANT 0"
+    ],
+    "vehicle_sha256": "094c90788cf2e417ca8746934c44442e11ce683f817607dbd4b4c444e357fb0c",
+    "io_sha256": "c37e373b01faa9694ec13ec8c69df9360f5e2a73c9d899e4ef9698019fbb6490",
+    "reference_sha256": "fab48468ae2759465ee3a36cc8275f5273d81dbbad4eb7b56715d8368e73921b",
+    "reference_numeric_sha256": "b1b923ea798c20a2d5d8ca501abd8efba44c9921fdb7dcc0de8f88bb7216389c",
+    "experiment_signature": "37580cac3f141fec7281d15b32610f24ee39dff6f195bb6cb873d2bcbfc257f0"
+  },
+  "zero_action_parity": {
+    "passed": true,
+    "control_steps": 157,
+    "decision_steps": 2,
+    "decision_duration_s": 0.08,
+    "gamma_per_decision": 0.995967610541,
+    "reward_scheme": "joint_tracking_v1"
+  },
+  "formal_plan": {
+    "ready": false,
+    "blockers": [
+      "Multi-speed formal training requires at least two verified distinct training speeds",
+      "Validation-selected hyperparameter configuration lock is required before launch"
+    ],
+    "executed": false,
+    "note": "Plan only in this round. Real dual-MPC baseline replay and locked hyperparameter selection are required before launch."
+  }
+}

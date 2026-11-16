@@ -2,9 +2,9 @@
 
 研究主线为三自由度车辆预测模型与增量式LTV-MPC，使用TQC自适应调节MPC参数，并与TD3、DDPG统一比较。CarSim提供真实车辆闭环状态；DRL输出Np、Qy、Qpsi、Rdelta参数请求，C++ MPC求解转向。三维权重方案是首个统一预实验，受限四维保留完整参数自适应研究位置，不预设算法排名。
 
-最新状态见[多工况准备与75km/h真实验证](docs/DRL_MPC_Multi_Scenario_Preparation.md)，前序[65km/h真实验证](docs/CarSim_65kmh_Validation.md)、[目标与训练审计](docs/DRL_MPC_Next_Stage_Analysis.md)、[主线恢复](docs/DRL_MPC_Mainline_Recovery.md)均保留。[固定Np实验](docs/TD3_Fixed_Np_Experiments.md)及一维TD3五种子结果作为动作消融保留；全部资料见[文档索引](docs/INDEX.md)。
+最新状态见[70km/h低附着预留测试基线验收](docs/CarSim_70kmh_mu06_Preflight.md)、[多工况准备与75km/h验证](docs/DRL_MPC_Multi_Scenario_Preparation.md)，前序[65km/h验证](docs/CarSim_65kmh_Validation.md)、[目标与训练审计](docs/DRL_MPC_Next_Stage_Analysis.md)、[主线恢复](docs/DRL_MPC_Mainline_Recovery.md)均保留。[固定Np实验](docs/TD3_Fixed_Np_Experiments.md)及一维TD3五种子结果作为动作消融保留；全部资料见[文档索引](docs/INDEX.md)。
 
-65/75km/h、mu=0.8开发验证已通过双MPC及冻结模型回放；train仍单一70km/h，test为空，尚不具备正式多工况比较条件。真实回合切换已验证，scenario-set训练必须使用--joint-selection，训练源由清单确定。formal_compare默认weights3并检查训练速度多样性；qy1保留一维复现，weights2/full4为二维权重/受限四维。只生成预检计划，不自动执行15组训练。[一维稳定性与机制对照](docs/TD3_Qy_Stability_and_Generalization.md)及[历史一维正式计划](docs/Formal_DRL_MPC_Comparison_Plan.md)保留。
+65/75km/h、mu=0.8开发验证已完成；70km/h、mu=0.6已冻结为test，仅完成固定MPC预检，未作DRL最终测试。四份真实源的8组双基线全部通过，但train仍单一70km/h，且缺多工况超参数锁，正式训练尚未就绪。真实回合切换已验证，scenario-set训练必须使用--joint-selection，训练源由清单确定。formal_compare默认weights3，qy1/weights2/full4保留各维度消融；只生成预检计划，不自动执行15组训练。[一维稳定性与机制对照](docs/TD3_Qy_Stability_and_Generalization.md)及[历史一维正式计划](docs/Formal_DRL_MPC_Comparison_Plan.md)保留。
 
 ## 构建和检查
 

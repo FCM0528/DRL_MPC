@@ -6,5 +6,7 @@
     "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\validation_65_mu08_20261116_195607\\source_65\\simfile.sim",
     "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\multi_scenario_preparation_20261116_202836\\source_75\\simfile.sim"
   ],
-  "test": []
+  "test": [
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\reserved_test_70_mu06_20261116_210820\\source_70_mu06\\simfile.sim"
+  ]
 }
