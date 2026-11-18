@@ -1,0 +1,132 @@
+{
+  "parity4": {
+    "passed": true,
+    "control_steps": 157,
+    "decision_steps": 2,
+    "decision_duration_s": 0.08,
+    "gamma_per_decision": 0.995967610541,
+    "reward_scheme": "joint_tracking_v1"
+  },
+  "legacy_models": [
+    {
+      "profile": "qy_only",
+      "action_shape": [
+        1
+      ],
+      "loaded": true
+    },
+    {
+      "profile": "qy_qpsi",
+      "action_shape": [
+        2
+      ],
+      "loaded": true
+    }
+  ],
+  "switch_sequence": [
+    {
+      "case_index": 0,
+      "decisions": 79,
+      "x_m": 120.0019775253077
+    },
+    {
+      "case_index": 2,
+      "decisions": 69,
+      "x_m": 120.00905558306172
+    },
+    {
+      "case_index": 1,
+      "decisions": 92,
+      "x_m": 120.00487167262172
+    },
+    {
+      "case_index": 1,
+      "decisions": 92,
+      "x_m": 120.00487167262172
+    },
+    {
+      "case_index": 1,
+      "decisions": 92,
+      "x_m": 120.00487167262172
+    },
+    {
+      "case_index": 2,
+      "decisions": 69,
+      "x_m": 120.00905558306172
+    }
+  ],
+  "regression": [
+    {
+      "algorithm": "tqc",
+      "case": "0",
+      "residuals": {
+        "rmse_y_m": 0.0,
+        "rmse_heading_deg": 0.0,
+        "peak_y_m": 0.0,
+        "peak_heading_deg": 0.0,
+        "peak_measured_ay_mps2": 0.0,
+        "peak_measured_beta_deg": 0.0
+      }
+    },
+    {
+      "algorithm": "tqc",
+      "case": "1",
+      "residuals": {
+        "rmse_y_m": 0.0,
+        "rmse_heading_deg": 0.0,
+        "peak_y_m": 0.0,
+        "peak_heading_deg": 0.0,
+        "peak_measured_ay_mps2": 0.0,
+        "peak_measured_beta_deg": 0.0
+      }
+    },
+    {
+      "algorithm": "td3",
+      "case": "0",
+      "residuals": {
+        "rmse_y_m": 0.0,
+        "rmse_heading_deg": 0.0,
+        "peak_y_m": 0.0,
+        "peak_heading_deg": 0.0,
+        "peak_measured_ay_mps2": 0.0,
+        "peak_measured_beta_deg": 0.0
+      }
+    },
+    {
+      "algorithm": "td3",
+      "case": "1",
+      "residuals": {
+        "rmse_y_m": 0.0,
+        "rmse_heading_deg": 0.0,
+        "peak_y_m": 0.0,
+        "peak_heading_deg": 0.0,
+        "peak_measured_ay_mps2": 0.0,
+        "peak_measured_beta_deg": 0.0
+      }
+    },
+    {
+      "algorithm": "ddpg",
+      "case": "0",
+      "residuals": {
+        "rmse_y_m": 0.0,
+        "rmse_heading_deg": 0.0,
+        "peak_y_m": 0.0,
+        "peak_heading_deg": 0.0,
+        "peak_measured_ay_mps2": 0.0,
+        "peak_measured_beta_deg": 0.0
+      }
+    },
+    {
+      "algorithm": "ddpg",
+      "case": "1",
+      "residuals": {
+        "rmse_y_m": 0.0,
+        "rmse_heading_deg": 0.0,
+        "peak_y_m": 0.0,
+        "peak_heading_deg": 0.0,
+        "peak_measured_ay_mps2": 0.0,
+        "peak_measured_beta_deg": 0.0
+      }
+    }
+  ]
+}

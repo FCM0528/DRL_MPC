@@ -21,3 +21,6 @@
 **/__pycache__/
 **/slprj/
 *.slxc
+
+# Current refactor intermediate preview (final report is tracked separately).
+/reports/refactor_20261118/

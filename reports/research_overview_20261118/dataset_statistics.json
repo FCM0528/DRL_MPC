@@ -1,0 +1,193 @@
+{
+  "dataset_version": "dataset_v1",
+  "dataset_hash": "920bec95afaee29ab441a8ce60cc1f5b11c04bcdb04325f7bf8287debaa5dc9f",
+  "training_runs": [
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\tqc\\tqc_v70kmh_100episodes_seed42_20261116_222250",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\td3\\td3_v70kmh_100episodes_seed42_20261116_223044",
+    "C:\\Users\\fengchengmin\\Desktop\\JQRKZ\\DRL-MPC\\runs\\dataset_system_20261116_222225\\ddpg\\ddpg_v70kmh_100episodes_seed42_20261116_223402"
+  ],
+  "actual_decisions": 23700,
+  "sample_unit": "real CarSim policy decisions; not supervised labels",
+  "rows": [
+    {
+      "scenario_id": "cs_4b2833a3a0ee9d260693",
+      "scenario_type": "double_lane_change",
+      "target_speed_kmh": 70.0,
+      "speed_profile": "constant",
+      "road_friction": 0.8,
+      "friction_profile": "constant",
+      "trajectory_type": "ltarg_table",
+      "start_station_m": 0.0,
+      "end_station_m": 120.0,
+      "split": "train",
+      "scenario_count": 1,
+      "training_episodes": 81,
+      "actual_decisions": 6312,
+      "completed_episodes": 78,
+      "qp_failures": 0,
+      "mean_episode_return": -33.02520163441104,
+      "sample_fraction": 0.2663291139240506
+    },
+    {
+      "scenario_id": "cs_c3795eb276ef9ab53a0f",
+      "scenario_type": "double_lane_change",
+      "target_speed_kmh": 60.0,
+      "speed_profile": "constant",
+      "road_friction": 0.8,
+      "friction_profile": "constant",
+      "trajectory_type": "ltarg_table",
+      "start_station_m": 0.0,
+      "end_station_m": 120.0,
+      "split": "train",
+      "scenario_count": 1,
+      "training_episodes": 99,
+      "actual_decisions": 9108,
+      "completed_episodes": 99,
+      "qp_failures": 0,
+      "mean_episode_return": -6.099689780355205,
+      "sample_fraction": 0.3843037974683544
+    },
+    {
+      "scenario_id": "cs_3666b760495501987d4d",
+      "scenario_type": "double_lane_change",
+      "target_speed_kmh": 80.0,
+      "speed_profile": "constant",
+      "road_friction": 0.8,
+      "friction_profile": "constant",
+      "trajectory_type": "ltarg_table",
+      "start_station_m": 0.0,
+      "end_station_m": 120.0,
+      "split": "train",
+      "scenario_count": 1,
+      "training_episodes": 120,
+      "actual_decisions": 8280,
+      "completed_episodes": 120,
+      "qp_failures": 0,
+      "mean_episode_return": -136.58270045780924,
+      "sample_fraction": 0.3493670886075949
+    },
+    {
+      "scenario_id": "cs_34db60360e2714ac115d",
+      "scenario_type": "double_lane_change",
+      "target_speed_kmh": 65.0,
+      "speed_profile": "constant",
+      "road_friction": 0.8,
+      "friction_profile": "constant",
+      "trajectory_type": "ltarg_table",
+      "start_station_m": 0.0,
+      "end_station_m": 120.0,
+      "split": "validation",
+      "scenario_count": 1,
+      "training_episodes": 0,
+      "actual_decisions": 0,
+      "completed_episodes": 0,
+      "qp_failures": 0,
+      "mean_episode_return": null,
+      "sample_fraction": 0.0
+    },
+    {
+      "scenario_id": "cs_9f33c9f2d89737f3ae79",
+      "scenario_type": "double_lane_change",
+      "target_speed_kmh": 75.0,
+      "speed_profile": "constant",
+      "road_friction": 0.8,
+      "friction_profile": "constant",
+      "trajectory_type": "ltarg_table",
+      "start_station_m": 0.0,
+      "end_station_m": 120.0,
+      "split": "validation",
+      "scenario_count": 1,
+      "training_episodes": 0,
+      "actual_decisions": 0,
+      "completed_episodes": 0,
+      "qp_failures": 0,
+      "mean_episode_return": null,
+      "sample_fraction": 0.0
+    },
+    {
+      "scenario_id": "cs_37580cac3f141fec7281",
+      "scenario_type": "double_lane_change",
+      "target_speed_kmh": 70.0,
+      "speed_profile": "constant",
+      "road_friction": 0.6,
+      "friction_profile": "constant",
+      "trajectory_type": "ltarg_table",
+      "start_station_m": 0.0,
+      "end_station_m": 120.0,
+      "split": "test",
+      "scenario_count": 1,
+      "training_episodes": 0,
+      "actual_decisions": 0,
+      "completed_episodes": 0,
+      "qp_failures": 0,
+      "mean_episode_return": null,
+      "sample_fraction": 0.0
+    }
+  ],
+  "groups": {
+    "target_speed_kmh": {
+      "70.0": {
+        "scenarios": 2,
+        "actual_decisions": 6312
+      },
+      "60.0": {
+        "scenarios": 1,
+        "actual_decisions": 9108
+      },
+      "80.0": {
+        "scenarios": 1,
+        "actual_decisions": 8280
+      },
+      "65.0": {
+        "scenarios": 1,
+        "actual_decisions": 0
+      },
+      "75.0": {
+        "scenarios": 1,
+        "actual_decisions": 0
+      }
+    },
+    "road_friction": {
+      "0.8": {
+        "scenarios": 5,
+        "actual_decisions": 23700
+      },
+      "0.6": {
+        "scenarios": 1,
+        "actual_decisions": 0
+      }
+    },
+    "trajectory_type": {
+      "ltarg_table": {
+        "scenarios": 6,
+        "actual_decisions": 23700
+      }
+    },
+    "speed_profile": {
+      "constant": {
+        "scenarios": 6,
+        "actual_decisions": 23700
+      }
+    },
+    "split": {
+      "train": {
+        "scenarios": 3,
+        "actual_decisions": 23700
+      },
+      "validation": {
+        "scenarios": 2,
+        "actual_decisions": 0
+      },
+      "test": {
+        "scenarios": 1,
+        "actual_decisions": 0
+      }
+    },
+    "scenario_type": {
+      "double_lane_change": {
+        "scenarios": 6,
+        "actual_decisions": 23700
+      }
+    }
+  }
+}

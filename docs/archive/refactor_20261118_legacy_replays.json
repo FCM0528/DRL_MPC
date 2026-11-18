@@ -1,0 +1,14 @@
+[
+  {
+    "profile": "qy_only",
+    "completed": true,
+    "rmse_y_m": 0.07619453200638057,
+    "rmse_heading_deg": 0.9000240472226618
+  },
+  {
+    "profile": "qy_qpsi",
+    "completed": true,
+    "rmse_y_m": 0.0764852456790503,
+    "rmse_heading_deg": 0.9128724718130076
+  }
+]

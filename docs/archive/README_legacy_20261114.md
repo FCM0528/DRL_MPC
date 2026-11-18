@@ -6,13 +6,13 @@ CarSim 计算车辆运动。C++ MPC 每个控制周期求解前轮转角。DDPG�
 
 **执行顺序**　CarSim 生成 Simfile → 冻结工况 → 时域粗扫 → 最佳 Np 组细扫 → 入选时域扫权重 → 生成固定与 DRL 配置 → DDPG、TD3、TQC 顺序训练 → 四组闭环回放并出报告。
 
-2026-11-14 主项目检查已适配当前 **2 路输入 / 20 路输出**。结合 182 组扫描与历史套件实测复用，当前默认固定 MPC 为 **Np=40、Nc=13、Qy=11500、Qψ=2800、RΔ=10800**。默认动作映射已对齐既有三组 500 回合模型，并在当前 70 km/h、μ=0.8 工况验证。`Beta` 用于观测与奖励，Ax/Ay、轮胎力和实际轮角用于物理一致性诊断。结果与复用方法见 [主项目扫描记录](../../docs/Main_Project_Audit_20261114.md)。
+2026-11-14 主项目检查已适配当前 **2 路输入 / 20 路输出**。结合 182 组扫描与历史套件实测复用，当前默认固定 MPC 为 **Np=40、Nc=13、Qy=11500、Qψ=2800、RΔ=10800**。默认动作映射已对齐既有三组 500 回合模型，并在当前 70 km/h、μ=0.8 工况验证。`Beta` 用于观测与奖励，Ax/Ay、轮胎力和实际轮角用于物理一致性诊断。结果与复用方法见 [主项目扫描记录](Main_Project_Audit_20261114.md)。
 
 ## 1. 准备环境
 
 - 在 Windows 上准备 CarSim、可用的求解器许可、Visual Studio C++ 工具链、CMake 和 Python 环境。
 - 在 CarSim Browser 中选好工况并生成 Simfile。配置文件中的 [carsim] simfile 指向这份文件，[carsim] solver_dll 指向对应版本的 64 位求解器。运行时保持 Browser 打开。
-- 当前接口要求可读取的 CarSim LTARG_TABLE 参考轨迹、车辆状态和转向导入通道。支持的输入格式与转向配置见 [CarSim 接口](../../docs/CarSim_CPP_Integration.md)。
+- 当前接口要求可读取的 CarSim LTARG_TABLE 参考轨迹、车辆状态和转向导入通道。支持的输入格式与转向配置见 [CarSim 接口](CarSim_CPP_Integration.md)。
 
 以下命令在项目根目录的 PowerShell 中运行。CMake 需要在 PATH 中，也可从 Visual Studio Developer PowerShell 运行。生成器按本机 Visual Studio 版本选择。
 
@@ -142,4 +142,4 @@ python python/compare_four.py --ddpg D:\models\ddpg.zip --td3 D:\models\td3.zip 
 | src/ | CarSim 接口、车辆模型、LTV-MPC、桥接与 C++ 报告 |
 | python/ | 工况快照、扫参、训练、模型回放和对照报告 |
 
-进一步说明见 [控制算法](../../docs/Control_Algorithm_Implementation.md)、[训练参数](../../docs/RL_Training_Parameters.md) 和 [TQC 设计](../../docs/TQC_Design.md)。
+进一步说明见 [控制算法](../../docs/MPC_MODEL_AND_BASELINES.md)、[训练参数](../../docs/DRL_DESIGN_AND_REWARD.md) 和 [TQC 设计](../../docs/DRL_DESIGN_AND_REWARD.md)。
