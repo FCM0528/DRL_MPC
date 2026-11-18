@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from compare_four import comparison_limits
+from evaluate import comparison_limits
 from report import control_trace
 from scenario import controller_policy_signature
 

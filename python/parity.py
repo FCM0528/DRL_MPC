@@ -135,7 +135,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--bridge", default="out/python-rl-build/Release/MPC_RL_Bridge.exe")
     p.add_argument("--controller", default="out/python-rl-build/Release/MPC_DoubleLaneChange.exe")
-    p.add_argument("--config", default="configs/carsim_python_rl.ini")
+    p.add_argument("--config", default="configs/strong_weights3.ini")
     p.add_argument("--simfile", help="CarSim Simfile; defaults to carsim.simfile from config")
     p.add_argument("--out", default="runs/neutral_parity")
     p.add_argument("--blocks", type=int, default=10)

@@ -95,10 +95,14 @@ class LateralValidationEnv(CarSimMPCEnv):
         return obs, score, terminated, truncated, info
 
 
-def load_training_settings(path) -> dict:
+def load_training_settings(path, overrides=()) -> dict:
     parser = configparser.ConfigParser(interpolation=None)
     with Path(path).open(encoding="utf-8-sig") as file:
         parser.read_file(file)
+    for item in overrides:
+        key,value=item.split("=",1); section,field=key.split(".",1)
+        if not parser.has_option(section,field):raise ValueError("Unknown training override: "+key)
+        parser.set(section,field,value)
     schema = {
         "training": {"episodes": int, "seed": int, "eval_frequency": int,
                      "buffer_size": int, "learning_starts": int,
@@ -244,8 +248,11 @@ def main():
     p.add_argument("--algorithm", choices=TRAINING_ALGORITHMS, required=True)
     p.add_argument("--bridge", default="out/python-rl-build/Release/MPC_RL_Bridge.exe")
     p.add_argument("--controller", default="out/python-rl-build/Release/MPC_DoubleLaneChange.exe")
-    p.add_argument("--config", default="configs/carsim_python_rl.ini")
+    p.add_argument("--config", default="configs/strong_weights3.ini")
     p.add_argument("--train-config", default="configs/rl_training.ini")
+    p.add_argument("--action-profile",choices=("qy1","weights2","weights3","full4"))
+    p.add_argument("--set",action="append",default=[],help="Run-private rl/rl_reward.key=value delta")
+    p.add_argument("--train-set",action="append",default=[],help="Run-private training/algorithm.key=value override")
     p.add_argument("--simfile", help="CarSim Simfile; defaults to carsim.simfile from config")
     p.add_argument("--validation-simfile", help="Distinct frozen validation CarSim case for joint selection")
     p.add_argument("--scenario-set", help="Legacy JSON collections or immutable dataset manifest")
@@ -278,7 +285,7 @@ def main():
     p.add_argument("--tqc-drop", type=int,
                    help="Highest target quantiles removed per critic (paper tests 0..5)")
     args = p.parse_args()
-    settings = load_training_settings(args.train_config)
+    settings = load_training_settings(args.train_config,args.train_set)
     if args.total_decisions is not None and args.total_decisions % settings['train_freq']:
         p.error("--total-decisions must be a multiple of train_freq for an exact budget")
     for arg, key in (("episodes", "episodes"), ("seed", "seed"),
@@ -329,6 +336,13 @@ def main():
                 f"seed{args.seed}_{datetime.now():%Y%m%d_%H%M%S}")
     root = Path(args.out).resolve() / run_name
     root.mkdir(parents=True, exist_ok=False)
+    if args.train_set:
+        parser=configparser.ConfigParser(interpolation=None);parser.read(args.train_config,encoding="utf-8-sig")
+        for item in args.train_set:
+            key,value=item.split("=",1);section,field=key.split(".",1);parser.set(section,field,value)
+        effective=root/"source_training.ini"
+        with effective.open("x",encoding="utf-8") as file:parser.write(file)
+        args.train_config=str(effective)
     sets = None
     if args.scenario_set:
         from scenario_sets import freeze_sets
@@ -337,6 +351,9 @@ def main():
     frozen_validation = snapshot_scenario(validation_scenario, root / "validation_case") if validation_scenario else None
     source_config = Path(args.config).resolve(strict=True)
     frozen_config = snapshot_config(source_config, root / "source_configs")
+    if args.action_profile or args.set:
+        from scenario import write_config_overrides
+        frozen_config=write_config_overrides(frozen_config,frozen_config.parent/"run_delta.ini",profile=args.action_profile,overrides=args.set)
     strong_config = snapshot_config(args.strong_config, root / "strong_configs")
     fixed_config = None
     if not args.training_only or args.joint_selection:
@@ -385,7 +402,8 @@ def main():
         "weights_initialization": "resumed_model" if args.resume else "random",
     }
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    shutil.copy2(args.train_config, root / "source_training.ini")
+    if Path(args.train_config).resolve() != root / "source_training.ini":
+        shutil.copy2(args.train_config, root / "source_training.ini")
     args.simfile = str(frozen_simfile)
     args.config = str(frozen_config)
     parity = check_neutral_parity(args.bridge, args.controller, args.config,

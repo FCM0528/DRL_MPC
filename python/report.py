@@ -674,5 +674,20 @@ def main():
     print(output / "training_and_control_report.html")
 
 
+
+def summarize(rows):
+    output=[]
+    for kind in ('best','final'):
+        group=[r for r in rows if r['kind']==kind and 'rmse_y_m' in r]
+        total=sum(r['kind']==kind for r in rows)
+        result=dict(kind=kind,n=len(group),n_total=total,strong_dual_fraction=sum(r['strong_dual'] for r in group)/total,
+            static_dual_fraction=sum(r['static_dual'] for r in group)/total,
+            failure_fraction=float(np.mean([not r['legal'] for r in rows if r['kind']==kind])))
+        for key in ('rmse_y_m','rmse_heading_deg','strong_iy','strong_ih','static_iy','static_ih'):
+            values=[r[key] for r in group];result[key+'_mean']=float(np.mean(values));result[key+'_std']=float(np.std(values,ddof=1)) if len(values)>1 else 0.
+        output.append(result)
+    return output
+
+
 if __name__ == "__main__":
     main()

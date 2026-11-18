@@ -48,3 +48,11 @@ def check_model_contract(model_path, config):
             raise ValueError('Model controller/reward/observation contract differs from evaluation config (including track_course)')
     elif version=='named_actions_v1':
         raise ValueError('Named policy requires its frozen controller configuration')
+
+
+def inverse_qy(weight,center=18400.,low=11500.,high=23920.):
+    if not low-1e-8<=weight<=high+1e-8:raise ValueError('Requested Qy outside unchanged action range')
+    weight=float(np.clip(weight,low,high))
+    if weight==low:return -1.
+    if weight==high:return 1.
+    return np.log(weight/center)/(np.log(high/center) if weight>=center else np.log(center/low))

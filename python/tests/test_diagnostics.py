@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from diagnostics import sensor_metrics
+from evaluate import sensor_metrics
 from report import control_trace
 
 

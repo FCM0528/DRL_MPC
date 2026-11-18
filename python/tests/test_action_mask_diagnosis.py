@@ -3,7 +3,7 @@ import pytest
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from action_mask_diagnosis import MaskedPolicy
+from run_policy import MaskedPolicy
 from scenario import controller_policy_signature
 
 
@@ -27,10 +27,12 @@ def test_mask_changes_only_disabled_actions():
 
 
 @pytest.mark.parametrize('weight',[2,4])
-def test_reward_configs_change_only_wy(weight):
+def test_reward_configs_change_only_wy(weight,tmp_path):
     root=Path(__file__).resolve().parents[2]
-    base=controller_policy_signature(root/'configs/strong_actions3.ini')
-    new=controller_policy_signature(root/f'configs/strong_actions3_wy{weight}.ini')
+    from scenario import restore_config,write_config_overrides
+    config=restore_config('strong_actions3.ini',tmp_path/'legacy')
+    base=controller_policy_signature(config)
+    new=controller_policy_signature(write_config_overrides(config,config.parent/'wy.ini',overrides=[f'rl_reward.w_y={float(weight)}']))
     assert new.pop('rl_reward.w_y')==(float(weight),)
     base.pop('rl_reward.w_y')
     assert new==base

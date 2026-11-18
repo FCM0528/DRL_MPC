@@ -7,7 +7,7 @@ from pathlib import Path
 from evaluate import fixed_episode
 from scenario_sets import freeze_sets
 from scenario import snapshot_config
-from lateral_regression import write_rows
+from evaluate import write_rows
 
 
 def preflight_baseline(controller, simfile, output, config):

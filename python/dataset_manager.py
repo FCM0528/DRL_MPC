@@ -452,6 +452,11 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--root', default=str(DEFAULT_ROOT))
     sub = p.add_subparsers(dest='command', required=True)
+    compat=sub.add_parser('restore-config',help='Restore retired config and inheritance with exact SHA256')
+    source=compat.add_mutually_exclusive_group(required=True)
+    source.add_argument('--name');source.add_argument('--model',help='Prefer this model manifest and exact frozen configuration')
+    compat.add_argument('--out',required=True)
+    compat.add_argument('--snapshot',help='Optional existing run/source_configs directory instead of Git')
     add = sub.add_parser('add'); add.add_argument('--simfile', required=True); add.add_argument('--split', choices=SPLITS, required=True)
     add.add_argument('--type', choices=TYPES, default='custom'); add.add_argument('--baseline-proof'); add.add_argument('--notes', default='')
     imp = sub.add_parser('import'); imp.add_argument('--scenario-set', required=True); imp.add_argument('--baseline-proof', required=True)
@@ -464,7 +469,10 @@ def main():
     summary = sub.add_parser('summary'); summary.add_argument('--manifest', required=True); summary.add_argument('--out', required=True)
     summary.add_argument('--run', action='append', default=[])
     args = p.parse_args(); root = Path(args.root).resolve()
-    if args.command == 'add':
+    if args.command == 'restore-config':
+        from scenario import restore_config, restore_model_config
+        result=str(restore_model_config(args.model,args.out) if args.model else restore_config(args.name,args.out,snapshot=args.snapshot))
+    elif args.command == 'add':
         result = register(root, args.simfile, args.split, args.type, baseline_proof=args.baseline_proof, notes=args.notes)
     elif args.command == 'import':
         from scenario_sets import load_case_sets

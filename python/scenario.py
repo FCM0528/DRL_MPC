@@ -3,7 +3,87 @@ import hashlib
 import configparser
 import math
 import shutil
+import json
+import subprocess
 from pathlib import Path
+
+ACTION_PROFILES = {'qy1': ('q_y',), 'weights2': ('q_y','q_psi'),
+                   'weights3': ('q_y','q_psi','r_delta'), 'full4': ('np','q_y','q_psi','r_delta')}
+
+
+def restore_model_config(model, output):
+    """Prefer a model's own version, even if its filename occurs in later studies."""
+    model=Path(model).resolve(strict=True)
+    manifest=next((p/'manifest.json' for p in model.parents if (p/'manifest.json').exists()),None)
+    if manifest is None:raise ValueError('Model has no source manifest')
+    info=json.loads(manifest.read_text(encoding='utf-8-sig'))
+    source=Path(info['frozen_config']);hashes=info['controller_config_sha256']
+    for name,digest in hashes.items():
+        if Path(name).name!=name:raise ValueError('Invalid source hash filename')
+        if hashlib.sha256((source.parent/name).read_bytes()).hexdigest()!=digest:
+            raise ValueError('Frozen model config SHA256 mismatch: '+name)
+    restored=snapshot_config(source,output)
+    for file in restored.parent.iterdir():
+        if hashlib.sha256(file.read_bytes()).hexdigest()!=hashes.get(file.name):
+            raise ValueError('Restored model configuration differs: '+file.name)
+    return restored
+
+
+def restore_config(name, output, *, snapshot=None):
+    """Restore exact historical bytes and the entire local inheritance chain; never overwrite."""
+    root=Path(__file__).resolve().parents[1]
+    catalog=json.loads((root/'configs/legacy.json').read_text(encoding='utf-8'))
+    if name not in catalog['files']:raise ValueError('Unknown historical config')
+    output=Path(output).resolve();output.mkdir(parents=True,exist_ok=False)
+    installed=[]
+    def restore(filename):
+        expected=catalog['files'][filename]['sha256']
+        payload=(Path(snapshot)/filename).read_bytes() if snapshot else subprocess.check_output(
+            ['git','show',catalog['commit']+':configs/'+filename],cwd=root)
+        candidates=[payload,payload.replace(b'\r\n',b'\n').replace(b'\n',b'\r\n')]
+        if 'lf_lines' in catalog['files'][filename]:
+            lf=set(catalog['files'][filename]['lf_lines'])
+            lines=payload.replace(b'\r\n',b'\n').splitlines(keepends=True)
+            candidates.append(b''.join(line[:-1]+b'\r\n' if i not in lf and line.endswith(b'\n') else line for i,line in enumerate(lines)))
+        payload=next((p for p in candidates if hashlib.sha256(p).hexdigest()==expected),None)
+        if payload is None:raise ValueError('Historical SHA256 mismatch: '+filename)
+        target=output/filename;target.write_bytes(payload);installed.append(target)
+        if filename.endswith('.ini'):
+            parser=configparser.ConfigParser(interpolation=None);parser.read(target,encoding='utf-8-sig')
+            base=parser.get('inherit','base',fallback=None)
+            if base and not (output/base).exists():restore(base)
+    try:
+        restore(name)
+        if not (output/'magic_tire.csv').exists():restore('magic_tire.csv')
+    except Exception:
+        for path in installed:path.unlink()
+        output.rmdir()
+        raise
+    return output/name
+
+
+def write_config_overrides(base, target, *, profile=None, overrides=()):
+    """Run-private INI delta; keep the selected source chain byte-identical."""
+    base=Path(base).resolve();target=Path(target).resolve()
+    if base.parent!=target.parent or base==target:raise ValueError('Delta must share its frozen base directory')
+    values={}
+    if profile:
+        names=ACTION_PROFILES[profile]
+        values.update({'rl.policy_action_names':', '.join(names),'rl.policy_action_dims':str(len(names)),
+                       'rl.max_np_change_per_decision':'2' if profile=='full4' else '0'})
+    for item in overrides:
+        key,value=item.split('=',1)
+        section,field=key.split('.',1)
+        if section not in ('rl','rl_reward') or resolve_config_value(base,section,field) is None:
+            raise ValueError('Only existing rl/rl_reward fields may be overridden: '+key)
+        values[key]=value
+    parser=configparser.ConfigParser(interpolation=None);parser['inherit']={'base':base.name}
+    for key,value in values.items():
+        section,field=key.split('.',1)
+        if not parser.has_section(section):parser.add_section(section)
+        parser.set(section,field,value)
+    with target.open('x',encoding='utf-8') as file:parser.write(file)
+    return target
 
 
 def reference_bounds(parsfile):

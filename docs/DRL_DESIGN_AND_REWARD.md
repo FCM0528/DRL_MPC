@@ -39,8 +39,8 @@ DDPG 使用确定性 Actor 和单评论家；TD3 使用双评论家、延迟 Act
 
 |维数|配置|策略输出|
 |---:|---|---|
-|1|strong_qy_only.ini|Qy|
-|2|strong_qy_qpsi.ini|Qy,Qpsi|
+|1|--action-profile qy1|Qy|
+|2|--action-profile weights2|Qy,Qpsi|
 |3 主线|strong_weights3.ini|Qy,Qpsi,Rdelta|
 |4 完整|strong_full4.ini|Np,Qy,Qpsi,Rdelta|
 
@@ -90,3 +90,10 @@ legacy 奖励保留原函数分支，不能按上式解释旧模型。MPC 预测
 ## 验证选模
 
 validation 不进入梯度更新，test 不参与选模。合法需完整结束、QP=0、Ay≤0.85g、|Beta|≤5°；逐工况同时计算相对原始和强 MPC 的改善。只有全部验证工况均双RMSE改善才生成 best_joint；best_legal 允许未达标，按最差工况 min(Iy,Iheading) 最大化。保留全部周期候选和 Pareto，final 只诊断。严格全部达标、平均改善、最差改善和达标工况比例分别报告。
+
+
+## 生成式消融与旧契约
+
+当前1D/2D由 train.py 在原 strong_weights3 基础上生成run私有 delta，4种profile均已与对应历史有效配置逐项比较，控制参数、观测、奖励、映射和限速等价。为公平比较，变化只限所声明动作维度；旧策略不能按新名字加载。历史 Np前缀配置从模型冻结目录或精确恢复机制读取。
+
+不再增加 wy2/wy4、Actor学习率或噪声专用INI；使用显式单因素覆盖，并保留实际 source_training.ini、run_delta.ini 与 manifest。正文所有奖励公式、系数和MPC物理含义不因结构精简改变。TQC分位数审计函数在 algorithms.quantile_summary；旧控制/奖励审计纯函数在 evaluate；只有正式 joint_validation 实施当前全工况安全选模规则。

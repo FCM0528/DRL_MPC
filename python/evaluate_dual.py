@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 from algorithms import ALGORITHMS
-from evaluate import fixed_episode, _tracking_metrics
+from evaluate import fixed_episode, _tracking_metrics, write_rows
 from run_policy import run_policy
 from scenario_sets import freeze_sets, describe_case
 from scenario import controller_policy_signature, snapshot_config
@@ -46,9 +46,6 @@ def stable_legal(row):
         and np.isfinite(ay) and np.isfinite(beta) and 0<=ay<=.85*9.80665 and 0<=beta<=5)
 
 
-def save_metrics(path, rows):
-    with Path(path).open('w',newline='') as f:
-        writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
 
 
 def main():
@@ -97,7 +94,7 @@ def main():
                     experiment_signature=case['experiment_signature'],controller=label,legal=stable_legal(result),
                     original_iy='',original_ih='',strong_iy='',strong_ih='',strong_dual='',
                     policy_inference_mean_ms='',policy_inference_p95_ms='',**result,**replay_diagnostics(result['trace'])))
-                save_metrics(root/'dual_baseline_metrics.csv',rows)
+                write_rows(root/'dual_baseline_metrics.csv',rows)
             if not all(stable_legal(r) for r in baselines.values()):
                 raise ValueError(f'Baseline preflight failed for {args.split} case {i}; policy not run')
             output=root/f'{prefix}_policy'
@@ -113,7 +110,7 @@ def main():
                 strong_ih=ih['strong_mpc'],strong_dual=stable_legal(result) and min(iy['strong_mpc'],ih['strong_mpc'])>0,
                 policy_inference_mean_ms=replay['policy_inference_mean_ms'],policy_inference_p95_ms=replay['policy_inference_p95_ms'],
                 **result,**replay_diagnostics(result['trace'])))
-            save_metrics(root/'dual_baseline_metrics.csv',rows)
+            write_rows(root/'dual_baseline_metrics.csv',rows)
     summary=[]
     for label,case in sorted({(r['controller'],r['case']) for r in rows}):
         group=list({r['seed']:r for r in rows if r['controller']==label and r['case']==case}.values())

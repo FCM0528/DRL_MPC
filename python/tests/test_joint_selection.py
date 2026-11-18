@@ -1,4 +1,4 @@
-from joint_selection import rank_candidate
+from evaluate import rank_candidate
 
 
 def test_dual_improvement_requires_both_errors_and_completion():

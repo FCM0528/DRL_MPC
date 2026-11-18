@@ -18,7 +18,7 @@ out/python-rl-build/Release/MPC_DoubleLaneChange.exe --config configs/mpc_strong
 python python/parity.py --config configs/strong_weights3.ini --simfile '实际冻结Simfile绝对路径' --blocks 200 --out runs/parity_NEW
 ```
 
-三算法只有一个训练入口。修改 --algorithm 为 tqc、td3、ddpg，分别独立运行，不共享经验或 resume。1D/2D/4D 对应 configs/README 所列配置，旧模型必须使用原配置和 action contract。
+三算法只有一个训练入口。修改 --algorithm 为 tqc、td3、ddpg，分别独立运行，不共享经验或 resume。1D/2D/3D/4D 分别使用 --action-profile qy1/weights2/weights3/full4，旧模型必须使用原配置和 action contract。
 
 ```powershell
 $env:OMP_NUM_THREADS='1'
@@ -52,3 +52,71 @@ python python/report.py --runs $tqc $td3 $ddpg --dataset-manifest datasets/carsi
 输出 index.html、metrics.csv、summary.json、来源 SHA256 和 figures/ PNG/PDF。默认包括全部65/75验证工况、best/final区别、Reward/Actor/Critic/TQC熵、误差/轨迹/车辆状态、实际学习参数和数据集统计。不会训练或读取预留test策略结果。多seed/动作消融可以传多个同 dataset_hash 的已完成 run；分别显示，不能用单seed伪造置信带。旧 evaluation_dir 位置参数和 --locked-validation 保留用于历史单工况/固定 MPC 报告；旧图选 case 的能力不替代新全工况总览。
 
 新增工况完整流程见 DATASET_GUIDE.md。原生Simfile/Parsfile真实性、完整性和当前任务适用性分别检查；尚未支持的变速/分段附着允许存档但禁止自动训练。
+
+
+## 第二轮精简后的唯一入口（基准5f2ece1）
+
+日常Python根模块15个，configs根文件10个。未保留完整legacy脚本或INI目录，也未将被删实现简单搬进archive。所有src、数据集版本、模型、原生工况和实验结果保持。
+
+### 单因素参数变更
+
+在上面的训练命令中，选择 --action-profile qy1、weights2、weights3、full4。奖励单因素仅追加 `--set rl_reward.w_y=2.0`；Actor单因素仅追加 `--train-set td3.actor_learning_rate=0.0001`；噪声单因素用 `--train-set td3.exploration_noise_sigma=0.10`。不要将这些变更合并成同一次消融。覆盖只影响新run；实际配置和所有CLI参数记录到manifest，不再在共享configs增加wy2/wy4等副本。
+
+当前所有日常入口默认 strong_weights3；旧14维或旧动作前缀模型必须显式使用原冻结配置，不会静默套用新默认值。
+
+### 老模型和研究流程恢复
+
+```powershell
+# 更早模型按其自己的manifest/hash恢复；比按文件名猜版本更可靠。
+python python/dataset_manager.py restore-config --model '实际run/best_legal_model.zip' --out runs/recovered_model_NEW
+# 恢复父提交指定INI及其全部依赖；逐字节核验，包括混合换行。
+python python/dataset_manager.py restore-config --name strong_qy_only.ini --out runs/recovered_qy_NEW
+# run_policy 的 --config 指向返回的恢复路径，--simfile指向该模型原冻结真实工况。
+# 需要完整的旧实验CLI时，以父版本建立隔离工作树，绝不覆盖当前代码：
+git worktree add --detach ../DRL_MPC_study_5f2ece1 5f2ece1
+```
+
+恢复需要完整Git历史（浅克隆先 fetch 原提交），或与该版本SHA匹配的完整 source_configs（--name加--snapshot）。更早版本优先 --model；模型缺manifest/配置/hash则报错，不猜测。旧Git工作树的构建、依赖及Solver位置需按其指南配置；不要将旧脚本复制回新日常目录继续扩展。旧工况列表JSON也可由该提交查看，但当前训练只使用已冻结dataset版本。
+
+CMake自动将少量旧配置重建为out下的测试夹具，测试数值预期不变；这不是把退休配置留在源码目录。所有旧82项测试的断言保留，配置读取测试改为经过SHA验证的恢复路径；新增恢复/覆盖测试验证等价性和失败边界。
+
+### 逐项退休与替代
+
+|旧模块|决定与替代/保留的独特能力|
+|---|---|
+|train_four|删除重复训练编排；train统一学习，formal_compare统一计划|
+|compare_four|删除旧单基线套件；evaluate_dual+report；comparison_limits移入evaluate，保留原测试|
+|sweep|一次性已完成扫描退休；不自动重扫；完整扫描CLI在父版本|
+|strong_report|独立旧run绘图入口退休；当前统一report，旧格式用隔离父版本|
+|strong_response|旧限速试验退休；独特闭环方法保留Git版本与原数据|
+|fixed_np_experiments|已完成静态Qy扫描/对照退休；当前profile+统一评价，原扫描由Git恢复|
+|reward_ablation_report|专用奖励图退休；统一report与evaluate.reward_terms|
+|qy_stability_report|五种子专用图退休；report支持多run；summarize原函数移至report供历史统计/原测试|
+|qy_mechanism|已完成位置调度归因退休；inverse_qy移入action_mapping，独特试验CLI在父版本|
+|mainline_audit|一次性训练审计CLI退休；quantile_summary并入algorithms，原测试保留|
+|action_mask_diagnosis|批量8组介入CLI退休；MaskedPolicy移入run_policy供冻结策略介入，原测试保留|
+|joint_feasibility|已完成45+26真实扫描退休，不重扫；dominates/pareto移入evaluate|
+|control_sensitivity|一次性敏感性CLI退休；底层fixed_episode仍可用于独立覆盖回放，旧扫描方法从Git恢复|
+|lateral_regression|专用报告退休；write_rows/reward_terms移入evaluate，旧X分段工具从Git恢复|
+|joint_selection|旧单工况选择器退休，正式选择只用joint_validation；rank_candidate保留为评价纯函数与原回归测试|
+|diagnostics|传感/单位数值函数原样并入evaluate，核心继续调用，并非取消诊断|
+
+18份退休INI：carsim_curvature_schedule_40ms、carsim_python_rl、carsim_python_rl_joint及其actions2/3/4、continuous14、legacy14变体；mpc_heading_original/strong；strong_actions2/3及wy2/wy4；strong_qy_only/qy_qpsi；td3_qy_actor_lr1e4/sigma010。其逐文件SHA均在configs/legacy.json，不能修改冻结副本。1D/2D由通用profile生成；奖励/优化器小变化由覆盖代替；原始基线legacy/目标消融/Np前缀旧义由精确恢复读取。共同strong_actions4仍是当前真实依赖，保留。旧real_scenario_sets.local.json只是路径列表，已由dataset_v1覆盖，不是原生工况或控制参数。
+
+### 本轮量化结果与验收
+
+|指标|5f2ece1整理前|本轮整理后|
+|---|---:|---:|
+|configs根文件数|28|10|
+|configs全目录文件数|28|10|
+|python根模块数|31|15|
+|python全目录模块数（含测试/init）|54|39|
+|Python有效代码行（含测试）|5590|4065|
+
+实际删除16个Python文件（没有迁入legacy目录），新加1个恢复测试文件，故全目录净少15个模块。实际删除18份INI和1份旧路径JSON，新加1份仅存hash/换行信息的legacy.json，配置总数净少18。有效代码按Python tokenize逐物理行统计，排除空行、注释和AST文档字符串；净减1525行（约27.3%），包含新增恢复/覆盖和原测试迁移代码，不包含C++、文档、报告或构建输出。没有把移动的10个纯函数/1个类当作删除；CSV writer一组3份实现归一，实际消除2个重复实现，其他只是归属调整，不虚报合并数。
+
+独立历史兼容文件为1个 configs/legacy.json；保留legacy Python/INI源码文件为0。历史研究通过Git 5f2ece1或既有run冻结副本恢复；CMake生成的测试夹具位于out，不属于源码配置数。当前保留的15模块分别是六日常入口及action_mapping/algorithms/evaluate/joint_validation/paper_style/parity/scenario/scenario_preflight/scenario_sets等实际依赖，不为减少数量再剥除核心能力。
+
+验收：Release成功、CTest 1/1；pytest107项通过（原82项完整保留，新增25项恢复/覆盖/契约测试）。原始/强MPC及三算法在65/75真实回放，横向/航向RMSE、峰值、Ay、Beta对父版证据差异<1e-9；3D/4D和生成式1D/2D全程157控制步zero-action parity通过。恢复旧1D/2D配置后真实回放仍为0.076194532m/0.900024047°与0.076485246m/0.912872472°；真实六回合切换与原seed42序列一致。统一报告离线重建成功，所有既有best/final指标逐项一致。dataset_v1、src和保留配置/轮胎数据SHA不变；本轮不训练、不访问预留test策略结果。
+
+机器证据与重建HTML在 runs/deep_slim_20261118/：before.json、retired.json、results.json、compatibility_replays.json、closed_loop_final/、parity3/4、parity_qy1/weights2、report/index.html。统计只衡量源码/配置，不把实验报告输出文件增加或转移当作代码缩减。

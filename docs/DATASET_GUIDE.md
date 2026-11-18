@@ -49,11 +49,7 @@ python python/dataset_manager.py summary --manifest datasets/carsim/manifests/da
 
 `preflight` 复用 `scenario_preflight.py`，只运行原始和强固定 MPC。它先从库中校验的原生文件生成私有运行副本，不修改 CarSim Browser 数据。安全条件保持完赛、QP=0、峰值 Ay≤0.85g、|Beta|≤5°；单工况预检的整体 ready 可能因缺少其余 split 为 false，`accept` 核验该物理工况两条真实基线记录。失败证据保留，不通过则不得启用。
 
-已有冻结集合的导入命令为：
-
-```powershell
-python python/dataset_manager.py import --scenario-set configs/real_scenario_sets.local.json --baseline-proof runs/training_case_80_mu08_20261116_213738/preflight/baseline_proof.json --type double_lane_change
-```
+六源初始导入已完成，日常不重复导入现有dataset_v1。旧路径列表可从5f2ece1恢复；新工况使用上面的add/preflight/accept/export流程。
 
 相同物理签名再次注册会报告 `already_registered`，更名不能增加采样次数。跨 split 重复被拒绝，尤其禁止通过重新注册将 test 转为 train。本工具不提供隐式改划分命令；如研究设计必须改变，需要单独、明确授权的新研究方案，并承认原测试已被使用。
 
@@ -97,3 +93,6 @@ python python/dataset_manager.py summary --manifest datasets/carsim/manifests/da
 `mean_episode_return` 按所有有样本的回合求均值，包含预算结束的部分回合；它不是仅完整回合的平均回报。完整训练回报曲线另从 Monitor 的实际完整回合日志生成。指定完成的联合选模 run 时，summary 同时输出逐算法周期验证、最佳合法/final 指标、模型锁、训练曲线和双误差图，不会重新选模或运行 test。
 
 训练与实际验收结果见 [RESEARCH_RESULTS.md](RESEARCH_RESULTS.md)。
+
+
+当前只保留15个Python根模块。训练、验证、报告分别使用 train.py、evaluate_dual.py、report.py；dataset_manager 管理工况及精确配置恢复。工况注册仍不要求修改训练核心，train/validation/test及不可变版本语义不变。未来变速/分段附着等类型仍需独立任务验收，不能因删去诊断脚本便声称已支持训练。多工况训练可增加 --action-profile 指定动作空间；不改dataset_v1，也不将验证集移入训练。

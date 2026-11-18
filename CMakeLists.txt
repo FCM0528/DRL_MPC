@@ -45,9 +45,23 @@ mpc_compile_options(MPC_RL_Bridge)
 option(MPC_BUILD_TESTS "Build MPC numerical and configuration tests" ON)
 if(MPC_BUILD_TESTS)
     enable_testing()
+    # Retired INIs are reconstructed as build-only regression fixtures, not
+    # duplicated in the source tree. Requires the documented recovery commit.
+    find_package(Git REQUIRED)
+    set(LEGACY_FIXTURES "${CMAKE_CURRENT_BINARY_DIR}/legacy-configs")
+    file(MAKE_DIRECTORY "${LEGACY_FIXTURES}")
+    foreach(name default.ini mpc_strong.ini strong_actions2.ini strong_actions3.ini strong_actions4.ini strong_actions3_wy2.ini strong_actions3_wy4.ini carsim_python_rl_joint.ini strong_qy_only.ini strong_qy_qpsi.ini carsim_python_rl.ini magic_tire.csv)
+        execute_process(COMMAND "${GIT_EXECUTABLE}" show "5f2ece1:configs/${name}"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+            OUTPUT_FILE "${LEGACY_FIXTURES}/${name}" RESULT_VARIABLE restored)
+        if(NOT restored EQUAL 0)
+            message(FATAL_ERROR "Missing recovery commit 5f2ece1; fetch full repository history before building tests")
+        endif()
+    endforeach()
     add_executable(mpc_tests tests/verify.cpp)
     target_link_libraries(mpc_tests PRIVATE mpc_core)
     target_compile_definitions(mpc_tests PRIVATE PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    target_compile_definitions(mpc_tests PRIVATE TEST_LEGACY_CONFIG_DIR="${LEGACY_FIXTURES}")
     mpc_compile_options(mpc_tests)
     add_test(NAME mpc_numerical_and_config_tests COMMAND mpc_tests)
     if(WIN32)

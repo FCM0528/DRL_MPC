@@ -10,17 +10,19 @@ def test_three_weight_actions_keep_horizon_neutral():
     np.testing.assert_allclose(bridge_action([.2,-.3,.7],names),[0,.2,-.3,.7])
 
 
-def test_all_dimensions_share_weight_bounds_centers_and_reward():
+def test_all_dimensions_share_weight_bounds_centers_and_reward(tmp_path):
     root=Path(__file__).resolve().parents[2]/'configs'
     configs=['strong_qy_only.ini','strong_qy_qpsi.ini','strong_weights3.ini','strong_full4.ini']
     signatures=[]
     for filename in configs:
-        s=controller_policy_signature(root/filename)
+        from scenario import restore_config
+        file=root/filename if (root/filename).exists() else restore_config(filename,tmp_path/filename)
+        s=controller_policy_signature(file)
         for key in ('rl.policy_action_names','rl.policy_action_dims','rl.max_np_change_per_decision'):s.pop(key)
         signatures.append(s)
     assert all(s==signatures[0] for s in signatures)
     assert action_contract(root/'strong_weights3.ini')[0]==('q_y','q_psi','r_delta')
-    assert action_contract(root/'strong_actions3.ini')[0]==('np','q_y','q_psi')
+    assert action_contract(restore_config('strong_actions3.ini',tmp_path/'old3'))[0]==('np','q_y','q_psi')
 
 
 def test_old_three_dimensional_policy_cannot_silently_become_weight_policy(tmp_path):

@@ -10,8 +10,8 @@ from scenario import snapshot_config, resolve_config_value
 from action_mapping import action_contract
 
 PROFILES={
-    'qy1':('configs/strong_qy_only.ini',('q_y',)),
-    'weights2':('configs/strong_qy_qpsi.ini',('q_y','q_psi')),
+    'qy1':('configs/strong_weights3.ini',('q_y',)),
+    'weights2':('configs/strong_weights3.ini',('q_y','q_psi')),
     'weights3':('configs/strong_weights3.ini',('q_y','q_psi','r_delta')),
     'full4':('configs/strong_full4.ini',('np','q_y','q_psi','r_delta')),
 }
@@ -36,6 +36,11 @@ def main():
         if args.profile is None:p.error('Config has no formal research profile; retain it as historical ablation')
     if args.total_decisions<1: p.error('Positive decision budget required')
     root=Path(args.out).resolve();root.mkdir(parents=True,exist_ok=False)
+    frozen_config=snapshot_config(args.config,root/'configs')
+    if args.profile in ('qy1','weights2'):
+        from scenario import write_config_overrides
+        frozen_config=write_config_overrides(frozen_config,frozen_config.parent/'run_delta.ini',profile=args.profile)
+    args.config=str(frozen_config)
     sets=freeze_sets(args.scenario_set,root/'frozen_cases')
     blockers=[]
     if not all(sets[s] for s in ('train','validation','test')):
@@ -52,7 +57,6 @@ def main():
             blockers.append(f'Frozen control setting differs: {section}.{key}')
     for section,key,expected in [('rl','observation_profile','road_preview_joint'),('rl','weight_action_mode','continuous_weights'),('rl_reward','mode','joint_tracking')]:
         if resolve_config_value(args.config,section,key)!=expected:blockers.append(f'Frozen contract differs: {section}.{key}')
-    frozen_config=snapshot_config(args.config,root/'configs')
     if not args.baseline_proof:
         blockers.append('Dual-MPC replay proof on the frozen sets is required')
     else:

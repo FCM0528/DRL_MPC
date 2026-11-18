@@ -76,7 +76,7 @@ def main():
     p.add_argument("--algorithm", choices=ALGORITHMS, required=True)
     p.add_argument("--model", required=True, help="Python Stable-Baselines3 .zip model")
     p.add_argument("--bridge", default="out/python-rl-build/Release/MPC_RL_Bridge.exe")
-    p.add_argument("--config", default="configs/carsim_python_rl.ini")
+    p.add_argument("--config", default="configs/strong_weights3.ini")
     p.add_argument("--simfile", help="CarSim Simfile; defaults to carsim.simfile from config")
     p.add_argument("--out", help="Policy output directory")
     p.add_argument("--seed", type=int, default=42)
@@ -89,6 +89,24 @@ def main():
     print(json.dumps(run_policy(args.algorithm, args.model, args.bridge, args.config,
                                 simfile, output, args.seed, export_report=args.export_report,
                                 record_observations=args.record_observations), indent=2))
+
+
+
+class MaskedPolicy:
+    def __init__(self, policy, mask):
+        self.policy=policy
+        self.mask=np.asarray(mask,dtype=np.float32)
+        if self.mask.shape != (3,) or not np.all(np.isin(self.mask,[0,1])):
+            raise ValueError('Mask must have three binary entries in manifest action order')
+        self.action_space=policy.action_space
+        self.observation_space=policy.observation_space
+        self.requests=[]
+
+    def predict(self, obs, deterministic=True):
+        requested,state=self.policy.predict(obs,deterministic=deterministic)
+        applied=np.asarray(requested)*self.mask
+        self.requests.append(list(np.ravel(requested))+list(np.ravel(applied)))
+        return applied,state
 
 
 if __name__ == "__main__":

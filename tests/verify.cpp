@@ -98,7 +98,7 @@ void testConfig() {
             config.mpc.reference_curvature_sigma_m == 2.5 &&
             std::isinf(effectiveSteerRate(config.mpc, 95.0 / 3.6)),
             "Fixed MPC must use the CarSim wheel range without an actuator slew limit");
-    const auto rl_config = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/carsim_python_rl.ini");
+    const auto rl_config = loadConfig(std::string(TEST_LEGACY_CONFIG_DIR) + "/carsim_python_rl.ini");
     const auto& a = config.mpc;
     const auto& b = rl_config.mpc;
     require(!rl_config.stop_at_reference_end && rl_config.distance_m == config.distance_m &&
@@ -457,7 +457,7 @@ void testRlModule() {
                 "Full4 tuning must respect integer horizon and weight slew bounds");
     }
     for (const auto& item : {std::pair<const char*, int>{"strong_qy_only.ini", 1}, {"strong_qy_qpsi.ini", 2}}) {
-        const auto named = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/" + item.first);
+        const auto named = loadConfig(std::string(TEST_LEGACY_CONFIG_DIR) + "/" + item.first);
         const auto a = neutralRlAction(named.rl);
         require(named.rl.policy_action_dims == item.second && !named.rl.policy_action_names.empty() &&
                 a.np == 36 && a.q_y == 18400 && a.q_psi == 8960 && a.r_delta == 10800,
@@ -465,10 +465,10 @@ void testRlModule() {
         require(configToIni(named).find("policy_action_names = ") != std::string::npos,
                 "Effective config must retain named action metadata");
     }
-    const auto reward_base = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/strong_actions3.ini");
+    const auto reward_base = loadConfig(std::string(TEST_LEGACY_CONFIG_DIR) + "/strong_actions3.ini");
     for (int wy : {2, 4}) {
-        const auto variant = loadConfig(std::string(PROJECT_SOURCE_DIR) +
-            "/configs/strong_actions3_wy" + std::to_string(wy) + ".ini");
+        const auto variant = loadConfig(std::string(TEST_LEGACY_CONFIG_DIR) +
+            "/strong_actions3_wy" + std::to_string(wy) + ".ini");
         const auto a = neutralRlAction(variant.rl);
         const double base_reward = scalarizedRlReward(.1, .02, .01, 36,
             reward_base.mpc, reward_base.rl, 0, 36, a, a);
@@ -479,20 +479,20 @@ void testRlModule() {
             "Reward ablation must change only the weighted lateral quadratic loss");
     }
     for (int dims : {2, 3, 4}) {
-        const auto strong = loadConfig(std::string(PROJECT_SOURCE_DIR) +
-            "/configs/strong_actions" + std::to_string(dims) + ".ini");
+        const auto strong = loadConfig(std::string(TEST_LEGACY_CONFIG_DIR) +
+            "/strong_actions" + std::to_string(dims) + ".ini");
         const auto zero = neutralRlAction(strong.rl);
         require(zero.np == 36 && zero.q_y == 18400 && zero.q_psi == 8960 &&
                 zero.r_delta == 10800 && strong.mpc.nc == 13 &&
                 strong.rl.policy_action_dims == dims,
                 "Strong policy neutral action must match verified strong MPC");
     }
-    auto config = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/carsim_python_rl.ini");
+    auto config = loadConfig(std::string(TEST_LEGACY_CONFIG_DIR) + "/carsim_python_rl.ini");
     require(!config.stop_at_reference_end && config.distance_m == 120.0 &&
             config.rl.reward.tracking_v2,
             "Training must use the shared 120 m endpoint and current reward");
     const auto neutral = neutralRlAction(config.rl);
-    const auto joint_file = loadConfig(std::string(PROJECT_SOURCE_DIR) + "/configs/carsim_python_rl_joint.ini");
+    const auto joint_file = loadConfig(std::string(TEST_LEGACY_CONFIG_DIR) + "/carsim_python_rl_joint.ini");
     require(joint_file.rl.reward.mode == "joint_tracking" &&
             joint_file.rl.weight_action_mode == "continuous_weights" &&
             joint_file.rl.observation_profile == "road_preview_joint" &&

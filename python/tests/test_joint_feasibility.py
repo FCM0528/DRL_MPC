@@ -1,4 +1,4 @@
-from joint_feasibility import dominates, pareto
+from evaluate import dominates, pareto
 
 
 def test_pareto_excludes_ineligible_and_dominated_points():

@@ -4,13 +4,14 @@ import numpy as np
 import pytest
 from action_mapping import check_model_contract
 from scenario import controller_policy_signature
-from mainline_audit import quantile_summary
+from algorithms import quantile_summary
 
 
 @pytest.mark.parametrize('base,new',[('default.ini','mpc_heading_original.ini'),('mpc_strong.ini','mpc_heading_strong.ini')])
-def test_heading_experiment_changes_only_tracking_target(base,new):
+def test_heading_experiment_changes_only_tracking_target(base,new,tmp_path):
     root=Path(__file__).resolve().parents[2]/'configs'
-    old=controller_policy_signature(root/base);new=controller_policy_signature(root/new)
+    from scenario import restore_config
+    old=controller_policy_signature(root/base);new=controller_policy_signature(restore_config(new,tmp_path/'restored'))
     assert old.pop('weights.track_course')=='true'
     assert new.pop('weights.track_course')=='false'
     assert old==new

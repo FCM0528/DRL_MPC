@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from qy_mechanism import inverse_qy
-from qy_stability_report import summarize
+from action_mapping import inverse_qy
+from report import summarize
 from joint_validation import aggregate_cases
 from pathlib import Path
 
@@ -44,7 +44,7 @@ def test_hyperparameter_ablations_each_change_one_factor():
     original=load_training_settings(root/'configs/rl_training_pilot.ini')
     for name,key,value in [('td3_qy_actor_lr1e4.ini','td3_actor_learning_rate',1e-4),
                            ('td3_qy_sigma010.ini','td3_exploration_noise_sigma',.10)]:
-        actual=load_training_settings(root/'configs'/name)
+        actual=load_training_settings(root/'configs/rl_training_pilot.ini',overrides=[('td3.actor_learning_rate=0.0001' if 'actor' in name else 'td3.exploration_noise_sigma=0.10')])
         assert {k for k in original if original[k]!=actual[k]}=={key}
         assert actual[key]==value
 
