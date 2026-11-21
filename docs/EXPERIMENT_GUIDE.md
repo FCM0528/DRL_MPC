@@ -120,3 +120,29 @@ CMake自动将少量旧配置重建为out下的测试夹具，测试数值预期
 验收：Release成功、CTest 1/1；pytest107项通过（原82项完整保留，新增25项恢复/覆盖/契约测试）。原始/强MPC及三算法在65/75真实回放，横向/航向RMSE、峰值、Ay、Beta对父版证据差异<1e-9；3D/4D和生成式1D/2D全程157控制步zero-action parity通过。恢复旧1D/2D配置后真实回放仍为0.076194532m/0.900024047°与0.076485246m/0.912872472°；真实六回合切换与原seed42序列一致。统一报告离线重建成功，所有既有best/final指标逐项一致。dataset_v1、src和保留配置/轮胎数据SHA不变；本轮不训练、不访问预留test策略结果。
 
 机器证据与重建HTML在 runs/deep_slim_20261118/：before.json、retired.json、results.json、compatibility_replays.json、closed_loop_final/、parity3/4、parity_qy1/weights2、report/index.html。统计只衡量源码/配置，不把实验报告输出文件增加或转移当作代码缩减。
+## 弱起点四控制器演示
+
+该演示从 `dataset_v1` 派生独立集合。70 km/h 用于学习与同工况诊断，65/75 km/h 用于开发验证。三种速度均为 μ=0.8、120 m 双移线。原低附着 test 保留其划分。
+
+以下 PowerShell 命令使用本机 CarSim 与当前 Release 程序。输出目录应为新目录。设置 `$r` 后逐步执行并检查每步退出码。原始运行证据保存在 `runs/weak_mpc_demo_20261121`。
+
+```powershell
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$env:PYTHONDONTWRITEBYTECODE='1'
+$r='runs/weak_mpc_demo_NEW'
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --weak-search --scenario-set datasets/carsim/manifests/dataset_v1.json --out $r
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --weak-preflight $r
+$lock=Get-Content "$r/preflight/experiment_lock.json" -Raw | ConvertFrom-Json
+foreach($algo in @('ddpg','td3','tqc')){
+  uv run --no-project --with-requirements python/requirements.txt python python/train.py --algorithm $algo --config $lock.policy_config --train-config $lock.training_config --scenario-set "$r/scenario_set.json" --total-decisions 7900 --episodes 100 --seed 42 --eval-frequency 790 --joint-selection --training-only --keep-training-traces --parity-blocks 200 --out "$r/training/$algo"
+  if ($LASTEXITCODE -ne 0) { throw "Training failed for $algo" }
+}
+$a=(Get-ChildItem "$r/training/ddpg" -Directory | Select-Object -First 1).FullName
+$b=(Get-ChildItem "$r/training/td3" -Directory | Select-Object -First 1).FullName
+$c=(Get-ChildItem "$r/training/tqc" -Directory | Select-Object -First 1).FullName
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --weak-demo $r --runs $a $b $c --out "$r/replay"
+uv run --no-project --with-requirements python/requirements.txt python python/report.py --weak-demo $r --replay "$r/replay" --runs $a $b $c --out reports/weak_mpc_vs_3drl_NEW
+```
+
+实验主表统一使用开发验证选出的 best_legal，强基线仍作为 best_joint 门槛。报告以相同速度的弱 MPC 为改善率分母，final 指标和图位于补充区。已有回放时，最后一条命令即可离线重建 HTML、300 dpi PNG、矢量 PDF 和相对路径的 C++ 原始报告。报告核验实际训练预算、工况与配置哈希、检查点、源日志和回放指标。内部搜索与强基线核验位于生成目录的 `audit/`。

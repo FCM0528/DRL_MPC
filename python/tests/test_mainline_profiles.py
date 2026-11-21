@@ -1,4 +1,31 @@
 from pathlib import Path
+
+
+def test_demo_weak_config_matches_policy_centers_and_retains_reward():
+    from scenario import controller_policy_signature
+    from action_mapping import action_contract
+    config=Path(__file__).resolve().parents[2]/'configs'
+    weak=controller_policy_signature(config/'mpc_weak_demo.ini')
+    demo=controller_policy_signature(config/'demo_weak_weights3.ini')
+    strong=controller_policy_signature(config/'strong_weights3.ini')
+    assert weak=={k:v for k,v in demo.items() if not k.startswith(('rl.','rl_reward.'))}
+    assert demo['mpc.np']==(36.,)
+    assert demo['rl.align_neutral_to_mpc']=='true'
+    assert demo['rl.max_weight_ratio_per_decision']==(1.08,)
+    assert action_contract(config/'demo_weak_weights3.ini')[0]==('q_y','q_psi','r_delta')
+    for key in ('q_y','q_psi','r_delta'):
+        choices=demo['rl.'+key+'_values']
+        assert choices[0]<choices[2]<choices[-1]
+        assert choices[2]==weak['weights.'+key][0]
+    assert all(demo[key]==value for key,value in strong.items() if key.startswith('rl_reward.'))
+
+
+def test_demo_gap_ranking_uses_lateral_interval_before_heading():
+    from evaluate_dual import weak_candidate_rank
+    inside=dict(candidate=1,gap_y_percent=36.48,gap_heading_percent=3.41)
+    outside=dict(candidate=2,gap_y_percent=24.9,gap_heading_percent=17.5)
+    both=dict(candidate=3,gap_y_percent=31,gap_heading_percent=15)
+    assert sorted((outside,inside,both),key=weak_candidate_rank)==[both,inside,outside]
 import numpy as np
 import pytest
 from action_mapping import action_contract, bridge_action, check_model_contract

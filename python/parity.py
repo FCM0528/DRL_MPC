@@ -37,7 +37,7 @@ def _close(actual, expected, label, index, tolerance):
                              f"{label} {actual:.9g} != {expected:.9g}")
 
 
-def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10):
+def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10, *, require_complete=False):
     if blocks < 1:
         raise ValueError("blocks must be positive")
     output = Path(output).resolve()
@@ -71,6 +71,7 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10)
                                    "qp_failure_penalty" if tracking_v2 else "failure_penalty")
     env = CarSimMPCEnv(bridge, config, simfile, output / "bridge")
     rewards = []
+    terminated = False
     try:
         env.reset(seed=42)
         for _ in range(blocks):
@@ -82,6 +83,8 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10)
                 break
     finally:
         env.close()
+    if require_complete and not terminated:
+        raise AssertionError("Neutral parity did not reach the full reference distance")
     trace = output / "bridge" / "episode_000001" / "bridge_trace.csv"
     with trace.open(newline="", encoding="utf-8") as file:
         bridge_rows = list(csv.DictReader(file))

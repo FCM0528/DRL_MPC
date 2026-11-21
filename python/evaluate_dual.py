@@ -11,6 +11,8 @@ from scenario_sets import freeze_sets, describe_case
 from scenario import controller_policy_signature, snapshot_config
 from report import control_trace, _trace
 import numpy as np
+from itertools import product
+import os
 
 
 def check_case_contract(manifest, case, split):
@@ -46,17 +48,305 @@ def stable_legal(row):
         and np.isfinite(ay) and np.isfinite(beta) and 0<=ay<=.85*9.80665 and 0<=beta<=5)
 
 
+DEMO_GRID = dict(q_y=[3000, 5000, 7500, 9500, 11500],
+                 q_psi=[700, 1400, 2800, 5600], r_delta=[10800, 43200, 172800])
 
+
+def weak_candidate_rank(row):
+    y, heading = (float(row[f'gap_{k}_percent']) for k in ('y','heading'))
+    return (max(25-y, y-40, 0), max(10-heading, heading-25, 0),
+            abs(y-32.5), abs(heading-17.5), int(row['candidate']))
+
+
+def weak_gap_review(root):
+    """Apply the revised target to the frozen grid, with no policy inputs."""
+    from dataset_manager import read_json, sha
+    root=Path(root)
+    with (root/'candidate_metrics.csv').open(encoding='utf-8-sig',newline='') as file:
+        candidates=list(csv.DictReader(file))
+    plan=read_json(root/'search_plan.json')
+    if len(candidates)!=plan['candidate_budget']:
+        raise ValueError('Incomplete frozen candidate grid')
+    eligible=[r for r in candidates if r['eligible']=='True']
+    winner=min(eligible,key=weak_candidate_rank)
+    if int(winner['candidate'])!=read_json(root/'weak_selection.json')['candidate']:
+        raise ValueError('The accepted weak controller does not match the revised target review')
+    y,heading=(float(winner[f'gap_{k}_percent']) for k in ('y','heading'))
+    return dict(candidate=int(winner['candidate']), evaluated=len(candidates), eligible=len(eligible),
+        lateral_target=[25,40],heading_target=[10,25], lateral_gap_percent=y,heading_gap_percent=heading,
+        lateral_target_met=25<=y<=40,heading_target_met=10<=heading<=25,
+        paired_target_met=25<=y<=40 and 10<=heading<=25,
+        candidate_metrics_sha256=sha(root/'candidate_metrics.csv'),
+        ranking='Minimize lateral interval violation first, then heading interval violation, midpoint distances and grid index')
+
+
+def weak_search(dataset_path, root, controller):
+    """Freeze a 70 km/h only grid before running any CarSim candidate."""
+    from dataset_manager import load_dataset, dataset_root, digest, sha, write_json
+    from scenario import snapshot_scenario
+    dataset, cases = load_dataset(dataset_path)
+    train = [c for c in cases['train'] if c['target_speed_kmh'] == 70]
+    if len(train) != 1 or dataset['scenarios'][train[0]['scenario_id']]['road_friction'] != .8:
+        raise ValueError('Expected exactly one registered 70 km/h, mu=0.8 training scenario')
+    root = Path(root).resolve()
+    root.mkdir(parents=True, exist_ok=False)
+    plan = dict(grid=DEMO_GRID, candidate_budget=60, np=36, nc=13, split='train',
+                search_signature=train[0]['experiment_signature'], lateral_gap_percent=[25,40],heading_gap_percent=[10,25],
+                max_command_rate_rms_degps=100, max_command_rate_peak_degps=180,
+                selection='eligible only; lateral interval first, then heading interval, midpoint distances and grid index',
+                policy_checkpoint='best_legal', seed=42,total_decisions=7900,eval_frequency=790,learning_starts=550)
+    write_json(root/'search_plan.json',plan,exclusive=True)
+    derived={**dataset, 'dataset_name':'carsim_weak_mpc_demo', 'dataset_version':'weak_demo_v1',
+             'train_scenarios':[train[0]['scenario_id']], 'parent_dataset_hash':dataset['dataset_hash']}
+    ids=derived['train_scenarios']+derived['validation_scenarios']+derived['test_scenarios']
+    derived['scenarios']={key:dataset['scenarios'][key] for key in ids}
+    derived['dataset_hash']=digest({k:v for k,v in derived.items() if k not in ('dataset_hash','dataset_root')})
+    derived['dataset_root']=Path(os.path.relpath(dataset_root(dataset_path,dataset),root)).as_posix()
+    write_json(root/'scenario_set.json',derived,exclusive=True)
+    sim=snapshot_scenario(train[0],root/'source_70')
+    strong=snapshot_config('configs/mpc_strong.ini',root/'internal_configs')
+    strong_metrics=fixed_episode(controller,sim,root/'internal_strong70',strong)
+    if not stable_legal(strong_metrics):
+        raise RuntimeError('Strong MPC reference did not pass safety checks')
+    write_json(root/'internal_strong70.json',{k:str(v) if isinstance(v,Path) else v
+        for k,v in (strong_metrics | replay_diagnostics(strong_metrics['trace'])).items()},exclusive=True)
+    rows=[]
+    for index,values in enumerate(product(*DEMO_GRID.values()),1):
+        params=dict(zip(DEMO_GRID,values))
+        row=dict(candidate=index,**params,eligible=False,error='')
+        try:
+            result=fixed_episode(controller,sim,root/f'candidate_{index:02d}',strong,
+                overrides={f'weights.{k}':v for k,v in params.items()},require_complete=False)
+            row.update(result,**replay_diagnostics(result['trace']))
+            for key,metric in [('y','rmse_y_m'),('heading','rmse_heading_deg')]:
+                row[f'gap_{key}_percent']=100*(1-strong_metrics[metric]/result[metric])
+            row['eligible']=(stable_legal(result) and result['distance_m']>=120
+                and row['steering_rate_rms_degps']<=plan['max_command_rate_rms_degps']
+                and row['steering_rate_peak_degps']<=plan['max_command_rate_peak_degps'])
+        except (RuntimeError,ValueError,ZeroDivisionError) as exc:
+            row['error']=str(exc)
+        rows.append(row)
+        write_rows(root/'candidate_metrics.csv',rows)
+    chosen=min((r for r in rows if r['eligible']),key=weak_candidate_rank,default=None)
+    if chosen is None:
+        raise RuntimeError('No safe candidate within the frozen search budget')
+    locked={k:str(v) if isinstance(v,Path) else v for k,v in chosen.items()}
+    locked.update(target_met=weak_candidate_rank(chosen)[:2]==(0,0),search_plan_sha256=sha(root/'search_plan.json'),
+                  scenario_set_sha256=sha(root/'scenario_set.json'),grid_rows=len(rows))
+    write_json(root/'weak_selection.json',locked,exclusive=True)
+    return locked
+
+
+def weak_preflight(root, weak_config, policy_config, controller, bridge):
+    """Lock both configurations and check zero-action equality before learning."""
+    from dataset_manager import load_dataset, read_json, sha, write_json
+    from parity import bridge_params, check_neutral_parity
+    from scenario import snapshot_scenario
+    from train import controller_config_hashes
+    root=Path(root).resolve(strict=True)
+    selection=read_json(root/'weak_selection.json')
+    manifest=root/'scenario_set.json'
+    if sha(manifest)!=selection['scenario_set_sha256'] or sha(root/'search_plan.json')!=selection['search_plan_sha256']:
+        raise ValueError('Weak search plan or scenario set was modified')
+    output=root/'preflight'
+    output.mkdir(exist_ok=False)
+    weak=snapshot_config(weak_config,output/'weak')
+    policy=snapshot_config(policy_config,output/'policy')
+    fixed=controller_policy_signature(weak)
+    tuned=controller_policy_signature(policy)
+    if fixed!={k:v for k,v in tuned.items() if not k.startswith(('rl.','rl_reward.'))}:
+        raise ValueError('The neutral policy must share the complete weak MPC controller contract')
+    for name in DEMO_GRID:
+        if fixed[f'weights.{name}']!=(float(selection[name]),):
+            raise ValueError('Weak configuration differs from the frozen search candidate')
+    _,sets=load_dataset(manifest)
+    parities=[]
+    for case in sets['train']+sets['validation']:
+        speed=int(case['target_speed_kmh'])
+        sim=snapshot_scenario(case,output/f'case_{speed}')
+        params=bridge_params(bridge,policy,sim,output/f'params_{speed}')
+        if params['np']!=36 or any(params[k]!=selection[k] for k in DEMO_GRID):
+            raise ValueError('C++ zero-action centers do not match weak MPC')
+        parity=check_neutral_parity(bridge,controller,policy,sim,output/f'parity_{speed}',200,require_complete=True)
+        actual=fixed_episode(controller,sim,output/f'weak_{speed}',weak)
+        reference=next((output/f'parity_{speed}/fixed').glob('*/simulation.csv'))
+        a,b=control_trace(actual['trace']),control_trace(reference)
+        fields=('x_m','y_m','ey_m','epsi_rad','steer_rad','np','q_y','q_psi','r_delta','qp_failed')
+        for key in fields:
+            np.testing.assert_array_equal(a[key],b[key],err_msg=f'Weak fixed parity {speed}, {key}')
+        if not stable_legal(actual):
+            raise ValueError(f'Weak baseline failed the stability checks at {speed} km/h')
+        parities.append(dict(speed_kmh=speed,experiment_signature=case['experiment_signature'],
+            **parity,weak_metrics={k:str(v) if isinstance(v,Path) else v for k,v in actual.items()}))
+    lock=dict(weak_config=str(weak),policy_config=str(policy),parity=parities,
+        weak_config_sha256=controller_config_hashes(weak),policy_config_sha256=controller_config_hashes(policy),
+        search_plan_sha256=sha(root/'search_plan.json'),scenario_set_sha256=sha(manifest),
+        weak_selection_sha256=sha(root/'weak_selection.json'),
+        training_config=str(Path('configs/rl_training_pilot.ini').resolve()),
+        training_config_sha256=sha('configs/rl_training_pilot.ini'))
+    write_json(output/'experiment_lock.json',lock,exclusive=True)
+    return lock
+
+
+def weak_demo_sources(root, runs):
+    """Validate provenance independently of any new replay or report."""
+    from dataset_manager import load_dataset, read_json, sha
+    from train import controller_config_hashes
+    root=Path(root).resolve()
+    locked=read_json(root/'preflight/experiment_lock.json')
+    for filename in ('search_plan','scenario_set','weak_selection'):
+        if sha(root/(filename+'.json'))!=locked[filename+'_sha256']:
+            raise ValueError(f'Frozen demo input changed: {filename}')
+    dataset,sets=load_dataset(root/'scenario_set.json')
+    plan=read_json(root/'search_plan.json')
+    signatures={split:[c['experiment_signature'] for c in cases] for split,cases in sets.items()}
+    if ([c['target_speed_kmh'] for c in sets['train']] != [70] or
+            [c['target_speed_kmh'] for c in sets['validation']] != [65,75]):
+        raise ValueError('Unexpected demo case assignment')
+    if controller_config_hashes(Path(locked['weak_config']))!=locked['weak_config_sha256']:
+        raise ValueError('Weak baseline config hash changed')
+    models={}
+    for path in map(Path,runs):
+        path=path.resolve(strict=True)
+        manifest=read_json(path/'manifest.json')
+        data=manifest['training_data']
+        algorithm=manifest['algorithm']
+        exposure=data['exposure_by_scenario']
+        recorded={split:[c['experiment_signature'] for c in cases] for split,cases in manifest['scenario_sets'].items()}
+        if (algorithm not in ALGORITHMS or algorithm in models or manifest['seed']!=plan['seed'] or
+            manifest['dataset']['dataset_hash']!=dataset['dataset_hash'] or recorded!=signatures or
+            manifest['eval_frequency']!=plan['eval_frequency'] or data['warmup_decisions']!=plan['learning_starts'] or
+            data['collected_decisions']!=plan['total_decisions'] or data['initial_replay_decisions']!=0 or
+            data['final_replay_decisions']!=plan['total_decisions'] or data['source']!='online_carsim_closed_loop' or
+            data['weights_initialization']!='random' or manifest.get('resume') or
+            data['replay_prefilled'] or data['synthetic_rollouts'] or data['fixed_mpc_labels'] or
+            data['validation_used_for_updates'] or not manifest['keep_training_traces'] or
+            set(exposure)!=set(dataset['train_scenarios']) or sum(c['decisions'] for c in exposure.values())!=plan['total_decisions']):
+            raise ValueError(f'Unexpected training design or sample provenance: {path}')
+        config=Path(manifest['frozen_config'])
+        if (controller_config_hashes(config)!=locked['policy_config_sha256'] or
+            manifest['controller_config_sha256']!=locked['policy_config_sha256'] or
+            sha(path/'source_training.ini')!=locked['training_config_sha256'] or
+            manifest['training_config_sha256']!=locked['training_config_sha256'] or
+            manifest['policy_action_names']!=['q_y','q_psi','r_delta'] or manifest['observation_dim']!=20):
+            raise ValueError(f'Training controller or optimizer hash mismatch: {path}')
+        selection=read_json(path/'checkpoint_selection.json')
+        best=Path(selection['best_legal']) if selection['best_legal'] else None
+        periodic=[r for r in selection['checkpoints'] if not r['diagnostic_only']]
+        steps=list(range(plan['eval_frequency'],plan['total_decisions']+1,plan['eval_frequency']))
+        for row in selection['checkpoints']:
+            if sha(row['checkpoint'])!=row['checkpoint_sha256']:
+                raise ValueError(f'Checkpoint hash mismatch: {row["checkpoint"]}')
+        if ([Path(r['checkpoint']).stem for r in periodic]!=[f'joint_{i}_steps' for i in steps] or
+                [s['experiment_signature'] for s in selection['validation_cases']]!=signatures['validation']):
+            raise ValueError(f'Incomplete or mismatched validation history: {path}')
+        legal=[r for r in periodic if r['legal']]
+        if not legal or best!=Path(max(legal,key=lambda r:r['score'])['checkpoint']):
+            raise ValueError(f'No valid preselected best_legal checkpoint: {path}')
+        qualified=[r for r in legal if r['strong_dual']]
+        joint=max(qualified,key=lambda r:r['score']) if qualified else None
+        if (bool(joint)!=selection['qualified'] or (joint and (
+                joint['checkpoint']!=selection['selected'] or
+                sha(path/'best_joint_model.zip')!=joint['checkpoint_sha256']))):
+            raise ValueError(f'Strong baseline gate inconsistent: {path}')
+        paths={'best':path/'best_legal_model.zip','final':path/'final_model.zip'}
+        hashes={kind:sha(model) for kind,model in paths.items()}
+        if hashes['best']!=sha(best):
+            raise ValueError(f'Best model differs from its selected checkpoint: {path}')
+        logs={name:sha(path/name) for name in ('manifest.json','checkpoint_selection.json','joint_validation.csv',
+            'train_monitor.csv','training_logs/progress.csv')}
+        models[algorithm]=dict(run=str(path),config=str(config),models={k:str(v) for k,v in paths.items()},
+            model_sha256=hashes,best_checkpoint=best.name,best_joint=selection['qualified'],
+            selection_reason=selection['reason'],source_log_sha256=logs,exposure=exposure,
+            collected_decisions=data['collected_decisions'],gradient_updates=data['gradient_updates'])
+    if set(models)!=set(ALGORITHMS):
+        raise ValueError('Exactly one fresh completed run per algorithm is required')
+    return locked,dataset,sets,models
+
+
+def replay_weak_demo(root, runs, output, controller, bridge):
+    from dataset_manager import sha, write_json
+    from scenario import snapshot_scenario, read_scenario
+    locked,dataset,sets,models=weak_demo_sources(root,runs)
+    output=Path(output).resolve()
+    output.mkdir(parents=True,exist_ok=False)
+    audit=output/'audit'
+    audit.mkdir()
+    write_json(audit/'gap_review.json',weak_gap_review(root),exclusive=True)
+    rows=[]
+    strong_rows=[]
+    for split in ('train','validation'):
+        for case in sets[split]:
+            speed=int(case['target_speed_kmh'])
+            work=output/f'case_{speed}'
+            sim=snapshot_scenario(case,work/'source')
+            source=read_scenario(sim)
+            fixed=fixed_episode(controller,sim,work/'weak_mpc',locked['weak_config'],require_complete=False)
+            strong=fixed_episode(controller,sim,audit/f'strong_{speed}',
+                                 Path(root)/'internal_configs/mpc_strong.ini',require_complete=False)
+            if not stable_legal(strong):
+                raise ValueError(f'Internal reference did not pass safety checks at {speed} km/h')
+            common=dict(speed_kmh=speed,split=split,experiment_signature=case['experiment_signature'],
+                        parsfile_sha256=case['parsfile_sha256'], replay_simfile=str(sim),
+                        replay_simfile_sha256=source['simfile_sha256'])
+            runs_by_case=[('weak_mpc','fixed',fixed,None,{})]
+            for algorithm,item in models.items():
+                for kind,model_path in item['models'].items():
+                    replay=run_policy(algorithm,model_path,bridge,item['config'],sim,work/f'{algorithm}_{kind}',
+                                      seed=42,export_report=True)
+                    result=dict(terminated=replay['terminated'],truncated=replay['truncated'],failed=replay['failed'],
+                        return_=replay['return'],decisions=replay['decisions'],
+                        **_tracking_metrics(replay['trace']))
+                    timing={k:replay[k] for k in ('policy_inference_mean_ms','policy_inference_p95_ms')}
+                    runs_by_case.append((algorithm,kind,result,item['model_sha256'][kind],timing))
+            for label,kind,metrics,model_hash,timing in runs_by_case:
+                trace=Path(metrics['trace'])
+                diagnostics=replay_diagnostics(trace)
+                rows.append(dict(**common,controller=label,kind=kind,model_sha256=model_hash,
+                    legal=stable_legal(metrics),**metrics,**diagnostics,**timing,
+                    iy_percent=100*(1-metrics['rmse_y_m']/fixed['rmse_y_m']),
+                    iheading_percent=100*(1-metrics['rmse_heading_deg']/fixed['rmse_heading_deg']),
+                    trace_sha256=sha(trace),simulation_sha256=sha(trace.with_name('simulation.csv')),
+                    cpp_report_sha256=sha(trace.with_name('report.html'))))
+                strong_rows.append(dict(**common,controller=label,kind=kind,
+                    rmse_y_m=metrics['rmse_y_m'],rmse_heading_deg=metrics['rmse_heading_deg'],
+                    strong_rmse_y_m=strong['rmse_y_m'],strong_rmse_heading_deg=strong['rmse_heading_deg'],
+                    iy_percent=100*(1-metrics['rmse_y_m']/strong['rmse_y_m']),
+                    iheading_percent=100*(1-metrics['rmse_heading_deg']/strong['rmse_heading_deg']),
+                    strong_trace=str(strong['trace']),strong_trace_sha256=sha(strong['trace'])))
+            write_rows(output/'replay_metrics.csv',rows)
+            write_rows(audit/'relative_to_strong.csv',strong_rows)
+    write_json(output/'replay_lock.json',dict(dataset_hash=dataset['dataset_hash'],models=models,
+        replay_metrics_sha256=sha(output/'replay_metrics.csv')),exclusive=True)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--lock',required=True,help='JSON list: algorithm, model, sha256, config')
-    p.add_argument('--scenario-set',required=True)
-    p.add_argument('--out',required=True)
+    p.add_argument('--lock',help='JSON list: algorithm, model, sha256, config')
+    p.add_argument('--weak-search',action='store_true',help='Run the frozen weak-baseline candidate search')
+    p.add_argument('--weak-preflight',type=Path,metavar='SEARCH_DIR')
+    p.add_argument('--weak-demo',type=Path,metavar='SEARCH_DIR',help='Replay best and final demo models on 70/65/75')
+    p.add_argument('--runs',nargs='+',type=Path)
+    p.add_argument('--scenario-set')
+    p.add_argument('--out')
     p.add_argument('--split',choices=['validation','test'],default='test',help='Default preserves held-out test behavior; validation never evaluates test cases')
     p.add_argument('--controller',default='out/python-rl-build/Release/MPC_DoubleLaneChange.exe')
     p.add_argument('--bridge',default='out/python-rl-build/Release/MPC_RL_Bridge.exe')
     args=p.parse_args()
+    if args.weak_preflight:
+        weak_preflight(args.weak_preflight,'configs/mpc_weak_demo.ini','configs/demo_weak_weights3.ini',args.controller,args.bridge)
+        return
+    if args.weak_demo:
+        if not args.runs or not args.out:
+            p.error('--weak-demo requires --runs and a new --out directory')
+        replay_weak_demo(args.weak_demo,args.runs,args.out,args.controller,args.bridge)
+        return
+    if not args.scenario_set or not args.out:
+        p.error('--scenario-set and --out are required')
+    if args.weak_search:
+        weak_search(args.scenario_set,args.out,args.controller)
+        return
+    if not args.lock:
+        p.error('--lock is required for locked policy evaluation')
     root=Path(args.out).resolve();root.mkdir(parents=True,exist_ok=False)
     sets=freeze_sets(args.scenario_set,root/'cases')
     if not sets[args.split]: p.error(f'A real {args.split} set is required')

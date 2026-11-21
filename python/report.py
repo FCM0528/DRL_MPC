@@ -612,10 +612,269 @@ def build_overview(output, runs, dataset_manifest):
     return output/'index.html'
 
 
+def render_weak_demo(experiment, replay, runs, output):
+    """Rebuild the four-controller report from locked offline replay and training evidence."""
+    import shutil
+    from dataset_manager import read_json, sha, write_json
+    from evaluate import _tracking_metrics, write_rows
+    from evaluate_dual import weak_demo_sources, weak_gap_review
+    from paper_style import configure, demo_line, DEMO_STYLE, finish
+
+    def csv_rows(path, monitor=False):
+        with Path(path).open(encoding='utf-8-sig',newline='') as file:
+            if monitor and not file.readline().startswith('#'):
+                raise ValueError(f'Invalid SB3 Monitor header: {path}')
+            return list(csv.DictReader(file))
+
+    experiment,replay,output=(Path(p).resolve() for p in (experiment,replay,output))
+    lock,dataset,sets,models=weak_demo_sources(experiment,runs)
+    replay_lock=read_json(replay/'replay_lock.json')
+    if (replay_lock['dataset_hash']!=dataset['dataset_hash'] or replay_lock['models']!=models or
+        sha(replay/'replay_metrics.csv')!=replay_lock['replay_metrics_sha256']):
+        raise ValueError('Replay manifest, frozen models or metrics hash mismatch')
+    rows=csv_rows(replay/'replay_metrics.csv')
+    controls=('weak_mpc','ddpg','td3','tqc')
+    speeds=(70,65,75)
+    cases={int(case['target_speed_kmh']):dict(case,split=split)
+           for split in ('train','validation') for case in sets[split]}
+    wanted={(str(speed),controller,kind) for speed in speeds for controller in controls
+            for kind in (('fixed',) if controller=='weak_mpc' else ('best','final'))}
+    rows_by_key={(r['speed_kmh'],r['controller'],r['kind']):r for r in rows}
+    if set(rows_by_key)!=wanted or len(rows)!=len(wanted):
+        raise ValueError('Expected three speeds, one fixed and six unique policy replays per speed')
+    columns={
+        'rmse_y_m':'Lateral RMSE (m)', 'rmse_heading_deg':'Heading RMSE (°)',
+        'iy_percent':'Iy (%)', 'iheading_percent':'Iheading (%)',
+        'rmse_course_deg':'Course RMSE (°)', 'peak_y_m':'Peak lateral error (m)',
+        'peak_heading_deg':'Peak heading error (°)', 'peak_measured_ay_mps2':'Peak Ay (m/s²)',
+        'peak_measured_beta_deg':'Peak |β| (°)', 'steering_rate_rms_degps':'Command rate RMS (°/s)',
+        'qp_failures':'QP failures', 'terminated':'Reached end', 'legal':'Safety passed',
+        'mpc_solve_mean_ms':'Solve mean (ms)', 'policy_inference_mean_ms':'Inference mean (ms)',
+    }
+    from evaluate_dual import replay_diagnostics
+    from scenario_sets import describe_case
+    source_cache={}
+    for row in rows:
+        speed=int(row['speed_kmh']);case=cases[speed];policy=models.get(row['controller'])
+        if (case['experiment_signature']!=row['experiment_signature'] or
+            case['parsfile_sha256']!=row['parsfile_sha256'] or row['split']!=case['split'] or
+            (policy and policy['model_sha256'][row['kind']]!=row['model_sha256'])):
+            raise ValueError('Replay case, split, or model identity mismatch')
+        trace=Path(row['trace'])
+        sim=row['replay_simfile']
+        if sim not in source_cache:
+            source_cache[sim]=describe_case(sim)
+        source=source_cache[sim]
+        if (source['experiment_signature']!=case['experiment_signature'] or
+            source['parsfile_sha256']!=row['parsfile_sha256'] or
+            source['simfile_sha256']!=row['replay_simfile_sha256']):
+            raise ValueError(f'Frozen replay scenario changed: {sim}')
+        for source,key in ((trace,'trace_sha256'),(trace.with_name('simulation.csv'),'simulation_sha256'),
+                           (trace.with_name('report.html'),'cpp_report_sha256')):
+            if sha(source)!=row[key]:
+                raise ValueError(f'Replay source changed: {source}')
+        calculated=_tracking_metrics(trace)|replay_diagnostics(trace)
+        for key in columns.keys() & calculated.keys():
+            if not np.isclose(float(row[key]),calculated[key],rtol=0,atol=1e-10):
+                raise ValueError(f'Metric mismatch or unexpected units: {key} in {trace}')
+        weak=rows_by_key[(str(speed),'weak_mpc','fixed')]
+        for key,metric in [('iy_percent','rmse_y_m'),('iheading_percent','rmse_heading_deg')]:
+            expected=100*(1-float(row[metric])/float(weak[metric]))
+            if not np.isclose(float(row[key]),expected,rtol=0,atol=1e-10):
+                raise ValueError(f'Relative improvement does not use the same-case weak baseline: {trace}')
+    gap=weak_gap_review(experiment)
+    if gap!=read_json(replay/'audit/gap_review.json'):
+        raise ValueError('Internal audit differs from the revised gap review')
+    for algorithm,item in models.items():
+        source=csv_rows(Path(item['run'])/'joint_validation.csv')
+        for i,speed in enumerate((65,75)):
+            for kind in ('best','final'):
+                checkpoint=item['best_checkpoint'] if kind=='best' else 'final_model.zip'
+                matches=[r for r in source if Path(r['checkpoint']).name==checkpoint and r['case']==str(i)]
+                row=rows_by_key[(str(speed),algorithm,kind)]
+                if len(matches)!=1 or any(not np.isclose(float(matches[0][key]),float(row[key]),rtol=0,atol=1e-9)
+                        for key in ('rmse_y_m','rmse_heading_deg','peak_y_m','peak_heading_deg','qp_failures')):
+                    raise ValueError(f'Deterministic replay differs from validation: {algorithm} {kind} at {speed} km/h')
+    output.mkdir(parents=True,exist_ok=False)
+    figures=output/'figures'
+    figures.mkdir()
+    audit=output/'audit'
+    shutil.copytree(replay/'audit',audit)
+    for name in ('search_plan.json','candidate_metrics.csv','internal_strong70.json','weak_selection.json','scenario_set.json'):
+        shutil.copy2(experiment/name,audit/name)
+    shutil.copy2(experiment/'preflight/experiment_lock.json',audit/'experiment_lock.json')
+    write_rows(output/'metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']!='final'])
+    write_rows(output/'final_metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']=='final'])
+    write_json(output/'summary.json',dict(dataset_hash=dataset['dataset_hash'],parent_dataset_hash=dataset['parent_dataset_hash'],
+        scope='Train-case demonstration at 70 km/h; development validation at 65 and 75 km/h',
+        seed=42,decision_budget=7900,models=models,revised_gap_review=gap,unit_labels=columns,
+        controller_config_sha256=lock['policy_config_sha256'],replay_metrics_sha256=replay_lock['replay_metrics_sha256'],
+        source_replay=str(replay)),exclusive=True)
+    configure()
+    section_figures={}
+
+    def draw(name, panels, section, xlabel, labels=None):
+        fig,axes=plt.subplots(len(panels),1,figsize=(7.15,1.88*len(panels)+.7),squeeze=False,sharex=True)
+        handles={}
+        for ax,(ylabel,series) in zip(axes[:,0],panels):
+            for controller,x,y in series:
+                demo_line(ax,controller,x,y)
+                handles[controller]=ax.lines[-1]
+            ax.set_ylabel(ylabel)
+            ax.grid(alpha=.2)
+            if labels:
+                ax.set_xticks(range(len(labels)),labels)
+        axes[-1,0].set_xlabel(xlabel)
+        fig.tight_layout(rect=(0,0,1,1-.4/fig.get_figheight()))
+        fig.legend(handles.values(),[DEMO_STYLE[key][0] for key in handles],loc='upper center',
+                   ncol=min(5,len(handles)),frameon=False,fontsize=9)
+        # Save with the layout above so the legend occupies its own band.
+        finish(fig,figures/name,dpi=300,layout=False)
+        section_figures.setdefault(section,[]).append(name)
+
+    for speed in speeds:
+        data={key:control_trace(rows_by_key[(str(speed),key,'fixed' if key=='weak_mpc' else 'best')]['trace'])
+              for key in controls}
+        def panel(label, field, scale=1):
+            return label,[(k,d['x_m'],d[field]*scale) for k,d in data.items()]
+        section=f'{speed} km/h · '+('同工况诊断' if speed==70 else '开发验证')
+        reference=data['weak_mpc']
+        track=panel('Y (m)','y_m')
+        track[1].insert(0,('reference',reference['x_m'],reference['y_m']-reference['ey_m']))
+        station=reference['x_m']
+        delta_series=[]
+        for key,trace in data.items():
+            x=trace['x_m']
+            if np.any(np.diff(x)<=0):
+                raise ValueError(f'Cannot align trajectories on non-increasing X: {speed} km/h, {key}')
+            overlap=(station>=x[0])&(station<=x[-1])
+            delta_series.append((key,station[overlap],np.interp(station[overlap],x,trace['y_m'])-reference['y_m'][overlap]))
+        delta=('Lateral position vs weak (m)',delta_series)
+        draw(f'trajectory_{speed}',[track,delta],section,'X (m)')
+        course=('Course error (°)',[(k,d['x_m'],np.rad2deg(np.angle(np.exp(1j*(d['epsi_rad']+d['sideslip_rad'])))))
+                                    for k,d in data.items()])
+        draw(f'errors_{speed}',[panel('Lateral error (m)','ey_m'),panel('Heading error (°)','epsi_rad',180/np.pi),course],
+             section,'X (m)')
+        steer_rate=('Command rate (°/s)',[(k,d['x_m'][1:],np.rad2deg(np.diff(d['steer_rad'])/np.diff(d['time_s'])))
+                                         for k,d in data.items()])
+        draw(f'vehicle_{speed}',[panel('Front wheel angle (°)','actual_steer_rad',180/np.pi),steer_rate,
+            panel('Lateral acceleration (m/s²)','body_ay_mps2'),panel('Sideslip angle (°)','measured_beta_rad',180/np.pi)],
+            section,'X (m)')
+        draw(f'weights_{speed}',[panel('Qy','q_y'),panel('Qpsi','q_psi'),panel('Rdelta','r_delta')],section,'X (m)')
+
+    logs={key:(csv_rows(Path(item['run'])/'train_monitor.csv',True),
+               csv_rows(Path(item['run'])/'training_logs/progress.csv'),
+               csv_rows(Path(item['run'])/'joint_validation.csv')) for key,item in models.items()}
+    raw=[];smooth=[]
+    for key,(monitor,_,_) in logs.items():
+        x=np.cumsum([int(r['l']) for r in monitor]); y=np.array([float(r['r']) for r in monitor])
+        if len(y)<10 or x[-1]!=7900:
+            raise ValueError(f'Incomplete episode return log: {key}')
+        raw.append((key,x,y))
+        smooth.append((key,x[9:],np.convolve(y,np.ones(10)/10,mode='valid')))
+    draw('episode_return',[('Raw episode return',raw),('Episode return (10-episode mean)',smooth)],'训练过程','Training decisions')
+
+    def progress_series(key,metric):
+        pairs=[(int(r['time/total_timesteps']),float(r[metric])) for r in logs[key][1] if r.get(metric)]
+        if not pairs or not np.isfinite(pairs).all():
+            raise ValueError(f'Missing or invalid {key} log series: {metric}')
+        return key,*zip(*pairs)
+    draw('optimizer_loss',[(f'{label} loss',[progress_series(k,'train/'+label.lower()+'_loss') for k in logs])
+                           for label in ('Actor','Critic')],'训练过程','Training decisions')
+    draw('entropy',[('Entropy coefficient',[progress_series('tqc','train/ent_coef')])],'训练过程','Training decisions')
+    for i,speed in enumerate((65,75)):
+        panels=[]
+        for metric in ('rmse_y_m','rmse_heading_deg'):
+            series=[]
+            for key,(_,_,validation) in logs.items():
+                group=[r for r in validation if r['case']==str(i) and r['diagnostic_only']=='False']
+                series.append((key,[int(Path(r['checkpoint']).stem.split('_')[1]) for r in group],
+                               [float(r[metric]) for r in group]))
+            panels.append((columns[metric],series))
+        draw(f'validation_{speed}',panels,'训练过程','Training decisions')
+    main_rows=[r for r in rows if r['kind']!='final']
+    summary_panels=[]
+    ordered_speeds=sorted(speeds)
+    for metric in ('rmse_y_m','rmse_heading_deg','iy_percent','iheading_percent'):
+        summary_panels.append((columns[metric],[(k,list(range(3)),[float(next(r[metric] for r in main_rows
+            if r['controller']==k and int(r['speed_kmh'])==s)) for s in ordered_speeds]) for k in controls]))
+    draw('cross_speed',summary_panels,'跨速度指标','Scenario speed (km/h)',list(map(str,ordered_speeds)))
+    for speed in speeds:
+        draw(f'best_final_{speed}',[(columns[metric],[(k,[0,1],[float(rows_by_key[(str(speed),k,kind)][metric])
+            for kind in ('best','final')]) for k in logs]) for metric in ('rmse_y_m','rmse_heading_deg')],
+             '最终模型补充诊断','Checkpoint',['Selected best legal','Final'])
+
+    esc=html.escape
+    def table(items):
+        headings=('Speed (km/h)','Controller',*columns.values())
+        body=[]
+        for row in items:
+            cells=[row['speed_kmh'],DEMO_STYLE[row['controller']][0]]
+            for key in columns:
+                v=row.get(key,'')
+                cells.append(v if key in ('legal','terminated','qp_failures') else f'{float(v):.6g}' if v else '—')
+            body.append('<tr>'+''.join(f'<td>{esc(v)}</td>' for v in cells)+'</tr>')
+        header=''.join(f'<th>{esc(h)}</th>' for h in headings)
+        return f'<div class="table"><table><thead><tr>{header}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
+
+    links=[]
+    for row in rows:
+        folder=Path('cpp_reports')/row['speed_kmh']/(row['controller']+'_'+row['kind'])
+        shutil.copytree(Path(row['trace']).parent,output/folder)
+        label=f"{row['speed_kmh']} km/h · {DEMO_STYLE[row['controller']][0]} · {row['kind']}"
+        links.append(f'<li><a href="{(folder/"report.html").as_posix()}">{esc(label)}</a></li>')
+    sections=[]
+    figure_titles={'trajectory':'参考轨迹、实际轨迹与相对弱 MPC 的横向位置差',
+        'errors':'横向、车身航向与航迹角误差','vehicle':'前轮转角、转向速率、Ay 与侧偏角',
+        'weights':'实际执行的 Qy、Qpsi 和 Rdelta','episode_return':'完整回合原始回报与 10 回合滑动平均',
+        'optimizer_loss':'Actor 与 Critic 损失','entropy':'TQC 熵系数','validation':'周期检查点验证 RMSE',
+        'cross_speed':'各速度 RMSE 与相对弱 MPC 改善率','best_final':'最佳合法检查点与最终模型'}
+    for title in ('训练过程',*(f'{s} km/h · '+('同工况诊断' if s==70 else '开发验证') for s in speeds),
+                  '跨速度指标','最终模型补充诊断'):
+        cards=[]
+        for name in section_figures[title]:
+            stem,_,speed=name.rpartition('_')
+            caption=figure_titles[stem]+f' · {speed} km/h' if speed.isdecimal() else figure_titles[name]
+            cards.append(f'<figure><img src="figures/{name}.png" alt="{esc(caption)}" loading="lazy">'
+                         f'<figcaption>{esc(caption)} · <a href="figures/{name}.pdf">矢量 PDF</a></figcaption></figure>')
+        cards=''.join(cards)
+        if title=='训练过程':
+            cards='<p>Episode Return 为一个完整回合内决策奖励之和。横轴为完整回合结束时的累计决策数。损失来自各算法各自的优化目标。</p>'+cards
+        if title=='最终模型补充诊断':
+            cards=f'<details><summary>查看 final 指标与 best/final 对照</summary>{table([r for r in rows if r["kind"]=="final"])}{cards}</details>'
+        sections.append(f'<section><h2>{esc(title)}</h2>{cards}</section>')
+    selected=read_json(experiment/'weak_selection.json')
+    model_list=''.join(f'<li>{DEMO_STYLE[k][0]} · {esc(v["best_checkpoint"])} · '
+                       f'{esc(v["model_sha256"]["best"][:12])} · '
+                       f'联合门槛{"通过" if v["best_joint"] else "未通过"}</li>' for k,v in models.items())
+    page=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>弱 MPC 与三种 DRL-MPC</title><link rel="icon" href="data:,">
+<style>body{{font:16px "Times New Roman",SimHei,serif;max-width:1100px;margin:36px auto;padding:0 20px;color:#222;background:#fff}}
+h1,h2,summary{{font-family:"Times New Roman",SimHei,serif}} section{{border-top:1px solid #ccc;margin:24px 0;padding-top:12px}} nav a{{margin-right:1em}} a{{color:#254571}}
+figure{{margin:1.4em auto;max-width:840px}} img{{width:100%;height:auto}} figcaption{{text-align:center}}
+.table{{overflow:auto}} table{{border-collapse:collapse;white-space:nowrap}} td,th{{padding:8px 10px;border-bottom:1px solid #ddd;text-align:right}} td:nth-child(2),th:nth-child(2){{text-align:left}}</style></head>
+<body><h1>弱 MPC 与三种 DRL-MPC</h1>
+<p>CarSim 120 m 双移线，μ=0.8。70 km/h 用于训练与同工况诊断。65、75 km/h 用于开发验证和检查点选择。</p>
+<p>Seed 42，每算法 7900 决策，550 决策预热。观测 20 维，决策周期 0.08 s，MPC 周期 0.04 s。主表统一使用开发验证选出的 best_legal。结论限于本次单种子、同参考轨迹的速度对比。</p>
+<nav><a href="#metrics">四控制器指标</a><a href="#native">C++ 详细报告</a><a href="metrics.csv">指标 CSV</a><a href="summary.json">模型与数据来源</a></nav>
+<section><h2>弱基线与中性起点</h2><p>Np=36，Nc=13，Qy={selected['q_y']}，Qpsi={selected['q_psi']}，Rdelta={selected['r_delta']}。
+三种速度均通过全程零动作一致性。内部参考的横向差距为 {gap['lateral_gap_percent']:.2f}%（目标 25%–40%），航向差距为 {gap['heading_gap_percent']:.2f}%（目标约 10%–25%）。
+候选搜索预算 {gap['evaluated']}，安全及转向筛选通过 {gap['eligible']} 组。横向目标{'达成' if gap['lateral_target_met'] else '未达成'}，航向目标{'达成' if gap['heading_target_met'] else '未达成'}。</p><ul>{model_list}</ul></section>
+<section id="metrics"><h2>四控制器指标</h2><p>横向误差为 Y−Yref(X)。航向为车身角差，航迹角加入侧偏。转向速率取命令相邻采样差；前轮角图使用实测平均前轮角。
+改善率以相同速度弱 MPC 的 RMSE 为分母。求解和推理耗时为本机实测。</p>{table(main_rows)}</section>
+{''.join(sections)}
+<section id="native"><h2>C++ 详细报告</h2><details><summary>展开原始控制与求解记录</summary><ul>{''.join(links)}</ul></details></section>
+</body></html>'''
+    (output/'index.html').write_text(page,encoding='utf-8')
+    return output/'index.html'
+
+
 def main():
     parser = argparse.ArgumentParser(description="Rebuild training and comparison charts")
     parser.add_argument("evaluation_dir", type=Path, nargs="?")
     parser.add_argument("--runs", nargs="+", type=Path, help="Completed online runs; offline all-validation overview")
+    parser.add_argument('--weak-demo',type=Path,metavar='EXPERIMENT')
+    parser.add_argument('--replay',type=Path,help='Saved weak-demo replay directory')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
     parser.add_argument('--reference-models',type=Path)
@@ -623,6 +882,11 @@ def main():
     parser.add_argument('--out',type=Path,help='New figure directory for locked validation')
     parser.add_argument('--case',type=int,default=0)
     args = parser.parse_args()
+    if args.weak_demo:
+        if not (args.replay and args.runs and args.out):
+            parser.error('--weak-demo requires --replay, --runs, and --out')
+        print(render_weak_demo(args.weak_demo,args.replay,args.runs,args.out))
+        return
     if args.runs:
         if not args.out: parser.error("--runs requires a new --out directory")
         from dataset_manager import write_summary

@@ -16,5 +16,25 @@ def configure():
                          'pdf.fonttype':42,'ps.fonttype':42,'figure.dpi':140})
 
 
-def finish(fig,path):
-    fig.tight_layout();fig.savefig(str(path)+'.png',dpi=200);fig.savefig(str(path)+'.pdf');plt.close(fig)
+def finish(fig, path, *, dpi=200, layout=True):
+    if layout:
+        fig.tight_layout()
+    fig.savefig(str(path)+'.png', dpi=dpi, facecolor='white')
+    fig.savefig(str(path)+'.pdf', facecolor='white')
+    plt.close(fig)
+
+
+DEMO_STYLE = {
+    'reference': ('Reference', '#888888', '-', None, 1.6),
+    'weak_mpc': ('Weak MPC', '#222222', '-', None, 1.5),
+    'ddpg': ('DDPG-MPC', '#2563EB', '--', 'o', 1.2),
+    'td3': ('TD3-MPC', '#EA580C', '-.', 's', 1.2),
+    'tqc': ('TQC-MPC', '#9333EA', (0, (2, 2)), '^', 1.2),
+}
+
+
+def demo_line(ax, controller, x, y, *, suffix=''):
+    label, color, linestyle, marker, width = DEMO_STYLE[controller]
+    ax.plot(x, y, color=color, ls=linestyle, lw=width, marker=marker, mfc='white',
+            ms=3.2, mew=.8, markevery=max(1, min(15, len(x)//8)),
+            label=label+suffix)

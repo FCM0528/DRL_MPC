@@ -24,3 +24,5 @@
 
 # Current refactor intermediate preview (final report is tracked separately).
 /reports/refactor_20261118/
+# Generated demo reports contain local CarSim solver output.
+/reports/weak_mpc_vs_3drl_*/
