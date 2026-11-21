@@ -112,3 +112,59 @@ def test_development_rankings_keep_objectives_separate_and_exclude_final_and_tra
     assert ranks['policies']['ddpg']['worst_speed_kmh']==75
     assert not ranks['policies']['ddpg']['full_dual_improvement']
     assert ranks['policies']['tqc']['full_dual_improvement']
+
+
+def test_weak_full4_delta_keeps_weights_controller_and_reward(tmp_path):
+    from action_mapping import BRIDGE_NAMES
+    from scenario import snapshot_config,write_config_overrides
+
+    config=Path(__file__).resolve().parents[2]/'configs/demo_weak_weights3.ini'
+    base=snapshot_config(config,tmp_path/'policy')
+    policy=write_config_overrides(base,base.parent/'run_delta.ini',profile='full4')
+    frozen=controller_policy_signature(base)
+    full4=controller_policy_signature(policy)
+    assert action_contract(policy)==(BRIDGE_NAMES,'named_actions_v1')
+    np.testing.assert_equal(bridge_action([.1,.2,.3,.4],BRIDGE_NAMES),[.1,.2,.3,.4])
+    assert {k for k,v in full4.items() if frozen.get(k)!=v}=={
+        'rl.policy_action_dims','rl.policy_action_names','rl.max_np_change_per_decision'}
+    assert full4['mpc.np']==(36.,)
+    assert full4['mpc.nc']==(13.,)
+    assert full4['rl.min_np']==(28.,)
+    assert full4['rl.max_np']==(44.,)
+    assert full4['rl.max_np_change_per_decision']==(2.,)
+    assert full4['rl_reward.w_np_change']==(.002,)
+
+
+def test_horizon_audit_checks_integer_slew_and_real_weight_limits():
+    from evaluate_dual import full4_horizon
+
+    contract={'rl.min_np':(28,),'rl.max_np':(44,),'mpc.np':(36,),
+        'rl.decision_steps':(2,),'rl.max_np_change_per_decision':(2,),
+        'rl.max_weight_ratio_per_decision':(1.08,)}
+    data=dict(np=np.array([38.,38.,36.,36.,34.]),target_np=np.array([44.,44.,28.,28.,28.]),
+              action_np_normalized=np.array([1.,1.,-1.,-1.,-1.]))
+    for key,center in [('q_y',3000.),('q_psi',700.),('r_delta',172800.)]:
+        contract['rl.'+key+'_values']=(center/2,center,center*2)
+        data[key]=np.repeat(center,5)
+        data['target_'+key]=np.repeat(center,5)
+        data['action_'+key+'_normalized']=np.zeros(5)
+    assert full4_horizon(data,contract)['np_slew_limited_fraction']==1.
+    with pytest.raises(ValueError,match='horizon'):
+        full4_horizon(dict(data,np=np.array([39.,39.,36.,36.,34.])),contract)
+    with pytest.raises(ValueError,match='Weight'):
+        full4_horizon(dict(data,q_y=np.array([3400.,3400.,3000.,3000.,3000.])),contract)
+
+
+def test_episode_axis_uses_irregular_physical_episode_end_boundaries(tmp_path):
+    from report import training_episode_axis
+
+    monitor=[dict(l='5',r='-2'),dict(l='2',r='-3'),dict(l='9',r='-1')]
+    progress=[{'time/total_timesteps':str(step),'train/actor_loss':'1'} for step in (1,5,6,7,15)]
+    validation=[dict(checkpoint=name,diagnostic_only=flag,case='0',rmse_y_m='0.1',rmse_heading_deg='1.0')
+                for name,flag in [('joint_6_steps.zip','False'),('final_model.zip','True')]]
+    rows=training_episode_axis('tqc',monitor,progress,validation,tmp_path)
+    assert [r['completed_episode'] for r in rows if r['metric']=='return']==[1,2,3]
+    assert [r['completed_episode'] for r in rows if r['metric']=='actor_loss']==[0,1,1,2,2]
+    assert [(r['actual_decisions'],r['completed_episode'],r['decisions_into_next_episode'])
+            for r in rows if r['metric']=='rmse_y_m']==[(6,1,1),(16,3,0)]
+    assert rows[-1]['source_line']==3

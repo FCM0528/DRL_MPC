@@ -41,6 +41,53 @@ def replay_diagnostics(trace):
         mpc_solve_mean_ms=float(times.mean()),mpc_solve_p95_ms=float(np.percentile(times,95)))
 
 
+def full4_horizon(data, contract, *, fixed=False):
+    """Reconcile logged integer horizons with the bridge action and per-decision slew."""
+    def setting(key):
+        return int(contract[key][0])
+
+    low,high,center,stride,limit=(setting(key) for key in
+        ('rl.min_np','rl.max_np','mpc.np','rl.decision_steps','rl.max_np_change_per_decision'))
+    actual=data['np']
+    if not len(actual) or not np.all((actual==np.floor(actual)) & (actual>=low) & (actual<=high)):
+        raise ValueError('Invalid executed prediction horizon')
+    if fixed:
+        if not np.all(actual==center):
+            raise ValueError('Fixed MPC horizon changed')
+        return dict(np_min=center,np_max=center)
+
+    action=data['action_np_normalized']
+    target=data['target_np']
+    raw=center+action*np.where(action>=0,high-center,center-low)
+    index=np.arange(len(actual))//stride
+    executed=actual[::stride]
+    previous=np.r_[center,executed[:-1]]
+    if (not np.all(np.abs(action)<=1) or
+        not np.all((target==np.floor(target)) & (target>=low) & (target<=high) & (np.abs(raw-target)<=0.5+1e-9)) or
+        not np.array_equal(target,target[::stride][index]) or not np.array_equal(actual,executed[index]) or
+        not np.array_equal(executed,np.clip(target[::stride],previous-limit,previous+limit))):
+        raise ValueError('Prediction horizon violates discretization, hold or slew limits')
+    for key in DEMO_GRID:
+        weights=data[key][::stride]
+        desired=data['target_'+key][::stride]
+        choices=contract['rl.'+key+'_values']
+        neutral=choices[len(choices)//2]
+        prior=np.r_[neutral,weights[:-1]]
+        request=data['action_'+key+'_normalized'][::stride]
+        expected=neutral*np.exp(request*np.where(request>=0,np.log(choices[-1]/neutral),
+                                                 np.log(neutral/choices[0])))
+        ratio=contract['rl.max_weight_ratio_per_decision'][0]
+        if (not np.allclose(data[key],weights[index],rtol=1e-9,atol=1e-9) or
+            not np.all(np.abs(request)<=1) or not np.allclose(desired,expected,rtol=1e-8,atol=1e-8) or
+            not np.all((desired>=choices[0]*(1-1e-9)) & (desired<=choices[-1]*(1+1e-9))) or
+            not np.allclose(weights,np.clip(desired,prior/ratio,prior*ratio),rtol=1e-8,atol=1e-8)):
+            raise ValueError(f'Weight execution violates the frozen bounds or slew: {key}')
+    return dict(np_min=int(actual.min()),np_max=int(actual.max()),
+                np_target_min=int(target.min()),np_target_max=int(target.max()),
+                np_max_change_per_decision=int(np.abs(executed-previous).max()),
+                np_slew_limited_fraction=float(np.mean(executed!=target[::stride])))
+
+
 def stable_legal(row):
     ay,beta=row['peak_measured_ay_mps2'],row['peak_measured_beta_deg']
     return bool(row['terminated'] and not row['truncated'] and not row['failed'] and row['qp_failures']==0
@@ -137,21 +184,72 @@ def weak_search(dataset_path, root, controller):
     return locked
 
 
-def weak_preflight(root, weak_config, policy_config, controller, bridge):
+def full4_preflight_evidence(root, output):
+    from dataset_manager import sha
+    from train import controller_config_hashes
+
+    strong=root/'internal_configs/mpc_strong.ini'
+    sources={}
+    parity_names={'parity.json','bridge_trace.csv','simulation.csv','decision_reward.csv','LastRun_echo.par'}
+    for pattern,names in (('parity_*',parity_names),('weak_*',{'simulation.csv'})):
+        for folder in output.glob(pattern):
+            if folder.is_dir():
+                for file in folder.rglob('*'):
+                    if file.name in names and file.is_file():
+                        sources[file.relative_to(output).as_posix()]=sha(file)
+    if sum(file.endswith('/parity.json') for file in sources)!=3:
+        raise ValueError('Missing full-duration parity evidence for one or more speeds')
+    return dict(strong_config=str(strong),strong_config_sha256=controller_config_hashes(strong),
+        training_budget=dict(seed=42,episodes=500,eval_frequency=1000,learning_starts=550,
+            buffer_size=100000,batch_size=256,train_freq=1,gradient_steps=1),parity_sha256=sources)
+
+
+def full4_case_records(dataset, sets):
+    expected={'train':[(70,.8)],'validation':[(65,.8),(75,.8)],'test':[(70,.6)]}
+    fields=('experiment_signature','physical_sha256','simfile','simfile_sha256','parsfile',
+            'parsfile_sha256','vehicle_sha256','io_sha256','reference_numeric_sha256','target_speed_kmh')
+    cases={split:[{key:case[key] for key in fields}|
+        {'road_friction':dataset['scenarios'][case['scenario_id']]['road_friction']}
+        for case in rows] for split,rows in sets.items()}
+    if {split:[(r['target_speed_kmh'],r['road_friction']) for r in rows]
+        for split,rows in cases.items()}!=expected:
+        raise ValueError('Unexpected four-action CarSim speed/grip or split assignment')
+    return cases
+
+
+def weak_preflight(root, weak_config, policy_config, controller, bridge, *, full4_output=None):
     """Lock both configurations and check zero-action equality before learning."""
     from dataset_manager import load_dataset, read_json, sha, write_json
     from parity import bridge_params, check_neutral_parity
-    from scenario import snapshot_scenario
+    from action_mapping import action_contract
+    from scenario import ACTION_PROFILES, snapshot_scenario, write_config_overrides
     from train import controller_config_hashes
     root=Path(root).resolve(strict=True)
     selection=read_json(root/'weak_selection.json')
     manifest=root/'scenario_set.json'
     if sha(manifest)!=selection['scenario_set_sha256'] or sha(root/'search_plan.json')!=selection['search_plan_sha256']:
         raise ValueError('Weak search plan or scenario set was modified')
-    output=root/'preflight'
-    output.mkdir(exist_ok=False)
+    training=Path('configs/rl_training_pilot.ini').resolve()
+    output=root/'preflight' if full4_output is None else Path(full4_output).resolve()
+    parent_lock=None
+    if full4_output is not None:
+        parent_lock=read_json(root/'preflight/experiment_lock.json')
+        weak_config=parent_lock['weak_config']
+        policy_config=parent_lock['policy_config']
+        training=Path(parent_lock['training_config'])
+        if (controller_config_hashes(Path(weak_config))!=parent_lock['weak_config_sha256'] or
+            controller_config_hashes(Path(policy_config))!=parent_lock['policy_config_sha256'] or
+            sha(training)!=parent_lock['training_config_sha256'] or
+            sha(manifest)!=parent_lock['scenario_set_sha256']):
+            raise ValueError('The frozen three-weight experiment sources changed')
+    dataset,sets=load_dataset(manifest)
+    if parent_lock is not None:
+        cases=full4_case_records(dataset,sets)
+    output.mkdir(parents=True,exist_ok=False)
     weak=snapshot_config(weak_config,output/'weak')
     policy=snapshot_config(policy_config,output/'policy')
+    if parent_lock is not None:
+        policy=write_config_overrides(policy,policy.parent/'run_delta.ini',profile='full4')
     fixed=controller_policy_signature(weak)
     tuned=controller_policy_signature(policy)
     if fixed!={k:v for k,v in tuned.items() if not k.startswith(('rl.','rl_reward.'))}:
@@ -159,7 +257,18 @@ def weak_preflight(root, weak_config, policy_config, controller, bridge):
     for name in DEMO_GRID:
         if fixed[f'weights.{name}']!=(float(selection[name]),):
             raise ValueError('Weak configuration differs from the frozen search candidate')
-    _,sets=load_dataset(manifest)
+    if parent_lock is not None:
+        source=controller_policy_signature(policy_config)
+        changed={k for k in source.keys()|tuned.keys() if source.get(k)!=tuned.get(k)}
+        if changed!={'rl.policy_action_names','rl.policy_action_dims','rl.max_np_change_per_decision'}:
+            raise ValueError(f'Unexpected four-action changes: {sorted(changed)}')
+        names,mapping=action_contract(policy)
+        expected={'mpc.np':(36.,),'mpc.nc':(13.,),'rl.min_np':(28.,),'rl.max_np':(44.,),
+                  'rl.np_step':(1.,),'rl.max_np_change_per_decision':(2.,),
+                  'rl.max_weight_ratio_per_decision':(1.08,),'rl.decision_steps':(2.,),
+                  'rl.weight_action_mode':'continuous_weights','rl.observation_profile':'road_preview_joint'}
+        if names!=ACTION_PROFILES['full4'] or any(tuned.get(k)!=v for k,v in expected.items()):
+            raise ValueError('Unexpected four-action policy contract')
     parities=[]
     for case in sets['train']+sets['validation']:
         speed=int(case['target_speed_kmh'])
@@ -174,6 +283,13 @@ def weak_preflight(root, weak_config, policy_config, controller, bridge):
         fields=('x_m','y_m','ey_m','epsi_rad','steer_rad','np','q_y','q_psi','r_delta','qp_failed')
         for key in fields:
             np.testing.assert_array_equal(a[key],b[key],err_msg=f'Weak fixed parity {speed}, {key}')
+        if parent_lock is not None:
+            bridge_trace=next((output/f'parity_{speed}/bridge').glob('*/bridge_trace.csv'))
+            data=control_trace(bridge_trace)
+            full4_horizon(data,tuned)
+            for key in ('epsi_rad','body_ay_mps2','measured_beta_rad'):
+                np.testing.assert_allclose(data[key],a[key],rtol=0.,atol=1e-7,
+                                           err_msg=f'Four-action zero-response parity {speed}, {key}')
         if not stable_legal(actual):
             raise ValueError(f'Weak baseline failed the stability checks at {speed} km/h')
         parities.append(dict(speed_kmh=speed,experiment_signature=case['experiment_signature'],
@@ -182,13 +298,18 @@ def weak_preflight(root, weak_config, policy_config, controller, bridge):
         weak_config_sha256=controller_config_hashes(weak),policy_config_sha256=controller_config_hashes(policy),
         search_plan_sha256=sha(root/'search_plan.json'),scenario_set_sha256=sha(manifest),
         weak_selection_sha256=sha(root/'weak_selection.json'),
-        training_config=str(Path('configs/rl_training_pilot.ini').resolve()),
-        training_config_sha256=sha('configs/rl_training_pilot.ini'))
+        training_config=str(training),training_config_sha256=sha(training))
+    if parent_lock is not None:
+        lock.update(action_profile='full4',policy_action_names=list(names),policy_action_dims=len(names),
+            action_mapping_version=mapping,policy_contract=tuned,dataset_hash=dataset['dataset_hash'],
+            frozen_cases=cases,parent_lock_sha256=sha(root/'preflight/experiment_lock.json'),
+            observation_dim=20,reward_scheme='joint_tracking_v1',mpc_sample_s=0.04,decision_sample_s=0.08,
+            **full4_preflight_evidence(root,output))
     write_json(output/'experiment_lock.json',lock,exclusive=True)
     return lock
 
 
-def verify_episode_budget(path, manifest, episodes):
+def verify_episode_budget(path, manifest, episodes, *, verify_scenarios=False):
     """Require completed physical episodes and reconcile the interaction ledgers."""
     data=manifest['training_data']
     with (path/'train_monitor.csv').open(encoding='utf-8-sig',newline='') as file:
@@ -202,19 +323,76 @@ def verify_episode_budget(path, manifest, episodes):
             not np.isclose(episode['return_'],float(row['r']),rtol=0,atol=1e-5)
             for episode,row in zip(outcomes,monitor)) or sum(int(row['l']) for row in monitor)!=decisions):
         raise ValueError(f'Expected {episodes} complete CarSim episodes with matching decisions and returns: {path}')
+    if verify_scenarios:
+        resets=[json.loads(line) for line in (path/'solver_train/episode_scenarios.jsonl').read_text().splitlines()]
+        train,=manifest['scenario_sets']['train']
+        if (len(resets) not in (episodes,episodes+1) or
+            any(r['episode']!=i or r['case_index']!=0 or r['pool_size']!=1 or
+                r['simfile']!=train['frozen_simfile'] for i,r in enumerate(resets,1)) or
+            any(r['episode']!=i or r['case_index']!=0 or r['simfile']!=train['frozen_simfile']
+                for i,r in enumerate(outcomes,1))):
+            raise ValueError(f'CarSim episode source or reset ledger mismatch: {path}')
     return decisions
 
 
-def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None):
-    """Validate provenance independently of any new replay or report."""
+def weak_lock(root, experiment_lock=None):
+    """Verify the immutable experiment files and infer the legacy three-weight contract."""
+    from action_mapping import action_contract
     from dataset_manager import load_dataset, read_json, sha
+    from scenario import ACTION_PROFILES
+    from train import controller_config_hashes
+
+    root=Path(root).resolve()
+    source=root/'preflight/experiment_lock.json'
+    lock_path=Path(experiment_lock).resolve(strict=True) if experiment_lock else source
+    lock=read_json(lock_path)
+    for filename in ('search_plan','scenario_set','weak_selection'):
+        if sha(root/(filename+'.json'))!=lock[filename+'_sha256']:
+            raise ValueError(f'Frozen demo input changed: {filename}')
+    for key in ('weak_config','policy_config'):
+        if controller_config_hashes(Path(lock[key]))!=lock[key+'_sha256']:
+            raise ValueError(f'Frozen configuration changed: {key}')
+    if sha(lock['training_config'])!=lock['training_config_sha256']:
+        raise ValueError('Frozen training configuration changed')
+    profile=lock.get('action_profile','weights3')
+    names,mapping=action_contract(lock['policy_config'])
+    if (profile not in ('weights3','full4') or names!=ACTION_PROFILES[profile] or
+        tuple(lock.get('policy_action_names',names))!=names or
+        lock.get('policy_action_dims',len(names))!=len(names) or
+        lock.get('action_mapping_version',mapping)!=mapping):
+        raise ValueError('Frozen action profile, order, dimension or mapping mismatch')
+    dataset,sets=load_dataset(root/'scenario_set.json')
+    if profile=='full4':
+        parent=read_json(source)
+        inherited={k:v for k,v in lock['policy_config_sha256'].items() if k!='run_delta.ini'}
+        signature=controller_policy_signature(lock['policy_config'])
+        serialized={k:list(v) if isinstance(v,tuple) else v for k,v in signature.items()}
+        if (lock_path==source or sha(source)!=lock['parent_lock_sha256'] or
+            dataset['dataset_hash']!=lock['dataset_hash'] or serialized!=lock['policy_contract'] or
+            inherited!=parent['policy_config_sha256'] or lock['weak_config_sha256']!=parent['weak_config_sha256'] or
+            lock['training_config_sha256']!=parent['training_config_sha256'] or
+            [r['speed_kmh'] for r in lock['parity'] if r['passed']]!=[70,65,75]):
+            raise ValueError('Four-action experiment lock differs from its frozen contracts')
+        if full4_case_records(dataset,sets)!=lock['frozen_cases']:
+            raise ValueError('Four-action CarSim source differs from its locked records')
+        if (sum(file.endswith('/parity.json') for file in lock['parity_sha256'])!=3 or
+            any(sha(lock_path.parent/file)!=digest for file,digest in lock['parity_sha256'].items()) or
+            controller_config_hashes(Path(lock['strong_config']))!=lock['strong_config_sha256'] or
+            ('initial_full4_lock_sha256' in lock and
+             sha(lock_path.parent/'experiment_lock.json')!=lock['initial_full4_lock_sha256'])):
+            raise ValueError('Four-action zero-action parity evidence has changed')
+    return lock,dataset,sets,names,mapping
+
+
+def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None, experiment_lock=None):
+    """Validate provenance independently of any new replay or report."""
+    from dataset_manager import read_json, sha
     from train import controller_config_hashes
     root=Path(root).resolve()
-    locked=read_json(root/'preflight/experiment_lock.json')
-    for filename in ('search_plan','scenario_set','weak_selection'):
-        if sha(root/(filename+'.json'))!=locked[filename+'_sha256']:
-            raise ValueError(f'Frozen demo input changed: {filename}')
-    dataset,sets=load_dataset(root/'scenario_set.json')
+    locked,dataset,sets,names,mapping=weak_lock(root,experiment_lock)
+    full4=locked.get('action_profile')=='full4'
+    if full4 and (episodes!=locked['training_budget']['episodes'] or eval_frequency!=locked['training_budget']['eval_frequency']):
+        raise ValueError('Four-action replay requires the locked episode budget and validation interval')
     plan=read_json(root/'search_plan.json')
     frequency=eval_frequency if episodes is not None else plan['eval_frequency']
     if episodes is not None and (episodes<1 or frequency is None or frequency<1):
@@ -223,8 +401,6 @@ def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None):
     if ([c['target_speed_kmh'] for c in sets['train']] != [70] or
             [c['target_speed_kmh'] for c in sets['validation']] != [65,75]):
         raise ValueError('Unexpected demo case assignment')
-    if controller_config_hashes(Path(locked['weak_config']))!=locked['weak_config_sha256']:
-        raise ValueError('Weak baseline config hash changed')
     models={}
     for path in map(Path,runs):
         path=path.resolve(strict=True)
@@ -235,7 +411,7 @@ def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None):
         if episodes is not None:
             if manifest['episodes']!=episodes or manifest['total_decisions'] is not None:
                 raise ValueError(f'Expected episode stop without a decision override: {path}')
-            decisions=verify_episode_budget(path,manifest,episodes)
+            decisions=verify_episode_budget(path,manifest,episodes,verify_scenarios=full4)
             # SB3 stops before storing the final transition when its callback returns False.
             expected_replay=min(decisions-1,manifest['training_settings']['buffer_size'])
         else:
@@ -257,7 +433,8 @@ def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None):
             manifest['controller_config_sha256']!=locked['policy_config_sha256'] or
             sha(path/'source_training.ini')!=locked['training_config_sha256'] or
             manifest['training_config_sha256']!=locked['training_config_sha256'] or
-            manifest['policy_action_names']!=['q_y','q_psi','r_delta'] or manifest['observation_dim']!=20):
+            tuple(manifest['policy_action_names'])!=names or int(manifest['policy_action_dims'])!=len(names) or
+            manifest['action_mapping_version']!=mapping or manifest['observation_dim']!=20):
             raise ValueError(f'Training controller or optimizer hash mismatch: {path}')
         selection=read_json(path/'checkpoint_selection.json')
         best=Path(selection['best_legal']) if selection['best_legal'] else None
@@ -293,15 +470,53 @@ def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None):
         if episodes is not None:
             models[algorithm].update(episodes=episodes,final_replay_decisions=data['final_replay_decisions'],
                                      eval_frequency=frequency)
+        if full4:
+            import zipfile
+            with zipfile.ZipFile(paths['final']) as archive:
+                sb3=json.loads(archive.read('data'))
+            target_entropy=None
+            if algorithm=='tqc':
+                from stable_baselines3.common.save_util import json_to_data
+                entropy_data=json_to_data(json.dumps({'target_entropy':sb3['target_entropy']}))
+                target_entropy=float(entropy_data['target_entropy'])
+            for split in ('train','validation'):
+                for case,planned in zip(manifest['scenario_sets'][split],sets[split],strict=True):
+                    staged=describe_case(case['frozen_simfile'])
+                    if any(staged[k]!=planned[k] for k in ('experiment_signature','parsfile_sha256',
+                                                          'vehicle_sha256','io_sha256','reference_numeric_sha256')):
+                        raise ValueError(f'Run-private {split} CarSim source mismatch: {path}')
+            if (manifest['training_start_timesteps']!=0 or sb3['num_timesteps']!=decisions or
+                sb3['_n_updates']!=data['gradient_updates'] or manifest['selection_split']!='validation' or
+                manifest['observation_profile']!='road_preview_joint' or
+                manifest['reward_scheme']!=locked['reward_scheme'] or
+                any(manifest['training_settings'][key]!=value for key,value in locked['training_budget'].items()) or
+                controller_config_hashes(path/'strong_configs/mpc_strong.ini')!=locked['strong_config_sha256'] or
+                (algorithm=='tqc' and target_entropy!=-len(names))):
+                raise ValueError(f'Saved learner counters, entropy target or policy contract mismatch: {path}')
+            design=manifest['algorithm_design']
+            models[algorithm].update(policy_action_names=list(names),sb3_timesteps=sb3['num_timesteps'],
+                                     algorithm_design=design)
+            for name in ('episode_outcomes.jsonl','episode_scenarios.jsonl'):
+                logs['solver_train/'+name]=sha(path/'solver_train'/name)
+            if algorithm=='tqc':
+                if (design['policy_kwargs']['n_critics']!=3 or design['policy_kwargs']['n_quantiles']!=25 or
+                    design['top_quantiles_to_drop_per_net']!=2 or design['ent_coef']!='auto' or
+                    design['target_entropy']!='auto' or design['actor_learning_rate']!=1e-4 or
+                    design['critic_learning_rate']!=3e-4 or design['entropy_learning_rate']!=1e-4):
+                    raise ValueError('Four-action TQC design differs from the frozen practical setup')
+                models[algorithm]['target_entropy']=target_entropy
     if set(models)!=set(ALGORITHMS):
         raise ValueError('Exactly one fresh completed run per algorithm is required')
     return locked,dataset,sets,models
 
 
-def replay_weak_demo(root, runs, output, controller, bridge, *, episodes=None, eval_frequency=None):
+def replay_weak_demo(root, runs, output, controller, bridge, *, episodes=None, eval_frequency=None,
+                     experiment_lock=None):
     from dataset_manager import sha, write_json
     from scenario import snapshot_scenario, read_scenario
-    locked,dataset,sets,models=weak_demo_sources(root,runs,episodes=episodes,eval_frequency=eval_frequency)
+    locked,dataset,sets,models=weak_demo_sources(root,runs,episodes=episodes,eval_frequency=eval_frequency,
+                                                experiment_lock=experiment_lock)
+    full4=locked.get('action_profile')=='full4'
     output=Path(output).resolve()
     output.mkdir(parents=True,exist_ok=False)
     audit=output/'audit'
@@ -317,7 +532,7 @@ def replay_weak_demo(root, runs, output, controller, bridge, *, episodes=None, e
             source=read_scenario(sim)
             fixed=fixed_episode(controller,sim,work/'weak_mpc',locked['weak_config'],require_complete=False)
             strong=fixed_episode(controller,sim,audit/f'strong_{speed}',
-                                 Path(root)/'internal_configs/mpc_strong.ini',require_complete=False)
+                                 locked.get('strong_config',Path(root)/'internal_configs/mpc_strong.ini'),require_complete=False)
             if not stable_legal(strong):
                 raise ValueError(f'Internal reference did not pass safety checks at {speed} km/h')
             common=dict(speed_kmh=speed,split=split,experiment_signature=case['experiment_signature'],
@@ -327,7 +542,8 @@ def replay_weak_demo(root, runs, output, controller, bridge, *, episodes=None, e
             for algorithm,item in models.items():
                 for kind,model_path in item['models'].items():
                     replay=run_policy(algorithm,model_path,bridge,item['config'],sim,work/f'{algorithm}_{kind}',
-                                      seed=42,export_report=True,record_observations=episodes is not None and algorithm=='tqc')
+                                      seed=42,export_report=True,
+                                      record_observations=not full4 and episodes is not None and algorithm=='tqc')
                     result=dict(terminated=replay['terminated'],truncated=replay['truncated'],failed=replay['failed'],
                         return_=replay['return'],decisions=replay['decisions'],
                         **_tracking_metrics(replay['trace']))
@@ -336,6 +552,8 @@ def replay_weak_demo(root, runs, output, controller, bridge, *, episodes=None, e
             for label,kind,metrics,model_hash,timing in runs_by_case:
                 trace=Path(metrics['trace'])
                 diagnostics=replay_diagnostics(trace)
+                if full4:
+                    diagnostics.update(full4_horizon(control_trace(trace),locked['policy_contract'],fixed=kind=='fixed'))
                 rows.append(dict(**common,controller=label,kind=kind,model_sha256=model_hash,
                     legal=stable_legal(metrics),**metrics,**diagnostics,**timing,
                     iy_percent=100*(1-metrics['rmse_y_m']/fixed['rmse_y_m']),
@@ -352,8 +570,11 @@ def replay_weak_demo(root, runs, output, controller, bridge, *, episodes=None, e
             write_rows(audit/'relative_to_strong.csv',strong_rows)
     replay_lock=dict(dataset_hash=dataset['dataset_hash'],models=models,
                      replay_metrics_sha256=sha(output/'replay_metrics.csv'))
+    if experiment_lock is not None:
+        replay_lock.update(experiment_lock=str(Path(experiment_lock).resolve()),experiment_lock_sha256=sha(experiment_lock))
     if episodes is not None:
         replay_lock.update(episodes=episodes,eval_frequency=eval_frequency)
+    if episodes is not None and not full4:
         old_runs=[next((Path(root)/'training'/algorithm).iterdir()) for algorithm in ALGORITHMS]
         _,_,_,old_models=weak_demo_sources(root,old_runs)
         old_tqc=old_models['tqc']
@@ -369,6 +590,9 @@ def main():
     p.add_argument('--lock',help='JSON list: algorithm, model, sha256, config')
     p.add_argument('--weak-search',action='store_true',help='Run the frozen weak-baseline candidate search')
     p.add_argument('--weak-preflight',type=Path,metavar='SEARCH_DIR')
+    p.add_argument('--full4-preflight',type=Path,metavar='SEARCH_DIR',
+                   help='Freeze a run-private four-action weak configuration and verify all three parity cases')
+    p.add_argument('--experiment-lock',type=Path,help='Independent lock from --full4-preflight')
     p.add_argument('--weak-demo',type=Path,metavar='SEARCH_DIR',help='Replay best and final demo models on 70/65/75')
     p.add_argument('--runs',nargs='+',type=Path)
     p.add_argument('--episodes',type=int,help='Require exactly this many complete physical episodes for each weak demo run')
@@ -379,6 +603,11 @@ def main():
     p.add_argument('--controller',default='out/python-rl-build/Release/MPC_DoubleLaneChange.exe')
     p.add_argument('--bridge',default='out/python-rl-build/Release/MPC_RL_Bridge.exe')
     args=p.parse_args()
+    if args.full4_preflight:
+        if not args.out:
+            p.error('--full4-preflight requires a new --out directory')
+        weak_preflight(args.full4_preflight,None,None,args.controller,args.bridge,full4_output=args.out)
+        return
     if args.weak_preflight:
         weak_preflight(args.weak_preflight,'configs/mpc_weak_demo.ini','configs/demo_weak_weights3.ini',args.controller,args.bridge)
         return
@@ -386,7 +615,7 @@ def main():
         if not args.runs or not args.out:
             p.error('--weak-demo requires --runs and a new --out directory')
         replay_weak_demo(args.weak_demo,args.runs,args.out,args.controller,args.bridge,
-                         episodes=args.episodes,eval_frequency=args.eval_frequency)
+                         episodes=args.episodes,eval_frequency=args.eval_frequency,experiment_lock=args.experiment_lock)
         return
     if not args.scenario_set or not args.out:
         p.error('--scenario-set and --out are required')

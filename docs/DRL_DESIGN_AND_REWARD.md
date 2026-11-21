@@ -6,7 +6,7 @@
 
 DDPG 使用确定性 Actor 和单评论家；TD3 使用双评论家、延迟 Actor 更新及目标策略平滑；TQC 使用随机 Actor、熵正则与分布评论家，丢弃目标分位数的上尾以抑制乐观偏差。三者仅调整 MPC 参数，均从自己的空经验池采集真实 CarSim transition，不共享经验、不使用固定控制标签。
 
-当前 pilot 每算法 7900 decision，seed42，learning_starts=550、batch_size=256、每 decision 一次更新；Actor/Critic 及熵学习率独立实际应用。网络和全部算法参数见 rl_training_pilot.ini。TQC practical 为 3 个评论家×25 分位数，drop=2/critic，目标池保留 75−6=69 个分位数；Actor 使用全体估计均值，熵系数 auto、target_entropy=−动作维数。其 Actor 目标含 α log π−Q，与环境 reward、MPC Q/R 和安全失败惩罚不同，不能直接比较不同算法 loss 的绝对量级。
+最初三维弱起点试验每算法 7900 决策，四维组每算法 500 个完整回合。两组沿用 seed42、learning_starts=550、batch_size=256 和每决策一次训练更新的设置。Actor、Critic 及熵学习率独立设置，网络及算法超参数见 rl_training_pilot.ini。TQC practical 为 3 个评论家×25 分位数，drop=2/critic，目标池保留 75−6=69 个分位数。Actor 使用全体估计均值，熵系数 auto、target_entropy=−动作维数。其 Actor 目标含 α log π−Q，损失量级应按各算法自己的优化目标解读。
 
 ## 20维 road_preview_joint（严格顺序）
 
@@ -47,6 +47,8 @@ DDPG 使用确定性 Actor 和单评论家；TD3 使用双评论家、延迟 Act
 strong_actions3.ini 的历史3维是 Np,Qy,Qpsi，不能与主线3维混用。桥接固定四维 [Np,Qy,Qpsi,Rdelta]；未学习量填0。Python action_mapping.py 按名称映射，模型 manifest 校验名称、维数、版本和配置签名。
 
 连续权重映射为 w*(wmax/w*)^a（a≥0），w*(w*/wmin)^a（a<0），中性动作严格对应强 MPC：36/18400/8960/10800。Qy 范围11500–23920，Qpsi4480–13440，Rdelta7560–14040；每决策权重最多乘/除1.08。Np 离散到28–44，full4每决策最多改变2；Nc=13固定。legacy五档保持旧义，不能复用其模型为连续动作模型。
+
+弱起点四维 500 回合组通过 `--full4-preflight` 生成运行私有增量，顺序为 [Np,Qy,Qpsi,Rdelta]。零动作对应弱 MPC 的 36/3000/700/172800，Qy、Qpsi、Rdelta 的范围分别为 2100–23920、490–13440、10800–224640。保存归一化请求与未限速整数目标，Np 的连续请求为 36+8a，四舍五入到整数后再限制相对上一次执行值每决策最多变化 2 步。权重沿用弱起点连续对数映射及 1.08 比率限制，取样周期为 0.04 s、决策周期为 0.08 s。Np 的执行变化进入下文原有的参数切换损失，系数 0.002。四维 TQC 的自动目标熵有效值为 (-4)，仍用原 practical 优化器以及每 critic 截断 2 个上尾目标的规则。
 
 ## 完整 joint_tracking 环境奖励
 

@@ -26,3 +26,4 @@
 /reports/refactor_20261118/
 # Generated demo reports contain local CarSim solver output.
 /reports/weak_mpc_vs_3drl_*/
+/reports/weak_mpc_full4_500episodes_*/

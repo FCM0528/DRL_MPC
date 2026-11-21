@@ -176,3 +176,35 @@ uv run --no-project --with-requirements python/requirements.txt python python/re
 300 回合训练命令只传 `--episodes`。回放阶段再次核验原运行模型、完整检查点、完赛记录、工况和配置哈希。HTML 使用原有四控制器样式，另附 `training_comparison.csv` 和 `audit/learning_diagnostics.json`。可用报告命令从 100、300 回合原始日志及存好的回放离线重建。100 回合每 790 个决策验证，300 回合每 1000 个决策验证，比较选中模型时应保留这项取样差异。
 
 动作诊断按决策取样。近中性定义为 |a|<0.1，请求饱和定义为 |a|≥0.98；实执行用相对于同侧边界的对数距离归一。变化率限制按目标相对上一实际权重是否超出每步 1.08 倍计算。目标 Q 诊断使用冻模与回放的真实 70 km/h 观测，每个状态用固定 seed 抽样 16 次，按原 TQC 公式计算软 Bellman 目标，包含共同输入对照。它反映离线探针的目标值分布；实际优化过程由原训练 loss 和熵日志呈现。
+
+## 弱起点四维 500 回合实验
+
+`--full4-preflight` 读取原弱起点实验锁，以三维弱起点配置生成运行目录内的 `run_delta.ini`。增量使用与 `--action-profile full4` 相同的函数，只覆盖动作维数、名称和 Np 限速。通过 70、65、75 km/h 的全程真实零动作核验后，保存独立锁和配置、工况、预检轨迹的 SHA256。训练读取锁内的完整四维配置，每 1000 个真实决策在两种开发速度确定性验证。`--episodes 500` 由 SB3 回合停止回调执行。
+
+```powershell
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$env:PYTHONDONTWRITEBYTECODE='1'
+$old='runs/weak_mpc_demo_20261121'
+$prior='runs/weak_mpc_300episodes_20261121/replay'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$r="runs/weak_mpc_full4_500episodes_$stamp"
+$report="reports/weak_mpc_full4_500episodes_$stamp"
+if ((Test-Path $r) -or (Test-Path $report)) { throw 'Choose unused output paths' }
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --full4-preflight $old --out "$r/preflight"
+if ($LASTEXITCODE -ne 0) { throw 'Four-action preflight failed' }
+$lockFile="$r/preflight/experiment_lock.json"
+$lock=Get-Content $lockFile -Raw | ConvertFrom-Json
+foreach($algo in @('ddpg','td3','tqc')){
+  uv run --no-project --with-requirements python/requirements.txt python python/train.py --algorithm $algo --config $lock.policy_config --train-config $lock.training_config --scenario-set "$old/scenario_set.json" --episodes 500 --seed 42 --eval-frequency 1000 --joint-selection --training-only --keep-training-traces --parity-blocks 200 --out "$r/$algo"
+  if ($LASTEXITCODE -ne 0) { throw "Training failed for $algo" }
+}
+$models=@('ddpg','td3','tqc') | ForEach-Object { (Get-ChildItem "$r/$_" -Directory | Select-Object -First 1).FullName }
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --weak-demo $old --experiment-lock $lockFile --episodes 500 --eval-frequency 1000 --runs $models --out "$r/replay"
+if ($LASTEXITCODE -ne 0) { throw 'CarSim replay or evidence verification failed' }
+uv run --no-project --with-requirements python/requirements.txt python python/report.py --weak-demo $old --replay "$r/replay" --history-300 $prior --runs $models --out $report
+```
+
+离线重建只运行最后一条命令，指向现有模型和回放目录以及新的报告目录。回放先对账 Monitor、CarSim 完赛及重置记录、训练 manifest 和模型内的 SB3 计数。回合停止回调可能在最后一条终止转移写入经验池前退出，保留真实交互和经验池各自的计数。
+
+`training_episode_axis.csv` 逐行保留原始决策、已完成轮次、当前轮内决策数、源日志行、指标值、检查点及工况。映射按 Monitor 累计回合长度取不大于当前决策的最后一个完整边界。损失与熵图在同一轮次有多条日志时取均值，CSV 保留原值与样本数。权重和整数 Np 图使用实际距离 X，分开绘制预限速的目标 Np 与执行 Np。历史对照同时改变了轮次数和动作维度，须用同为 500 回合的三维组才可隔离动作维度效应。

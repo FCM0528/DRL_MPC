@@ -796,19 +796,142 @@ def validation_rankings(rows):
         policies=by_algorithm)
 
 
-def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
+def training_episode_axis(algorithm, monitor, progress, validation, run):
+    """Map logged decision coordinates to the number of fully completed episodes."""
+    lengths=np.asarray([int(row['l']) for row in monitor],dtype=np.int64)
+    if not len(lengths) or np.any(lengths<=0):
+        raise ValueError('Episode axis requires positive, complete Monitor lengths')
+    ends=np.cumsum(lengths)
+    rows=[]
+
+    def add(step, metric, value, source, line, *, checkpoint='', case='', diagnostic=False):
+        if not 0<=step<=ends[-1] or not np.isfinite(value):
+            raise ValueError(f'Training evidence outside the physical interaction budget: {source}:{line}')
+        episode=int(np.searchsorted(ends,step,side='right'))
+        start=int(ends[episode-1]) if episode else 0
+        rows.append(dict(algorithm=algorithm,actual_decisions=step,completed_episode=episode,
+            decisions_into_next_episode=step-start,checkpoint_name=checkpoint,
+            source_log=str(run/source),source_line=line,metric=metric,value=value,
+            case=case,diagnostic_only=diagnostic))
+
+    for line,(step,row) in enumerate(zip(ends,monitor,strict=True),3):
+        add(int(step),'return',float(row['r']),'train_monitor.csv',line)
+    for line,row in enumerate(progress,2):
+        for metric in ('actor_loss','critic_loss','ent_coef'):
+            if row.get('train/'+metric):
+                add(int(row['time/total_timesteps']),metric,float(row['train/'+metric]),
+                    'training_logs/progress.csv',line)
+    for line,row in enumerate(validation,2):
+        checkpoint=Path(row['checkpoint']).name
+        diagnostic=row['diagnostic_only']=='True'
+        step=int(ends[-1]) if diagnostic else int(Path(checkpoint).stem.split('_')[1])
+        for metric in ('rmse_y_m','rmse_heading_deg'):
+            add(step,metric,float(row[metric]),'joint_validation.csv',line,
+                checkpoint=checkpoint,case=row['case'],diagnostic=diagnostic)
+    return rows
+
+
+def full4_training_tables(logs, models, rows, output):
+    from evaluate import write_rows
+
+    axis={}
+    summaries=[]
+    for key,item in models.items():
+        run=Path(item['run'])
+        mapping=training_episode_axis(key,*logs[key],run)
+        counts={}
+        for row in mapping:
+            group=(row['metric'],row['completed_episode'],row['case'],row['diagnostic_only'])
+            counts[group]=counts.get(group,0)+1
+        for row in mapping:
+            group=(row['metric'],row['completed_episode'],row['case'],row['diagnostic_only'])
+            row['samples_in_episode']=counts[group]
+        axis[key]=mapping
+        returns=[row['value'] for row in mapping if row['metric']=='return']
+        log_rows=[row for row in mapping if row['checkpoint_name']==item['best_checkpoint']]
+        selected=[r for r in rows if r['controller']==key and r['kind']=='best']
+        summaries.append(dict(algorithm=key,completed_episodes=len(returns),
+            actual_decisions=item['collected_decisions'],sb3_timesteps=item['sb3_timesteps'],
+            replay_buffer_size=item['final_replay_decisions'],gradient_updates=item['gradient_updates'],
+            training_qp_failures=sum(r['qp_failures'] for r in item['exposure'].values()),
+            best_checkpoint=item['best_checkpoint'],best_episode=log_rows[0]['completed_episode'],
+            best_checkpoint_decisions=log_rows[0]['actual_decisions'],
+            final_checkpoint='final_model.zip',final_episode=len(returns),strong_joint_passed=item['best_joint'],
+            best_np_min=min(int(r['np_min']) for r in selected),
+            best_np_max=max(int(r['np_max']) for r in selected),target_entropy=item.get('target_entropy',''),
+            first_30_return=float(np.mean(returns[:30])),previous_30_return=float(np.mean(returns[-60:-30])),
+            last_30_return=float(np.mean(returns[-30:])),last_30_sd=float(np.std(returns[-30:]))))
+    write_rows(output/'training_episode_axis.csv',[row for cohort in axis.values() for row in cohort])
+    write_rows(output/'training_summary.csv',summaries)
+    return axis
+
+
+def full4_history(experiment, current, output, baseline_replay, history_300):
+    from dataset_manager import read_json, sha
+    from evaluate import _tracking_metrics,write_rows
+    from evaluate_dual import weak_demo_sources
+
+    by_key={(row['speed_kmh'],row['controller'],row['kind']):row for row in current}
+    metrics=('rmse_y_m','rmse_heading_deg','rmse_course_deg','peak_y_m','peak_heading_deg',
+             'iy_percent','iheading_percent','qp_failures','legal')
+    history=[]
+
+    def add(episodes,profile,rows):
+        for row in rows:
+            if row['kind'] not in ('best','final'):
+                continue
+            history.append(dict(episodes=episodes,policy_profile=profile,algorithm=row['controller'],
+                kind=row['kind'],speed_kmh=row['speed_kmh'],split=row['split'],
+                model_sha256=row['model_sha256'],trace_sha256=row['trace_sha256'],
+                **{key:row[key] for key in metrics}))
+
+    for budget,source in ((100,baseline_replay or experiment/'replay'),(300,history_300)):
+        source=Path(source).resolve(strict=True)
+        prior=read_json(source/'replay_lock.json')
+        file=source/'replay_metrics.csv'
+        prior_runs=[item['run'] for item in prior['models'].values()]
+        _,_,_,locked=weak_demo_sources(experiment,prior_runs,
+            episodes=None if budget==100 else budget,eval_frequency=prior.get('eval_frequency'))
+        if sha(file)!=prior['replay_metrics_sha256'] or prior['models']!=locked:
+            raise ValueError(f'Historical {budget}-episode models or replay metrics changed')
+        old=run_csv(file)
+        if len(old)!=len(current) or len({(r['speed_kmh'],r['controller'],r['kind']) for r in old})!=len(current):
+            raise ValueError('Historical replay does not cover the same controller groups and speeds')
+        for row in old:
+            now=by_key[(row['speed_kmh'],row['controller'],row['kind'])]
+            if (row['experiment_signature']!=now['experiment_signature'] or
+                row['parsfile_sha256']!=now['parsfile_sha256'] or sha(row['trace'])!=row['trace_sha256'] or
+                (row['kind']!='fixed' and row['model_sha256']!=locked[row['controller']]['model_sha256'][row['kind']])):
+                raise ValueError(f'Historical {budget}-episode trace, case or model changed')
+            actual=_tracking_metrics(row['trace'])
+            for key in metrics[:3]:
+                if not np.isclose(float(row[key]),actual[key],rtol=0,atol=1e-10):
+                    raise ValueError(f'Historical {budget}-episode error metrics do not reproduce: {row["trace"]}')
+        add(budget,'weights3',old)
+    add(500,'full4',current)
+    write_rows(output/'historical_comparison.csv',history)
+
+
+def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, history_300=None):
     """Rebuild the four-controller report from locked offline replay and training evidence."""
     import shutil
     from dataset_manager import read_json, sha, write_json
     from evaluate import _tracking_metrics, write_rows
     from evaluate_dual import weak_demo_sources, weak_gap_review
-    from paper_style import configure, demo_line, DEMO_STYLE, finish
+    from paper_style import configure, demo_bars, demo_line, DEMO_STYLE, finish
 
     experiment,replay,output=(Path(p).resolve() for p in (experiment,replay,output))
     replay_lock=read_json(replay/'replay_lock.json')
     episodes=replay_lock.get('episodes')
     frequency=replay_lock.get('eval_frequency')
-    lock,dataset,sets,models=weak_demo_sources(experiment,runs,episodes=episodes,eval_frequency=frequency)
+    lock_source=Path(replay_lock.get('experiment_lock',experiment/'preflight/experiment_lock.json'))
+    if 'experiment_lock' in replay_lock and sha(lock_source)!=replay_lock['experiment_lock_sha256']:
+        raise ValueError('Replay experiment lock changed')
+    lock,dataset,sets,models=weak_demo_sources(experiment,runs,episodes=episodes,eval_frequency=frequency,
+                                             experiment_lock=lock_source)
+    full4=lock.get('action_profile')=='full4'
+    if full4 and history_300 is None:
+        raise ValueError('Four-action report requires the original 300-episode comparison replay')
     if (replay_lock['dataset_hash']!=dataset['dataset_hash'] or replay_lock['models']!=models or
         sha(replay/'replay_metrics.csv')!=replay_lock['replay_metrics_sha256']):
         raise ValueError('Replay manifest, frozen models or metrics hash mismatch')
@@ -831,7 +954,10 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
         'qp_failures':'QP failures', 'terminated':'Reached end', 'legal':'Safety passed',
         'mpc_solve_mean_ms':'Solve mean (ms)', 'policy_inference_mean_ms':'Inference mean (ms)',
     }
-    from evaluate_dual import replay_diagnostics
+    if full4:
+        columns.update(np_min='Min executed Np',np_max='Max executed Np',
+                       np_max_change_per_decision='Max Np change',np_slew_limited_fraction='Np slew fraction')
+    from evaluate_dual import replay_diagnostics,full4_horizon
     from scenario_sets import describe_case
     source_cache={}
     for row in rows:
@@ -854,6 +980,8 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
             if sha(source)!=row[key]:
                 raise ValueError(f'Replay source changed: {source}')
         calculated=_tracking_metrics(trace)|replay_diagnostics(trace)
+        if full4:
+            calculated.update(full4_horizon(control_trace(trace),lock['policy_contract'],fixed=row['kind']=='fixed'))
         for key in columns.keys() & calculated.keys():
             if not np.isclose(float(row[key]),calculated[key],rtol=0,atol=1e-10):
                 raise ValueError(f'Metric mismatch or unexpected units: {key} in {trace}')
@@ -882,9 +1010,15 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
     shutil.copytree(replay/'audit',audit)
     for name in ('search_plan.json','candidate_metrics.csv','internal_strong70.json','weak_selection.json','scenario_set.json'):
         shutil.copy2(experiment/name,audit/name)
-    shutil.copy2(experiment/'preflight/experiment_lock.json',audit/'experiment_lock.json')
+    shutil.copy2(lock_source,audit/'experiment_lock.json')
     comparison,old_models=(weak_budget_comparison(experiment,replay,replay_lock,rows_by_key,models,output,baseline_replay)
-                           if episodes is not None else ([],{}))
+                           if episodes is not None and not full4 else ([],{}))
+    logs={key:(run_csv(Path(item['run'])/'train_monitor.csv',True),
+               run_csv(Path(item['run'])/'training_logs/progress.csv'),
+               run_csv(Path(item['run'])/'joint_validation.csv')) for key,item in models.items()}
+    axis=full4_training_tables(logs,models,rows,output) if full4 else None
+    if full4:
+        full4_history(experiment,rows,output,baseline_replay,history_300)
     write_rows(output/'metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']!='final'])
     write_rows(output/'final_metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']=='final'])
     rankings=validation_rankings(rows)
@@ -893,21 +1027,30 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
         seed=42,decision_budget=7900 if episodes is None else None,episode_budget=episodes,
         validation_frequency=frequency or 790,models=models,revised_gap_review=gap,unit_labels=columns,
         controller_config_sha256=lock['policy_config_sha256'],replay_metrics_sha256=replay_lock['replay_metrics_sha256'],
-        validation_rankings=rankings,source_replay=str(replay)),exclusive=True)
+        validation_rankings=rankings,source_replay=str(replay),
+        action_profile='full4' if full4 else 'weights3',
+        policy_action_names=lock.get('policy_action_names',['q_y','q_psi','r_delta']),
+        training_axis='completed_episode' if full4 else 'decisions',
+        experiment_lock_sha256=sha(lock_source)),exclusive=True)
     configure()
     section_figures={}
 
-    def draw(name, panels, section, xlabel, labels=None, *, sharex=True):
+    def draw(name, panels, section, xlabel, labels=None, *, sharex=True, step=False, y_ticks=None):
         fig,axes=plt.subplots(len(panels),1,figsize=(7.15,1.88*len(panels)+.7),squeeze=False,sharex=sharex)
         handles={}
         for ax,(ylabel,series) in zip(axes[:,0],panels):
             for controller,x,y in series:
-                demo_line(ax,controller,x,y)
+                demo_line(ax,controller,x,y,step=step)
                 handles[controller]=ax.lines[-1]
             ax.set_ylabel(ylabel)
             ax.grid(alpha=.2)
             if labels:
                 ax.set_xticks(range(len(labels)),labels)
+            if y_ticks is not None:
+                ax.set_yticks(y_ticks)
+                ax.set_ylim(y_ticks[0]-0.5,y_ticks[-1]+0.5)
+            if full4 and xlabel=='Episode':
+                ax.set_xlim(1,episodes)
         for ax in axes[-1:,0] if sharex else axes[:,0]:
             ax.set_xlabel(xlabel)
         fig.tight_layout(rect=(0,0,1,1-.4/fig.get_figheight()))
@@ -958,18 +1101,26 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
             panel('Lateral acceleration (m/s²)','body_ay_mps2'),panel('Sideslip angle (°)','measured_beta_rad',180/np.pi)],
             section,'X (m)')
         draw(f'weights_{speed}',[panel('Qy','q_y'),panel('Qpsi','q_psi'),panel('Rdelta','r_delta')],section,'X (m)')
+        if full4:
+            targets=('Requested Np (integer)',[(k,d['x_m'],d['target_np'] if k!='weak_mpc' else d['np'])
+                                               for k,d in data.items()])
+            low=lock['policy_contract']['rl.min_np'][0]
+            high=lock['policy_contract']['rl.max_np'][0]
+            draw(f'horizon_{speed}',[targets,panel('Executed Np','np')],section,'X (m)',step=True,
+                 y_ticks=np.arange(low,high+1,4))
 
-    logs={key:(run_csv(Path(item['run'])/'train_monitor.csv',True),
-               run_csv(Path(item['run'])/'training_logs/progress.csv'),
-               run_csv(Path(item['run'])/'joint_validation.csv')) for key,item in models.items()}
     raw=[];smooth=[]
     for key,(monitor,_,_) in logs.items():
         x=np.cumsum([int(r['l']) for r in monitor]); y=np.array([float(r['r']) for r in monitor])
         if len(y)<10 or x[-1]!=models[key]['collected_decisions']:
             raise ValueError(f'Incomplete episode return log: {key}')
+        if full4:
+            x=np.arange(1,len(y)+1)
         raw.append((key,x,y))
         smooth.append((key,x[9:],np.convolve(y,np.ones(10)/10,mode='valid')))
-    draw('episode_return',[('Raw episode return',raw),('Episode return (10-episode mean)',smooth)],'训练过程','Training decisions')
+    training_xlabel='Episode' if full4 else 'Training decisions'
+    draw('episode_return',[('Raw episode return',raw),('Episode return (10-episode mean)',smooth)],
+         '训练过程',training_xlabel)
     if old_models:
         old_smooth=[]
         for key,item in old_models.items():
@@ -981,31 +1132,69 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
              '训练过程','Episode (10-episode mean)')
 
     def progress_series(key,metric):
-        pairs=[(int(r['time/total_timesteps']),float(r[metric])) for r in logs[key][1] if r.get(metric)]
+        if full4:
+            by_episode={}
+            for row in axis[key]:
+                if row['metric']==metric:
+                    by_episode.setdefault(row['completed_episode'],[]).append(row['value'])
+            if not by_episode:
+                raise ValueError(f'Missing {key} training evidence for {metric}')
+            return key,list(by_episode),[float(np.mean(values)) for values in by_episode.values()]
+        field='train/'+metric
+        pairs=[(int(r['time/total_timesteps']),float(r[field])) for r in logs[key][1] if r.get(field)]
         if not pairs or not np.isfinite(pairs).all():
             raise ValueError(f'Missing or invalid {key} log series: {metric}')
         return key,*zip(*pairs)
-    draw('optimizer_loss',[(f'{label} loss',[progress_series(k,'train/'+label.lower()+'_loss') for k in logs])
-                           for label in ('Actor','Critic')],'训练过程','Training decisions')
-    draw('entropy',[('Entropy coefficient',[progress_series('tqc','train/ent_coef')])],'训练过程','Training decisions')
+    draw('optimizer_loss',[(f'{label} loss',[progress_series(k,label.lower()+'_loss') for k in logs])
+                           for label in ('Actor','Critic')],'训练过程',training_xlabel)
+    draw('entropy',[('Entropy coefficient',[progress_series('tqc','ent_coef')])],'训练过程',training_xlabel)
     for i,speed in enumerate((65,75)):
         panels=[]
         for metric in ('rmse_y_m','rmse_heading_deg'):
             series=[]
             for key,(_,_,validation) in logs.items():
-                group=[r for r in validation if r['case']==str(i) and r['diagnostic_only']=='False']
-                series.append((key,[int(Path(r['checkpoint']).stem.split('_')[1]) for r in group],
-                               [float(r[metric]) for r in group]))
+                if full4:
+                    group=[r for r in axis[key] if r['case']==str(i) and r['metric']==metric and not r['diagnostic_only']]
+                    series.append((key,[r['completed_episode'] for r in group],[r['value'] for r in group]))
+                else:
+                    group=[r for r in validation if r['case']==str(i) and r['diagnostic_only']=='False']
+                    series.append((key,[int(Path(r['checkpoint']).stem.split('_')[1]) for r in group],
+                                   [float(r[metric]) for r in group]))
             panels.append((columns[metric],series))
-        draw(f'validation_{speed}',panels,'训练过程','Training decisions')
+        draw(f'validation_{speed}',panels,'训练过程',training_xlabel)
     main_rows=[r for r in rows if r['kind']!='final']
     summary_panels=[]
     ordered_speeds=sorted(speeds)
     for metric in ('rmse_y_m','rmse_heading_deg','iy_percent','iheading_percent'):
         summary_panels.append((columns[metric],[(k,list(range(3)),[float(next(r[metric] for r in main_rows
             if r['controller']==k and int(r['speed_kmh'])==s)) for s in ordered_speeds]) for k in controls]))
-    draw('cross_speed',summary_panels,'跨速度指标','Scenario speed (km/h)',list(map(str,ordered_speeds)))
+    if full4:
+        fig,axes=plt.subplots(len(speeds),2,figsize=(9,7.2),squeeze=False)
+        for speed,pair in zip(ordered_speeds,axes):
+            for ax,metric in zip(pair,('rmse_y_m','rmse_heading_deg')):
+                demo_bars(ax,controls,[float(rows_by_key[(str(speed),k,'fixed' if k=='weak_mpc' else 'best')][metric])
+                                       for k in controls])
+                ax.set(ylabel=columns[metric],title=f'{speed} km/h')
+                ax.tick_params(axis='x',labelsize=8)
+                ax.set_axisbelow(True)
+                ax.grid(axis='y',alpha=.2)
+        finish(fig,figures/'cross_speed',dpi=300)
+        section_figures['跨速度指标']=['cross_speed']
+    else:
+        draw('cross_speed',summary_panels,'跨速度指标','Scenario speed (km/h)',list(map(str,ordered_speeds)))
     for speed in speeds:
+        if full4:
+            panels=[]
+            for metric in ('rmse_y_m','rmse_heading_deg'):
+                series=[]
+                for key,item in models.items():
+                    best_episode=next(r['completed_episode'] for r in axis[key]
+                                      if r['checkpoint_name']==item['best_checkpoint'])
+                    series.append((key,[best_episode,episodes],[float(rows_by_key[(str(speed),key,kind)][metric])
+                                                               for kind in ('best','final')]))
+                panels.append((columns[metric],series))
+            draw(f'best_final_{speed}',panels,'最终模型补充诊断','Episode')
+            continue
         if comparison:
             case=[r for r in comparison if r['speed_kmh']==speed]
             panels=[(columns[key],[(r['algorithm'],[0,1,2],[float(r[k+'_'+key]) for k in
@@ -1039,9 +1228,11 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
     sections=[]
     figure_titles={'trajectory':'参考轨迹、实际轨迹、相对弱 MPC 的横向位置差及最大差值附近的局部图',
         'errors':'横向、车身航向与航迹角误差','vehicle':'前轮转角、转向速率、Ay 与侧偏角',
-        'weights':'实际执行的 Qy、Qpsi 和 Rdelta','episode_return':'完整回合原始回报与 10 回合滑动平均',
+        'weights':'实际执行的 Qy、Qpsi 和 Rdelta','horizon':'策略请求的整数 Np 与限速后的执行 Np',
+        'episode_return':'完整回合原始回报与 10 回合滑动平均',
         'optimizer_loss':'Actor 与 Critic 损失','entropy':'TQC 熵系数','validation':'周期检查点验证 RMSE',
-        'cross_speed':'各速度 RMSE 与相对弱 MPC 改善率','best_final':'最佳合法检查点与最终模型',
+        'cross_speed':'各速度横向与航向 RMSE' if full4 else '各速度 RMSE 与相对弱 MPC 改善率',
+        'best_final':'最佳合法检查点与最终模型',
         'return_budgets':f'100 与 {episodes} 回合的回报趋势'}
     for title in ('训练过程',*(f'{s} km/h · '+('同工况诊断' if s==70 else '开发验证') for s in speeds),
                   '跨速度指标','最终模型补充诊断'):
@@ -1053,8 +1244,13 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
                          f'<figcaption>{esc(caption)} · <a href="figures/{name}.pdf">矢量 PDF</a></figcaption></figure>')
         cards=''.join(cards)
         if title=='训练过程':
-            cards='<p>Episode Return 为一个完整回合内决策奖励之和。横轴为完整回合结束时的累计决策数。损失来自各算法各自的优化目标。</p>'+cards
+            axis_note=('横轴为已完成训练轮次。轮次中途触发的检查点使用当时的已完成轮次数，CSV 保留原始决策步和轮内偏移。'
+                       '同一轮次的多条损失或熵日志取均值，CSV 保留源行和值。' if full4 else
+                       '横轴为完整回合结束时的累计决策数。')
+            cards=f'<p>Episode Return 为一个完整回合内决策奖励之和。{axis_note}损失来自各算法各自的优化目标。</p>'+cards
         if title=='最终模型补充诊断':
+            if full4:
+                cards='<p>每条线连接选中检查点与第 500 轮的 final，端点表示两个单独回放。</p>'+cards
             cards=f'<details><summary>查看 final 指标与 best/final 对照</summary>{table([r for r in rows if r["kind"]=="final"])}{cards}</details>'
         sections.append(f'<section><h2>{esc(title)}</h2>{cards}</section>')
     selected=read_json(experiment/'weak_selection.json')
@@ -1066,6 +1262,19 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
         ' / '.join(f'{k.upper()} {v["collected_decisions"]}' for k,v in models.items()))
     budget_links=(f' <a href="training_comparison.csv">100/{episodes} 回合逐工况对照</a>'
         ' <a href="audit/learning_diagnostics.json">训练、动作及目标 Q 诊断</a>') if comparison else ''
+    title='四维 DRL-MPC（500 轮次） · 弱 MPC 与 DDPG、TD3、TQC 对比' if full4 else '弱 MPC 与三种 DRL-MPC'
+    profile_note=''
+    if full4:
+        budget_links=(' <a href="training_episode_axis.csv">训练轮次映射 CSV</a>'
+                      ' <a href="training_summary.csv">训练摘要 CSV</a>'
+                      ' <a href="historical_comparison.csv">100/300/500 回合对照 CSV</a>')
+        profile_note=(f'<p>四维动作按 Np、Qy、Qpsi、Rdelta 排列。Np 为整数，允许 28–44，每决策最多变化 2 步。'
+                      f'TQC 自动目标熵为 {models["tqc"]["target_entropy"]:g}。'
+                      '周期选模取两个开发工况相对强 MPC 的两项改善率中的最小值，'
+                      '稳定达标且两项均改善才计为 best_joint。</p>'
+                      f'<p>来源 {esc(dataset["dataset_version"])} · <code>{esc(dataset["dataset_hash"])}</code>。'
+                      '<a href="audit/experiment_lock.json">冻结配置、工况签名和 SHA256</a>。'
+                      '历史两组使用三维动作，本组同时增加轮次和 Np 动作，不能从该对照分离二者作用。</p>')
     ranking_rows=[]
     for key,stats in rankings['policies'].items():
         worst_metric='横向' if stats['worst_metric']=='iy_percent' else '航向'
@@ -1076,15 +1285,16 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
     lateral_order=' → '.join(key.upper() for key in rankings['lateral'])
     heading_order=' → '.join(key.upper() for key in rankings['heading'])
     page=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>弱 MPC 与三种 DRL-MPC</title><link rel="icon" href="data:,">
+<title>{title}</title><link rel="icon" href="data:,">
 <style>body{{font:16px "Times New Roman",SimHei,serif;max-width:1100px;margin:36px auto;padding:0 20px;color:#222;background:#fff}}
 h1,h2,summary{{font-family:"Times New Roman",SimHei,serif}} section{{border-top:1px solid #ccc;margin:24px 0;padding-top:12px}} nav a{{margin-right:1em}} a{{color:#254571}}
 figure{{margin:1.4em auto;max-width:840px}} img{{width:100%;height:auto}} figcaption{{text-align:center}}
 .table{{overflow:auto}} table{{border-collapse:collapse;white-space:nowrap}} td,th{{padding:8px 10px;border-bottom:1px solid #ddd;text-align:right}} td:nth-child(2),th:nth-child(2){{text-align:left}}</style></head>
-<body><h1>弱 MPC 与三种 DRL-MPC</h1>
+<body><h1>{title}</h1>
 <p>CarSim 120 m 双移线，μ=0.8。70 km/h 用于训练与同工况诊断。65、75 km/h 用于开发验证和检查点选择。</p>
 <p>Seed 42，{budget_text}，550 决策预热。观测 20 维，决策周期 0.08 s，MPC 周期 0.04 s。主表统一使用开发验证选出的 best_legal。结论限于本次单种子、同参考轨迹的速度对比。</p>
 <nav><a href="#metrics">四控制器指标</a><a href="#native">C++ 详细报告</a><a href="metrics.csv">指标 CSV</a><a href="summary.json">模型与数据来源</a>{budget_links}</nav>
+{profile_note}
 <section><h2>弱基线与中性起点</h2><p>Np=36，Nc=13，Qy={selected['q_y']}，Qpsi={selected['q_psi']}，Rdelta={selected['r_delta']}。
 三种速度均通过全程零动作一致性。内部参考的横向差距为 {gap['lateral_gap_percent']:.2f}%（目标 25%–40%），航向差距为 {gap['heading_gap_percent']:.2f}%（目标约 10%–25%）。
 候选搜索预算 {gap['evaluated']}，安全及转向筛选通过 {gap['eligible']} 组。横向目标{'达成' if gap['lateral_target_met'] else '未达成'}，航向目标{'达成' if gap['heading_target_met'] else '未达成'}。</p><ul>{model_list}</ul></section>
@@ -1108,6 +1318,7 @@ def main():
     parser.add_argument('--weak-demo',type=Path,metavar='EXPERIMENT')
     parser.add_argument('--replay',type=Path,help='Saved weak-demo replay directory')
     parser.add_argument('--baseline-replay',type=Path,help='Historical 100-episode weak-demo replay, defaults to the experiment replay')
+    parser.add_argument('--history-300',type=Path,help='Frozen three-weight 300-episode replay for the four-action report')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
     parser.add_argument('--reference-models',type=Path)
@@ -1118,7 +1329,8 @@ def main():
     if args.weak_demo:
         if not (args.replay and args.runs and args.out):
             parser.error('--weak-demo requires --replay, --runs, and --out')
-        print(render_weak_demo(args.weak_demo,args.replay,args.runs,args.out,baseline_replay=args.baseline_replay))
+        print(render_weak_demo(args.weak_demo,args.replay,args.runs,args.out,
+                               baseline_replay=args.baseline_replay,history_300=args.history_300))
         return
     if args.runs:
         if not args.out: parser.error("--runs requires a new --out directory")
