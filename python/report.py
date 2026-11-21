@@ -612,7 +612,191 @@ def build_overview(output, runs, dataset_manifest):
     return output/'index.html'
 
 
-def render_weak_demo(experiment, replay, runs, output):
+def run_csv(path, monitor=False):
+    with Path(path).open(encoding='utf-8-sig',newline='') as file:
+        if monitor and not file.readline().startswith('#'):
+            raise ValueError(f'Invalid SB3 Monitor header: {path}')
+        return list(csv.DictReader(file))
+
+
+def weight_behavior(traces, config, *, decision_stride=None):
+    """Separate requested normalized actions, target weights, and realized weights."""
+    from scenario import resolve_config_value
+    stride=decision_stride or int(resolve_config_value(config,'rl','decision_steps'))
+    max_ratio=float(resolve_config_value(config,'rl','max_weight_ratio_per_decision'))
+    result={}
+    for key in ('q_y','q_psi','r_delta'):
+        choices=list(map(float,resolve_config_value(config,'rl',key+'_values').split(',')))
+        low,center,high=choices[0],choices[len(choices)//2],choices[-1]
+        requested=np.concatenate([t[f'action_{key}_normalized'][::stride] for t in traces])
+        target=np.concatenate([t[f'target_{key}'][::stride] for t in traces])
+        applied=np.concatenate([t[key][::stride] for t in traces])
+        previous=np.concatenate([np.r_[center,t[key][::stride][:-1]] for t in traces])
+        log_applied=np.log(applied/center)
+        applied_normalized=log_applied/np.where(log_applied>=0,np.log(high/center),np.log(center/low))
+        result[key]=dict(
+            decisions=len(requested), neutral_weight=center, min_weight=low, max_weight=high,
+            requested_mean=float(requested.mean()),requested_std=float(requested.std()),
+            requested_q05=float(np.percentile(requested,5)),requested_q95=float(np.percentile(requested,95)),
+            requested_neutral_fraction=float(np.mean(np.abs(requested)<.1)),
+            requested_bound_fraction=float(np.mean(np.abs(requested)>=.98)),
+            target_median=float(np.median(target)), applied_median=float(np.median(applied)),
+            applied_q05=float(np.percentile(applied,5)),applied_q95=float(np.percentile(applied,95)),
+            applied_bound_fraction=float(np.mean(np.abs(applied_normalized)>=.98)),
+            slew_limited_fraction=float(np.mean(np.abs(np.log(target/previous))>np.log(max_ratio)+1e-9)))
+    result['reward_loss_means']={key:float(np.concatenate([t[key] for t in traces]).mean())
+        for key in ('reward_y_loss','reward_heading_loss','reward_course_loss','reward_total_loss')}
+    return result
+
+
+def learning_audit(models):
+    """Summarize full logs and separate 30-episode windows for each rollout."""
+    import json
+    summaries={}
+    for algorithm,item in models.items():
+        run=Path(item['run'])
+        monitor=run_csv(run/'train_monitor.csv',True)
+        progress=run_csv(run/'training_logs/progress.csv')
+        outcomes=[json.loads(line) for line in (run/'solver_train/episode_outcomes.jsonl').read_text().splitlines()]
+        rewards=np.array([float(row['r']) for row in monitor])
+        if (len(outcomes)!=len(rewards) or len(rewards)<30
+            or not all(row['completed'] for row in outcomes)):
+            raise ValueError(f'Learning audit requires complete training logs: {run}')
+        traces=[control_trace(run/'solver_train'/f"episode_{row['episode']:06d}"/'bridge_trace.csv') for row in outcomes]
+        losses={}
+        for log_key in ('actor_loss','critic_loss','ent_coef','ent_coef_loss','actor_learning_rate','critic_learning_rate'):
+            data=np.array([float(r['train/'+log_key]) for r in progress if r.get('train/'+log_key)])
+            if data.size:
+                finite=data[np.isfinite(data)]
+                losses[log_key]=dict(samples=len(data),nonfinite=len(data)-len(finite),
+                    first=float(finite[0]) if len(finite) else None, last=float(finite[-1]) if len(finite) else None,
+                    minimum=float(finite.min()) if len(finite) else None, maximum=float(finite.max()) if len(finite) else None)
+        summaries[algorithm]=dict(completed_episodes=len(outcomes),training_qp_failures=sum(r['qp_failures'] for r in outcomes),
+            peak_ay_mps2=float(max(np.abs(t['body_ay_mps2']).max() for t in traces)),
+            peak_beta_deg=float(np.rad2deg(max(np.abs(t['measured_beta_rad']).max() for t in traces))),
+            first_30_mean=float(rewards[:30].mean()),
+            previous_30_mean=float(rewards[-60:-30].mean()) if len(rewards)>=60 else None,
+            last_30_mean=float(rewards[-30:].mean()),last_30_std=float(rewards[-30:].std()),
+            last_30_first_10_mean=float(rewards[-30:-20].mean()),last_30_last_10_mean=float(rewards[-10:].mean()),
+            last_30_slope=float(np.polyfit(np.arange(30),rewards[-30:],1)[0]),losses=losses,
+            first_30_behavior=weight_behavior(traces[:30],item['config']),
+            last_30_behavior=weight_behavior(traces[-30:],item['config']))
+    return summaries
+
+
+def weak_budget_comparison(experiment, replay, replay_lock, rows_by_key, models, output, baseline_replay):
+    """Compare recorded cohorts without changing which checkpoints were selected."""
+    import json
+    from algorithms import tqc_target_probe
+    from dataset_manager import read_json, sha, write_json
+    from evaluate import _tracking_metrics, write_rows
+    from evaluate_dual import weak_demo_sources
+    algorithms=('ddpg','td3','tqc')
+    budget=replay_lock['episodes']
+    best_label=f'best_{budget}'
+    final_label=f'final_{budget}'
+    old_runs=[next((experiment/'training'/key).iterdir()) for key in algorithms]
+    _,dataset,_,old_models=weak_demo_sources(experiment,old_runs)
+    source=baseline_replay or experiment/'replay'
+    source=Path(source).resolve(strict=True)
+    old_lock=read_json(source/'replay_lock.json')
+    old_file=source/'replay_metrics.csv'
+    if (old_lock.get('episodes') is not None or old_lock['dataset_hash']!=dataset['dataset_hash'] or
+        old_lock['models']!=old_models or old_lock['replay_metrics_sha256']!=sha(old_file)):
+        raise ValueError('Historical 100-episode replay provenance mismatch')
+    before={(r['speed_kmh'],r['controller']):r for r in run_csv(old_file) if r['kind']=='best'}
+    metric_keys=('rmse_y_m','rmse_heading_deg','rmse_course_deg','peak_y_m','peak_heading_deg',
+                 'peak_measured_ay_mps2','peak_measured_beta_deg','qp_failures','terminated','legal')
+    comparisons=[]
+    policy_traces={}
+    for speed in ('70','65','75'):
+        for algorithm in algorithms:
+            old=before[(speed,algorithm)]
+            best=rows_by_key[(speed,algorithm,'best')]
+            final=rows_by_key[(speed,algorithm,'final')]
+            trace=Path(old['trace'])
+            if (old['experiment_signature']!=best['experiment_signature'] or old['parsfile_sha256']!=best['parsfile_sha256']
+                or old['model_sha256']!=old_models[algorithm]['model_sha256']['best'] or sha(trace)!=old['trace_sha256']):
+                raise ValueError(f'Unexpected 100-episode case or model: {algorithm} {speed}')
+            recomputed=_tracking_metrics(trace)
+            if any(not np.isclose(float(old[k]),recomputed[k],rtol=0,atol=1e-10) for k in ('rmse_y_m','rmse_heading_deg','rmse_course_deg')):
+                raise ValueError(f'Unexpected 100-episode metric values: {algorithm} {speed}')
+            cohorts={'best_100':old,best_label:best,final_label:final}
+            row=dict(algorithm=algorithm,speed_kmh=int(speed),split=best['split'])
+            for name,metrics in cohorts.items():
+                row.update({name+'_'+k:metrics[k] for k in metric_keys})
+            for key in ('rmse_y_m','rmse_heading_deg'):
+                row[best_label+'_vs_best_100_'+key+'_gain_pct']=100*(1-float(best[key])/float(old[key]))
+                row[final_label+'_minus_'+best_label+'_'+key]=float(final[key])-float(best[key])
+            comparisons.append(row)
+            if algorithm=='tqc':
+                policy_traces[speed]={name:weight_behavior([control_trace(r['trace'])],
+                    (old_models if name=='best_100' else models)[algorithm]['config']) for name,r in cohorts.items()}
+    write_rows(output/'training_comparison.csv',comparisons)
+
+    # Probe the saved frozen networks on each policy's observed states and a common input.
+    files=replay_lock['tqc_observation_sha256']
+    for relative,digest in files.items():
+        if sha(replay/relative)!=digest:
+            raise ValueError(f'TQC transition source changed: {relative}')
+    common='case_70/tqc_best/observations.jsonl'
+    probes={}
+    for name,model,relative in (
+        ('best_100',old_models['tqc']['models']['best'],'audit/tqc_best100_probe/observations.jsonl'),
+        (best_label,models['tqc']['models']['best'],common),
+        (final_label,models['tqc']['models']['final'],'case_70/tqc_final/observations.jsonl')):
+        for kind,rel in [('own',relative),('shared',common)]:
+            transitions=[json.loads(line) for line in (replay/rel).read_text().splitlines()]
+            probes[name+'_'+kind]=dict(transition_source=rel,source_sha256=files[rel],
+                                       **tqc_target_probe(model,transitions))
+    stages={'100':learning_audit(old_models),str(budget):learning_audit(models)}
+    matched_prefix={}
+    for algorithm in algorithms:
+        previous=run_csv(Path(old_models[algorithm]['run'])/'train_monitor.csv',True)
+        current=run_csv(Path(models[algorithm]['run'])/'train_monitor.csv',True)
+        prefix=min(len(previous),len(current))
+        matched_prefix[algorithm]=dict(episode_count=prefix,
+            max_abs_return_difference=max(abs(float(a['r'])-float(b['r'])) for a,b in zip(previous,current)),
+            step_lengths_match=all(int(a['l'])==int(b['l']) for a,b in zip(previous,current)))
+    for name,cohort in [('100',old_models),(str(budget),models)]:
+        for algorithm,item in cohort.items():
+            selection=read_json(Path(item['run'])/'checkpoint_selection.json')
+            checkpoints=[r for r in selection['checkpoints'] if not r['diagnostic_only']]
+            stages[name][algorithm]['checkpoint_count']=len(checkpoints)
+            stages[name][algorithm]['first_joint_checkpoint']=next((Path(r['checkpoint']).name
+                for r in checkpoints if r['strong_dual']),None)
+            stages[name][algorithm]['worst_case_score_sequence']=[
+                [int(Path(r['checkpoint']).stem.split('_')[1]),r['score']] for r in checkpoints]
+    audit=dict(training=stages,tqc_by_speed=policy_traces,target_probes=probes,matched_prefix=matched_prefix,
+        target_scope=f'Frozen networks, recorded 70 km/h transitions, 16 sampled actions/state. '
+                     f'The shared set is the {best_label} rollout. These targets are offline diagnostics of frozen models.',
+        previous_replay_sha256=sha(old_file),previous_models=old_models)
+    write_json(output/'audit/learning_diagnostics.json',audit,exclusive=True)
+    return comparisons,old_models
+
+
+def validation_rankings(rows):
+    """Rank each error separately on the two development speeds."""
+    cohort=[r for r in rows if r['split']=='validation' and r['kind']=='best']
+    grouped={key:[r for r in cohort if r['controller']==key] for key in ('ddpg','td3','tqc')}
+    if any({r['speed_kmh'] for r in group}!={'65','75'} for group in grouped.values()):
+        raise ValueError('Validation rankings require both cases for every selected policy')
+    by_algorithm={}
+    for key,group in grouped.items():
+        worst=min((float(r[field]),int(r['speed_kmh']),field) for r in group
+                  for field in ('iy_percent','iheading_percent'))
+        by_algorithm[key]=dict(mean_lateral_m=float(np.mean([float(r['rmse_y_m']) for r in group])),
+            mean_heading_deg=float(np.mean([float(r['rmse_heading_deg']) for r in group])),
+            full_dual_improvement=all(r['legal']=='True' and float(r['iy_percent'])>0 and
+                                      float(r['iheading_percent'])>0 for r in group),
+            worst_gain_pct=worst[0],worst_speed_kmh=worst[1],worst_metric=worst[2])
+    return dict(method='Equal-weight mean across the 65 and 75 km/h cases, one seed',
+        lateral=sorted(grouped,key=lambda key:by_algorithm[key]['mean_lateral_m']),
+        heading=sorted(grouped,key=lambda key:by_algorithm[key]['mean_heading_deg']),
+        policies=by_algorithm)
+
+
+def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None):
     """Rebuild the four-controller report from locked offline replay and training evidence."""
     import shutil
     from dataset_manager import read_json, sha, write_json
@@ -620,19 +804,15 @@ def render_weak_demo(experiment, replay, runs, output):
     from evaluate_dual import weak_demo_sources, weak_gap_review
     from paper_style import configure, demo_line, DEMO_STYLE, finish
 
-    def csv_rows(path, monitor=False):
-        with Path(path).open(encoding='utf-8-sig',newline='') as file:
-            if monitor and not file.readline().startswith('#'):
-                raise ValueError(f'Invalid SB3 Monitor header: {path}')
-            return list(csv.DictReader(file))
-
     experiment,replay,output=(Path(p).resolve() for p in (experiment,replay,output))
-    lock,dataset,sets,models=weak_demo_sources(experiment,runs)
     replay_lock=read_json(replay/'replay_lock.json')
+    episodes=replay_lock.get('episodes')
+    frequency=replay_lock.get('eval_frequency')
+    lock,dataset,sets,models=weak_demo_sources(experiment,runs,episodes=episodes,eval_frequency=frequency)
     if (replay_lock['dataset_hash']!=dataset['dataset_hash'] or replay_lock['models']!=models or
         sha(replay/'replay_metrics.csv')!=replay_lock['replay_metrics_sha256']):
         raise ValueError('Replay manifest, frozen models or metrics hash mismatch')
-    rows=csv_rows(replay/'replay_metrics.csv')
+    rows=run_csv(replay/'replay_metrics.csv')
     controls=('weak_mpc','ddpg','td3','tqc')
     speeds=(70,65,75)
     cases={int(case['target_speed_kmh']):dict(case,split=split)
@@ -686,7 +866,7 @@ def render_weak_demo(experiment, replay, runs, output):
     if gap!=read_json(replay/'audit/gap_review.json'):
         raise ValueError('Internal audit differs from the revised gap review')
     for algorithm,item in models.items():
-        source=csv_rows(Path(item['run'])/'joint_validation.csv')
+        source=run_csv(Path(item['run'])/'joint_validation.csv')
         for i,speed in enumerate((65,75)):
             for kind in ('best','final'):
                 checkpoint=item['best_checkpoint'] if kind=='best' else 'final_model.zip'
@@ -703,18 +883,22 @@ def render_weak_demo(experiment, replay, runs, output):
     for name in ('search_plan.json','candidate_metrics.csv','internal_strong70.json','weak_selection.json','scenario_set.json'):
         shutil.copy2(experiment/name,audit/name)
     shutil.copy2(experiment/'preflight/experiment_lock.json',audit/'experiment_lock.json')
+    comparison,old_models=(weak_budget_comparison(experiment,replay,replay_lock,rows_by_key,models,output,baseline_replay)
+                           if episodes is not None else ([],{}))
     write_rows(output/'metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']!='final'])
     write_rows(output/'final_metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']=='final'])
+    rankings=validation_rankings(rows)
     write_json(output/'summary.json',dict(dataset_hash=dataset['dataset_hash'],parent_dataset_hash=dataset['parent_dataset_hash'],
         scope='Train-case demonstration at 70 km/h; development validation at 65 and 75 km/h',
-        seed=42,decision_budget=7900,models=models,revised_gap_review=gap,unit_labels=columns,
+        seed=42,decision_budget=7900 if episodes is None else None,episode_budget=episodes,
+        validation_frequency=frequency or 790,models=models,revised_gap_review=gap,unit_labels=columns,
         controller_config_sha256=lock['policy_config_sha256'],replay_metrics_sha256=replay_lock['replay_metrics_sha256'],
-        source_replay=str(replay)),exclusive=True)
+        validation_rankings=rankings,source_replay=str(replay)),exclusive=True)
     configure()
     section_figures={}
 
-    def draw(name, panels, section, xlabel, labels=None):
-        fig,axes=plt.subplots(len(panels),1,figsize=(7.15,1.88*len(panels)+.7),squeeze=False,sharex=True)
+    def draw(name, panels, section, xlabel, labels=None, *, sharex=True):
+        fig,axes=plt.subplots(len(panels),1,figsize=(7.15,1.88*len(panels)+.7),squeeze=False,sharex=sharex)
         handles={}
         for ax,(ylabel,series) in zip(axes[:,0],panels):
             for controller,x,y in series:
@@ -724,7 +908,8 @@ def render_weak_demo(experiment, replay, runs, output):
             ax.grid(alpha=.2)
             if labels:
                 ax.set_xticks(range(len(labels)),labels)
-        axes[-1,0].set_xlabel(xlabel)
+        for ax in axes[-1:,0] if sharex else axes[:,0]:
+            ax.set_xlabel(xlabel)
         fig.tight_layout(rect=(0,0,1,1-.4/fig.get_figheight()))
         fig.legend(handles.values(),[DEMO_STYLE[key][0] for key in handles],loc='upper center',
                    ncol=min(5,len(handles)),frameon=False,fontsize=9)
@@ -743,14 +928,26 @@ def render_weak_demo(experiment, replay, runs, output):
         track[1].insert(0,('reference',reference['x_m'],reference['y_m']-reference['ey_m']))
         station=reference['x_m']
         delta_series=[]
+        largest_difference=0.
+        zoom_center=float(station[len(station)//2])
         for key,trace in data.items():
             x=trace['x_m']
             if np.any(np.diff(x)<=0):
                 raise ValueError(f'Cannot align trajectories on non-increasing X: {speed} km/h, {key}')
             overlap=(station>=x[0])&(station<=x[-1])
-            delta_series.append((key,station[overlap],np.interp(station[overlap],x,trace['y_m'])-reference['y_m'][overlap]))
+            shared_x=station[overlap]
+            deviation=np.interp(shared_x,x,trace['y_m'])-reference['y_m'][overlap]
+            delta_series.append((key,shared_x,deviation))
+            peak=np.argmax(np.abs(deviation))
+            if abs(deviation[peak])>largest_difference:
+                largest_difference=abs(deviation[peak])
+                zoom_center=shared_x[peak]
         delta=('Lateral position vs weak (m)',delta_series)
-        draw(f'trajectory_{speed}',[track,delta],section,'X (m)')
+        zoom=[]
+        for key,x,y in track[1]:
+            window=np.abs(x-zoom_center)<=5
+            zoom.append((key,x[window],y[window]))
+        draw(f'trajectory_{speed}',[track,delta,('Y (m), detail',zoom)],section,'X (m)',sharex=False)
         course=('Course error (°)',[(k,d['x_m'],np.rad2deg(np.angle(np.exp(1j*(d['epsi_rad']+d['sideslip_rad'])))))
                                     for k,d in data.items()])
         draw(f'errors_{speed}',[panel('Lateral error (m)','ey_m'),panel('Heading error (°)','epsi_rad',180/np.pi),course],
@@ -762,17 +959,26 @@ def render_weak_demo(experiment, replay, runs, output):
             section,'X (m)')
         draw(f'weights_{speed}',[panel('Qy','q_y'),panel('Qpsi','q_psi'),panel('Rdelta','r_delta')],section,'X (m)')
 
-    logs={key:(csv_rows(Path(item['run'])/'train_monitor.csv',True),
-               csv_rows(Path(item['run'])/'training_logs/progress.csv'),
-               csv_rows(Path(item['run'])/'joint_validation.csv')) for key,item in models.items()}
+    logs={key:(run_csv(Path(item['run'])/'train_monitor.csv',True),
+               run_csv(Path(item['run'])/'training_logs/progress.csv'),
+               run_csv(Path(item['run'])/'joint_validation.csv')) for key,item in models.items()}
     raw=[];smooth=[]
     for key,(monitor,_,_) in logs.items():
         x=np.cumsum([int(r['l']) for r in monitor]); y=np.array([float(r['r']) for r in monitor])
-        if len(y)<10 or x[-1]!=7900:
+        if len(y)<10 or x[-1]!=models[key]['collected_decisions']:
             raise ValueError(f'Incomplete episode return log: {key}')
         raw.append((key,x,y))
         smooth.append((key,x[9:],np.convolve(y,np.ones(10)/10,mode='valid')))
     draw('episode_return',[('Raw episode return',raw),('Episode return (10-episode mean)',smooth)],'训练过程','Training decisions')
+    if old_models:
+        old_smooth=[]
+        for key,item in old_models.items():
+            monitor=run_csv(Path(item['run'])/'train_monitor.csv',True)
+            values=[float(row['r']) for row in monitor]
+            old_smooth.append((key,np.arange(10,len(values)+1),np.convolve(values,np.ones(10)/10,mode='valid')))
+        draw('return_budgets',[('100-episode trial',old_smooth),
+             (f'{episodes}-episode trial',[(key,np.arange(10,10+len(y)),y) for key,x,y in smooth])],
+             '训练过程','Episode (10-episode mean)')
 
     def progress_series(key,metric):
         pairs=[(int(r['time/total_timesteps']),float(r[metric])) for r in logs[key][1] if r.get(metric)]
@@ -800,9 +1006,16 @@ def render_weak_demo(experiment, replay, runs, output):
             if r['controller']==k and int(r['speed_kmh'])==s)) for s in ordered_speeds]) for k in controls]))
     draw('cross_speed',summary_panels,'跨速度指标','Scenario speed (km/h)',list(map(str,ordered_speeds)))
     for speed in speeds:
-        draw(f'best_final_{speed}',[(columns[metric],[(k,[0,1],[float(rows_by_key[(str(speed),k,kind)][metric])
-            for kind in ('best','final')]) for k in logs]) for metric in ('rmse_y_m','rmse_heading_deg')],
-             '最终模型补充诊断','Checkpoint',['Selected best legal','Final'])
+        if comparison:
+            case=[r for r in comparison if r['speed_kmh']==speed]
+            panels=[(columns[key],[(r['algorithm'],[0,1,2],[float(r[k+'_'+key]) for k in
+                ('best_100',f'best_{episodes}',f'final_{episodes}')]) for r in case]) for key in ('rmse_y_m','rmse_heading_deg')]
+            labels=['100 ep best',f'{episodes} ep best',f'{episodes} ep final']
+        else:
+            panels=[(columns[metric],[(k,[0,1],[float(rows_by_key[(str(speed),k,kind)][metric])
+                for kind in ('best','final')]) for k in logs]) for metric in ('rmse_y_m','rmse_heading_deg')]
+            labels=['Selected best legal','Final']
+        draw(f'best_final_{speed}',panels,'最终模型补充诊断','Checkpoint',labels)
 
     esc=html.escape
     def table(items):
@@ -824,11 +1037,12 @@ def render_weak_demo(experiment, replay, runs, output):
         label=f"{row['speed_kmh']} km/h · {DEMO_STYLE[row['controller']][0]} · {row['kind']}"
         links.append(f'<li><a href="{(folder/"report.html").as_posix()}">{esc(label)}</a></li>')
     sections=[]
-    figure_titles={'trajectory':'参考轨迹、实际轨迹与相对弱 MPC 的横向位置差',
+    figure_titles={'trajectory':'参考轨迹、实际轨迹、相对弱 MPC 的横向位置差及最大差值附近的局部图',
         'errors':'横向、车身航向与航迹角误差','vehicle':'前轮转角、转向速率、Ay 与侧偏角',
         'weights':'实际执行的 Qy、Qpsi 和 Rdelta','episode_return':'完整回合原始回报与 10 回合滑动平均',
         'optimizer_loss':'Actor 与 Critic 损失','entropy':'TQC 熵系数','validation':'周期检查点验证 RMSE',
-        'cross_speed':'各速度 RMSE 与相对弱 MPC 改善率','best_final':'最佳合法检查点与最终模型'}
+        'cross_speed':'各速度 RMSE 与相对弱 MPC 改善率','best_final':'最佳合法检查点与最终模型',
+        'return_budgets':f'100 与 {episodes} 回合的回报趋势'}
     for title in ('训练过程',*(f'{s} km/h · '+('同工况诊断' if s==70 else '开发验证') for s in speeds),
                   '跨速度指标','最终模型补充诊断'):
         cards=[]
@@ -847,6 +1061,20 @@ def render_weak_demo(experiment, replay, runs, output):
     model_list=''.join(f'<li>{DEMO_STYLE[k][0]} · {esc(v["best_checkpoint"])} · '
                        f'{esc(v["model_sha256"]["best"][:12])} · '
                        f'联合门槛{"通过" if v["best_joint"] else "未通过"}</li>' for k,v in models.items())
+    budget_text='每算法 7900 决策' if episodes is None else (
+        f'每算法 {episodes} 个完整回合，决策数为 '+
+        ' / '.join(f'{k.upper()} {v["collected_decisions"]}' for k,v in models.items()))
+    budget_links=(f' <a href="training_comparison.csv">100/{episodes} 回合逐工况对照</a>'
+        ' <a href="audit/learning_diagnostics.json">训练、动作及目标 Q 诊断</a>') if comparison else ''
+    ranking_rows=[]
+    for key,stats in rankings['policies'].items():
+        worst_metric='横向' if stats['worst_metric']=='iy_percent' else '航向'
+        values=(DEMO_STYLE[key][0], f'{stats["mean_lateral_m"]:.6f}', f'{stats["mean_heading_deg"]:.6f}',
+                f'{stats["worst_gain_pct"]:+.2f}% · {stats["worst_speed_kmh"]} km/h · {worst_metric}',
+                '通过' if stats['full_dual_improvement'] else '未通过', str(models[key]['gradient_updates']))
+        ranking_rows.append('<tr>'+''.join(f'<td>{esc(v)}</td>' for v in values)+'</tr>')
+    lateral_order=' → '.join(key.upper() for key in rankings['lateral'])
+    heading_order=' → '.join(key.upper() for key in rankings['heading'])
     page=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>弱 MPC 与三种 DRL-MPC</title><link rel="icon" href="data:,">
 <style>body{{font:16px "Times New Roman",SimHei,serif;max-width:1100px;margin:36px auto;padding:0 20px;color:#222;background:#fff}}
@@ -855,13 +1083,17 @@ figure{{margin:1.4em auto;max-width:840px}} img{{width:100%;height:auto}} figcap
 .table{{overflow:auto}} table{{border-collapse:collapse;white-space:nowrap}} td,th{{padding:8px 10px;border-bottom:1px solid #ddd;text-align:right}} td:nth-child(2),th:nth-child(2){{text-align:left}}</style></head>
 <body><h1>弱 MPC 与三种 DRL-MPC</h1>
 <p>CarSim 120 m 双移线，μ=0.8。70 km/h 用于训练与同工况诊断。65、75 km/h 用于开发验证和检查点选择。</p>
-<p>Seed 42，每算法 7900 决策，550 决策预热。观测 20 维，决策周期 0.08 s，MPC 周期 0.04 s。主表统一使用开发验证选出的 best_legal。结论限于本次单种子、同参考轨迹的速度对比。</p>
-<nav><a href="#metrics">四控制器指标</a><a href="#native">C++ 详细报告</a><a href="metrics.csv">指标 CSV</a><a href="summary.json">模型与数据来源</a></nav>
+<p>Seed 42，{budget_text}，550 决策预热。观测 20 维，决策周期 0.08 s，MPC 周期 0.04 s。主表统一使用开发验证选出的 best_legal。结论限于本次单种子、同参考轨迹的速度对比。</p>
+<nav><a href="#metrics">四控制器指标</a><a href="#native">C++ 详细报告</a><a href="metrics.csv">指标 CSV</a><a href="summary.json">模型与数据来源</a>{budget_links}</nav>
 <section><h2>弱基线与中性起点</h2><p>Np=36，Nc=13，Qy={selected['q_y']}，Qpsi={selected['q_psi']}，Rdelta={selected['r_delta']}。
 三种速度均通过全程零动作一致性。内部参考的横向差距为 {gap['lateral_gap_percent']:.2f}%（目标 25%–40%），航向差距为 {gap['heading_gap_percent']:.2f}%（目标约 10%–25%）。
 候选搜索预算 {gap['evaluated']}，安全及转向筛选通过 {gap['eligible']} 组。横向目标{'达成' if gap['lateral_target_met'] else '未达成'}，航向目标{'达成' if gap['heading_target_met'] else '未达成'}。</p><ul>{model_list}</ul></section>
 <section id="metrics"><h2>四控制器指标</h2><p>横向误差为 Y−Yref(X)。航向为车身角差，航迹角加入侧偏。转向速率取命令相邻采样差；前轮角图使用实测平均前轮角。
 改善率以相同速度弱 MPC 的 RMSE 为分母。求解和推理耗时为本机实测。</p>{table(main_rows)}</section>
+<section><h2>65 与 75 km/h 开发验证汇总</h2>
+<p>两种速度等权平均。按误差从小到大，横向为 {lateral_order}，航向为 {heading_order}。最小改善率取两种速度、两项误差中的最小值。</p>
+<div class="table"><table><thead><tr><th>控制器</th><th>横向均值 (m)</th><th>航向均值 (°)</th><th>最小改善率</th><th>两工况均胜弱 MPC</th><th>梯度更新</th></tr></thead>
+<tbody>{''.join(ranking_rows)}</tbody></table></div></section>
 {''.join(sections)}
 <section id="native"><h2>C++ 详细报告</h2><details><summary>展开原始控制与求解记录</summary><ul>{''.join(links)}</ul></details></section>
 </body></html>'''
@@ -875,6 +1107,7 @@ def main():
     parser.add_argument("--runs", nargs="+", type=Path, help="Completed online runs; offline all-validation overview")
     parser.add_argument('--weak-demo',type=Path,metavar='EXPERIMENT')
     parser.add_argument('--replay',type=Path,help='Saved weak-demo replay directory')
+    parser.add_argument('--baseline-replay',type=Path,help='Historical 100-episode weak-demo replay, defaults to the experiment replay')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
     parser.add_argument('--reference-models',type=Path)
@@ -885,7 +1118,7 @@ def main():
     if args.weak_demo:
         if not (args.replay and args.runs and args.out):
             parser.error('--weak-demo requires --replay, --runs, and --out')
-        print(render_weak_demo(args.weak_demo,args.replay,args.runs,args.out))
+        print(render_weak_demo(args.weak_demo,args.replay,args.runs,args.out,baseline_replay=args.baseline_replay))
         return
     if args.runs:
         if not args.out: parser.error("--runs requires a new --out directory")

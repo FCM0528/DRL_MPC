@@ -38,6 +38,28 @@ def test_tqc_truncates_pooled_upper_tail_by_critic_count():
     with pytest.raises(ValueError):quantile_summary(np.full((1,3,4),np.nan),1)
 
 
+def test_tqc_frozen_target_probe_bootstraps_only_nonterminal_steps(tmp_path):
+    import gymnasium as gym
+    from algorithms import ConfiguredTQC, tqc_target_probe
+
+    env=gym.Env()
+    env.action_space=gym.spaces.Box(-1,1,shape=(3,))
+    env.observation_space=gym.spaces.Box(-1,1,shape=(20,))
+    model=ConfiguredTQC('MlpPolicy',env,seed=42,device='cpu',buffer_size=4,
+        policy_kwargs=dict(net_arch=[4],n_critics=3,n_quantiles=25))
+    path=tmp_path/'target.zip'
+    model.save(path)
+    row=dict(observation=[0.]*20,next_observation=[.1]*20,reward=-2.,terminated=True,truncated=False)
+    terminal=tqc_target_probe(path,[row],draws=4)
+    assert terminal['next_quantiles']['retained']==69
+    assert terminal['target_entropy']==-3.
+    assert terminal['bellman_target']==dict(mean=-2.,p05=-2.,median=-2.,p95=-2.)
+    truncated=dict(row,terminated=False,truncated=True)
+    bootstrap=tqc_target_probe(path,[truncated],draws=4)
+    assert bootstrap['bellman_target']['p95']!=pytest.approx(-2.)
+    assert bootstrap==tqc_target_probe(path,[truncated],draws=4)
+
+
 def test_validation_can_reuse_selection_cases_but_test_cannot(monkeypatch):
     import evaluate_dual
     records={name:dict(vehicle_sha256='same_vehicle',io_sha256='2x20',experiment_signature=name)

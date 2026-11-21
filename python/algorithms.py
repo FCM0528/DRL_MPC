@@ -57,3 +57,40 @@ def quantile_summary(values, drop):
         p95=float(np.percentile(values,95)),mean_state_spread=float(np.mean(ordered[:,-1]-ordered[:,0])),
         adjacent_crossing_fraction=float(np.mean(np.diff(values,axis=2)<0)),
         truncated_mean=float(retained.mean()),truncation_mean_shift=float(retained.mean()-values.mean()))
+
+
+def tqc_target_probe(model_path, transitions, *, seed=42, draws=16):
+    """Inspect frozen targets on recorded CarSim transitions with a fixed sampling seed."""
+    import torch as th
+
+    obs=np.array([row['observation'] for row in transitions],dtype=np.float32)
+    following=np.array([row['next_observation'] for row in transitions],dtype=np.float32)
+    rewards=np.array([row['reward'] for row in transitions],dtype=np.float32).reshape(-1,1)
+    terminal=np.array([row['terminated'] and not row['truncated'] for row in transitions],dtype=bool).reshape(-1,1)
+    if (draws<1 or obs.ndim!=2 or not len(obs) or obs.shape!=following.shape or
+        not all(np.isfinite(values).all() for values in (obs,following,rewards))):
+        raise ValueError('Target probe requires finite recorded CarSim transitions')
+    model=ALGORITHMS['tqc'].load(model_path,device='cpu')
+    if model.action_space.shape!=(3,):
+        raise ValueError('Target probe requires the three-weight policy')
+    model.policy.set_training_mode(False)
+    drop=model.top_quantiles_to_drop_per_net
+    with th.no_grad(), th.random.fork_rng(devices=[]):
+        th.manual_seed(seed)
+        current=th.as_tensor(obs).repeat((draws,1))
+        future=th.as_tensor(following).repeat((draws,1))
+        exploration,_=model.actor.action_log_prob(current)
+        actions,log_prob=model.actor.action_log_prob(future)
+        quantiles=model.critic_target(future,actions)
+        alpha=float(model.log_ent_coef.exp()) if model.log_ent_coef is not None else float(model.ent_coef_tensor)
+        retained=quantiles.shape[1]*(quantiles.shape[2]-drop)
+        ordered=quantiles.flatten(1).sort(dim=1).values[:,:retained]
+        target=th.as_tensor(rewards).repeat((draws,1)) + model.gamma*(
+            ~th.as_tensor(terminal).repeat((draws,1)))*(ordered-alpha*log_prob.reshape(-1,1))
+    probes=exploration.numpy()
+    return dict(transition_count=len(obs),draws=draws,seed=seed,gamma=model.gamma,target_entropy=model.target_entropy,
+        alpha=alpha,drop_per_critic=drop,next_quantiles=quantile_summary(quantiles.numpy(),drop),
+        bellman_target={name:float(value) for name,value in zip(('p05','median','p95'),np.percentile(target.numpy(),[5,50,95]))}
+            | {'mean':float(target.mean())},
+        action_std={key:float(value) for key,value in zip(('q_y','q_psi','r_delta'),probes.std(axis=0))},
+        action_sat_fraction={key:float(value) for key,value in zip(('q_y','q_psi','r_delta'),(np.abs(probes)>=.98).mean(axis=0))})

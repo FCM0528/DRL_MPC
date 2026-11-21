@@ -146,3 +146,33 @@ uv run --no-project --with-requirements python/requirements.txt python python/re
 ```
 
 实验主表统一使用开发验证选出的 best_legal，强基线仍作为 best_joint 门槛。报告以相同速度的弱 MPC 为改善率分母，final 指标和图位于补充区。已有回放时，最后一条命令即可离线重建 HTML、300 dpi PNG、矢量 PDF 和相对路径的 C++ 原始报告。报告核验实际训练预算、工况与配置哈希、检查点、源日志和回放指标。内部搜索与强基线核验位于生成目录的 `audit/`。
+
+## 弱起点 300 完整回合实验
+
+复用上面的冻结工况、弱中性控制配置和 pilot 优化器设置。从空经验池开始，seed=42，每 1000 个决策验证一次。回合停止由 `StopTrainingOnMaxEpisodes` 执行。Monitor 与 CarSim 完赛账本逐回合核验，并从日志读取实际决策数、经验池样本数和梯度更新次数。
+
+```powershell
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$env:PYTHONDONTWRITEBYTECODE='1'
+$old='runs/weak_mpc_demo_20261121'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$r="runs/weak_mpc_300episodes_$stamp"
+$report="reports/weak_mpc_vs_3drl_300episodes_$stamp"
+if ((Test-Path $r) -or (Test-Path $report)) { throw 'Choose unused output paths' }
+$lock=Get-Content "$old/preflight/experiment_lock.json" -Raw | ConvertFrom-Json
+foreach($algo in @('ddpg','td3','tqc')){
+  uv run --no-project --with-requirements python/requirements.txt python python/train.py --algorithm $algo --config $lock.policy_config --train-config $lock.training_config --scenario-set "$old/scenario_set.json" --episodes 300 --seed 42 --eval-frequency 1000 --joint-selection --training-only --keep-training-traces --parity-blocks 200 --out "$r/$algo"
+  if ($LASTEXITCODE -ne 0) { throw "Training failed for $algo" }
+}
+$a=(Get-ChildItem "$r/ddpg" -Directory | Select-Object -First 1).FullName
+$b=(Get-ChildItem "$r/td3" -Directory | Select-Object -First 1).FullName
+$c=(Get-ChildItem "$r/tqc" -Directory | Select-Object -First 1).FullName
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --weak-demo $old --episodes 300 --eval-frequency 1000 --runs $a $b $c --out "$r/replay"
+if ($LASTEXITCODE -ne 0) { throw 'Replay or evidence verification failed' }
+uv run --no-project --with-requirements python/requirements.txt python python/report.py --weak-demo $old --replay "$r/replay" --runs $a $b $c --out $report
+```
+
+300 回合训练命令只传 `--episodes`。回放阶段再次核验原运行模型、完整检查点、完赛记录、工况和配置哈希。HTML 使用原有四控制器样式，另附 `training_comparison.csv` 和 `audit/learning_diagnostics.json`。可用报告命令从 100、300 回合原始日志及存好的回放离线重建。100 回合每 790 个决策验证，300 回合每 1000 个决策验证，比较选中模型时应保留这项取样差异。
+
+动作诊断按决策取样。近中性定义为 |a|<0.1，请求饱和定义为 |a|≥0.98；实执行用相对于同侧边界的对数距离归一。变化率限制按目标相对上一实际权重是否超出每步 1.08 倍计算。目标 Q 诊断使用冻模与回放的真实 70 km/h 观测，每个状态用固定 seed 抽样 16 次，按原 TQC 公式计算软 Bellman 目标，包含共同输入对照。它反映离线探针的目标值分布；实际优化过程由原训练 loss 和熵日志呈现。

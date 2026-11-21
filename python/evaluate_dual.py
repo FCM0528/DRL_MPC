@@ -188,7 +188,24 @@ def weak_preflight(root, weak_config, policy_config, controller, bridge):
     return lock
 
 
-def weak_demo_sources(root, runs):
+def verify_episode_budget(path, manifest, episodes):
+    """Require completed physical episodes and reconcile the interaction ledgers."""
+    data=manifest['training_data']
+    with (path/'train_monitor.csv').open(encoding='utf-8-sig',newline='') as file:
+        if not file.readline().startswith('#'):
+            raise ValueError(f'Missing SB3 Monitor header: {path}')
+        monitor=list(csv.DictReader(file))
+    outcomes=[json.loads(line) for line in (path/'solver_train/episode_outcomes.jsonl').read_text().splitlines()]
+    decisions=data['collected_decisions']
+    if (len(monitor)!=episodes or len(outcomes)!=episodes or
+        any(not episode['completed'] or episode['decisions']!=int(row['l']) or
+            not np.isclose(episode['return_'],float(row['r']),rtol=0,atol=1e-5)
+            for episode,row in zip(outcomes,monitor)) or sum(int(row['l']) for row in monitor)!=decisions):
+        raise ValueError(f'Expected {episodes} complete CarSim episodes with matching decisions and returns: {path}')
+    return decisions
+
+
+def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None):
     """Validate provenance independently of any new replay or report."""
     from dataset_manager import load_dataset, read_json, sha
     from train import controller_config_hashes
@@ -199,6 +216,9 @@ def weak_demo_sources(root, runs):
             raise ValueError(f'Frozen demo input changed: {filename}')
     dataset,sets=load_dataset(root/'scenario_set.json')
     plan=read_json(root/'search_plan.json')
+    frequency=eval_frequency if episodes is not None else plan['eval_frequency']
+    if episodes is not None and (episodes<1 or frequency is None or frequency<1):
+        raise ValueError('An episode budget needs positive episodes and validation frequency')
     signatures={split:[c['experiment_signature'] for c in cases] for split,cases in sets.items()}
     if ([c['target_speed_kmh'] for c in sets['train']] != [70] or
             [c['target_speed_kmh'] for c in sets['validation']] != [65,75]):
@@ -212,16 +232,25 @@ def weak_demo_sources(root, runs):
         data=manifest['training_data']
         algorithm=manifest['algorithm']
         exposure=data['exposure_by_scenario']
+        if episodes is not None:
+            if manifest['episodes']!=episodes or manifest['total_decisions'] is not None:
+                raise ValueError(f'Expected episode stop without a decision override: {path}')
+            decisions=verify_episode_budget(path,manifest,episodes)
+            # SB3 stops before storing the final transition when its callback returns False.
+            expected_replay=min(decisions-1,manifest['training_settings']['buffer_size'])
+        else:
+            decisions=plan['total_decisions']
+            expected_replay=decisions
         recorded={split:[c['experiment_signature'] for c in cases] for split,cases in manifest['scenario_sets'].items()}
         if (algorithm not in ALGORITHMS or algorithm in models or manifest['seed']!=plan['seed'] or
             manifest['dataset']['dataset_hash']!=dataset['dataset_hash'] or recorded!=signatures or
-            manifest['eval_frequency']!=plan['eval_frequency'] or data['warmup_decisions']!=plan['learning_starts'] or
-            data['collected_decisions']!=plan['total_decisions'] or data['initial_replay_decisions']!=0 or
-            data['final_replay_decisions']!=plan['total_decisions'] or data['source']!='online_carsim_closed_loop' or
+            manifest['eval_frequency']!=frequency or data['warmup_decisions']!=plan['learning_starts'] or
+            data['collected_decisions']!=decisions or data['initial_replay_decisions']!=0 or
+            data['final_replay_decisions']!=expected_replay or data['source']!='online_carsim_closed_loop' or
             data['weights_initialization']!='random' or manifest.get('resume') or
             data['replay_prefilled'] or data['synthetic_rollouts'] or data['fixed_mpc_labels'] or
             data['validation_used_for_updates'] or not manifest['keep_training_traces'] or
-            set(exposure)!=set(dataset['train_scenarios']) or sum(c['decisions'] for c in exposure.values())!=plan['total_decisions']):
+            set(exposure)!=set(dataset['train_scenarios']) or sum(c['decisions'] for c in exposure.values())!=decisions):
             raise ValueError(f'Unexpected training design or sample provenance: {path}')
         config=Path(manifest['frozen_config'])
         if (controller_config_hashes(config)!=locked['policy_config_sha256'] or
@@ -233,11 +262,13 @@ def weak_demo_sources(root, runs):
         selection=read_json(path/'checkpoint_selection.json')
         best=Path(selection['best_legal']) if selection['best_legal'] else None
         periodic=[r for r in selection['checkpoints'] if not r['diagnostic_only']]
-        steps=list(range(plan['eval_frequency'],plan['total_decisions']+1,plan['eval_frequency']))
+        steps=list(range(frequency,decisions+1,frequency))
+        diagnostic=[r for r in selection['checkpoints'] if r['diagnostic_only']]
         for row in selection['checkpoints']:
             if sha(row['checkpoint'])!=row['checkpoint_sha256']:
                 raise ValueError(f'Checkpoint hash mismatch: {row["checkpoint"]}')
         if ([Path(r['checkpoint']).stem for r in periodic]!=[f'joint_{i}_steps' for i in steps] or
+                len(diagnostic)!=1 or Path(diagnostic[0]['checkpoint']).resolve()!=(path/'final_model.zip').resolve() or
                 [s['experiment_signature'] for s in selection['validation_cases']]!=signatures['validation']):
             raise ValueError(f'Incomplete or mismatched validation history: {path}')
         legal=[r for r in periodic if r['legal']]
@@ -259,15 +290,18 @@ def weak_demo_sources(root, runs):
             model_sha256=hashes,best_checkpoint=best.name,best_joint=selection['qualified'],
             selection_reason=selection['reason'],source_log_sha256=logs,exposure=exposure,
             collected_decisions=data['collected_decisions'],gradient_updates=data['gradient_updates'])
+        if episodes is not None:
+            models[algorithm].update(episodes=episodes,final_replay_decisions=data['final_replay_decisions'],
+                                     eval_frequency=frequency)
     if set(models)!=set(ALGORITHMS):
         raise ValueError('Exactly one fresh completed run per algorithm is required')
     return locked,dataset,sets,models
 
 
-def replay_weak_demo(root, runs, output, controller, bridge):
+def replay_weak_demo(root, runs, output, controller, bridge, *, episodes=None, eval_frequency=None):
     from dataset_manager import sha, write_json
     from scenario import snapshot_scenario, read_scenario
-    locked,dataset,sets,models=weak_demo_sources(root,runs)
+    locked,dataset,sets,models=weak_demo_sources(root,runs,episodes=episodes,eval_frequency=eval_frequency)
     output=Path(output).resolve()
     output.mkdir(parents=True,exist_ok=False)
     audit=output/'audit'
@@ -293,7 +327,7 @@ def replay_weak_demo(root, runs, output, controller, bridge):
             for algorithm,item in models.items():
                 for kind,model_path in item['models'].items():
                     replay=run_policy(algorithm,model_path,bridge,item['config'],sim,work/f'{algorithm}_{kind}',
-                                      seed=42,export_report=True)
+                                      seed=42,export_report=True,record_observations=episodes is not None and algorithm=='tqc')
                     result=dict(terminated=replay['terminated'],truncated=replay['truncated'],failed=replay['failed'],
                         return_=replay['return'],decisions=replay['decisions'],
                         **_tracking_metrics(replay['trace']))
@@ -316,8 +350,19 @@ def replay_weak_demo(root, runs, output, controller, bridge):
                     strong_trace=str(strong['trace']),strong_trace_sha256=sha(strong['trace'])))
             write_rows(output/'replay_metrics.csv',rows)
             write_rows(audit/'relative_to_strong.csv',strong_rows)
-    write_json(output/'replay_lock.json',dict(dataset_hash=dataset['dataset_hash'],models=models,
-        replay_metrics_sha256=sha(output/'replay_metrics.csv')),exclusive=True)
+    replay_lock=dict(dataset_hash=dataset['dataset_hash'],models=models,
+                     replay_metrics_sha256=sha(output/'replay_metrics.csv'))
+    if episodes is not None:
+        replay_lock.update(episodes=episodes,eval_frequency=eval_frequency)
+        old_runs=[next((Path(root)/'training'/algorithm).iterdir()) for algorithm in ALGORITHMS]
+        _,_,_,old_models=weak_demo_sources(root,old_runs)
+        old_tqc=old_models['tqc']
+        old_path=output/'case_70'/'source'/'simfile.sim'
+        run_policy('tqc',old_tqc['models']['best'],bridge,old_tqc['config'],old_path,
+                   audit/'tqc_best100_probe',seed=42,record_observations=True)
+        paths=list(output.glob('case_*/tqc_*/observations.jsonl'))+[audit/'tqc_best100_probe'/'observations.jsonl']
+        replay_lock['tqc_observation_sha256']={p.relative_to(output).as_posix():sha(p) for p in paths}
+    write_json(output/'replay_lock.json',replay_lock,exclusive=True)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -326,6 +371,8 @@ def main():
     p.add_argument('--weak-preflight',type=Path,metavar='SEARCH_DIR')
     p.add_argument('--weak-demo',type=Path,metavar='SEARCH_DIR',help='Replay best and final demo models on 70/65/75')
     p.add_argument('--runs',nargs='+',type=Path)
+    p.add_argument('--episodes',type=int,help='Require exactly this many complete physical episodes for each weak demo run')
+    p.add_argument('--eval-frequency',type=int,default=1000)
     p.add_argument('--scenario-set')
     p.add_argument('--out')
     p.add_argument('--split',choices=['validation','test'],default='test',help='Default preserves held-out test behavior; validation never evaluates test cases')
@@ -338,7 +385,8 @@ def main():
     if args.weak_demo:
         if not args.runs or not args.out:
             p.error('--weak-demo requires --runs and a new --out directory')
-        replay_weak_demo(args.weak_demo,args.runs,args.out,args.controller,args.bridge)
+        replay_weak_demo(args.weak_demo,args.runs,args.out,args.controller,args.bridge,
+                         episodes=args.episodes,eval_frequency=args.eval_frequency)
         return
     if not args.scenario_set or not args.out:
         p.error('--scenario-set and --out are required')
