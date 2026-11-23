@@ -258,6 +258,7 @@ def main():
     p.add_argument("--scenario-set", help="Legacy JSON collections or immutable dataset manifest")
     p.add_argument("--total-decisions", type=int, help="Exact interaction budget; overrides episode stopping")
     p.add_argument("--strong-config", default="configs/mpc_strong.ini")
+    p.add_argument("--dual-segment-lock", type=Path, help="Frozen wave-balance reward and development selection contract")
     p.add_argument("--keep-training-traces", action="store_true",
                    help="Preserve every real CarSim training episode and its solver log")
     p.add_argument("--episodes", type=int,
@@ -285,7 +286,32 @@ def main():
     p.add_argument("--tqc-drop", type=int,
                    help="Highest target quantiles removed per critic (paper tests 0..5)")
     args = p.parse_args()
+    segment_lock = None
+    if args.dual_segment_lock:
+        from dataset_manager import read_json,sha
+        from dual_segment import load_lock
+        args.dual_segment_lock=str(args.dual_segment_lock.resolve(strict=True))
+        segment_lock=load_lock(args.dual_segment_lock)
+        audit=read_json(Path(args.dual_segment_lock).with_name('reward_numeric_audit.json'))
+        preflight=read_json(Path(args.dual_segment_lock).with_name('wave_preflight.json'))
+        if (not audit['passed'] or not preflight['passed'] or preflight['wave_lock_sha256']!=sha(args.dual_segment_lock) or
+            preflight['numeric_sha256']!=sha(Path(args.dual_segment_lock).with_name('reward_numeric_audit.json')) or
+            args.joint_selection or args.resume or args.total_decisions is not None or
+            args.action_profile or args.set or args.train_set or args.simfile or args.validation_simfile or
+            args.tqc_drop is not None or args.tqc_profile is not None or not args.training_only or not args.keep_training_traces):
+            p.error('Wave-balance runs require the numeric audit, fresh episode-based training and retained traces')
+        args.config=segment_lock['policy_config']
+        args.scenario_set=segment_lock['scenario_set']
+        args.train_config=segment_lock['training_config']
+        for key in ('episodes','seed','eval_frequency'):
+            value=segment_lock['training_budget'][key]
+            if getattr(args,key) not in (None,value):
+                p.error(f'Unexpected wave-balance budget override: {key}')
+            setattr(args,key,value)
     settings = load_training_settings(args.train_config,args.train_set)
+    if segment_lock and any(settings[key]!=value for key,value in segment_lock['training_budget'].items()
+                            if key not in ('episodes','seed','eval_frequency')):
+        p.error('Wave-balance training settings differ from lock')
     if args.total_decisions is not None and args.total_decisions % settings['train_freq']:
         p.error("--total-decisions must be a multiple of train_freq for an exact budget")
     for arg, key in (("episodes", "episodes"), ("seed", "seed"),
@@ -310,7 +336,7 @@ def main():
     from scenario_sets import training_source, SAMPLING_RULE, load_case_sets
     try:
         args.simfile = str(training_source(args.config,args.simfile,scenario_set=args.scenario_set,
-            validation_simfile=args.validation_simfile,joint_selection=args.joint_selection))
+            validation_simfile=args.validation_simfile,joint_selection=bool(args.joint_selection or segment_lock)))
     except ValueError as exc:
         p.error(str(exc))
     if args.validation_simfile:
@@ -385,6 +411,8 @@ def main():
     manifest["weight_action_mode"] = resolve_config_value(frozen_config, "rl", "weight_action_mode", "legacy").lower()
     manifest["policy_action_dims"] = resolve_config_value(frozen_config, "rl", "policy_action_dims", "4")
     manifest["reward_mode"] = resolve_config_value(frozen_config, "rl_reward", "mode", "legacy").lower()
+    if segment_lock:
+        manifest['dual_segment_lock_sha256']=sha(args.dual_segment_lock)
     manifest["algorithm_design"] = (tqc_design(args.tqc_profile, args.tqc_drop, settings)
                                     if args.algorithm == "tqc" else
                                     deterministic_design(args.algorithm, settings))
@@ -484,14 +512,17 @@ def main():
         elif args.total_decisions < 1:
             p.error("--total-decisions must be positive")
         joint_validator = None
-        if args.joint_selection:
-            from joint_validation import JointValidator, JointValidationCallback
+        if args.joint_selection or segment_lock:
+            from joint_validation import DualSegmentValidator, JointValidator, JointValidationCallback
             validation_cases = ([c['frozen_simfile'] for c in sets['validation']] if sets else
                                 [str(frozen_validation) if frozen_validation else args.simfile])
             if not validation_cases:
                 raise ValueError("Scenario set requires real validation cases for joint selection")
-            joint_validator = JointValidator(root, args.bridge, args.controller, args.config,
-                validation_cases, fixed_config, strong_config, args.seed, config_hashes)
+            if segment_lock:
+                joint_validator=DualSegmentValidator(root,args.bridge,args.config,validation_cases,args.seed,segment_lock)
+            else:
+                joint_validator = JointValidator(root, args.bridge, args.controller, args.config,
+                    validation_cases, fixed_config, strong_config, args.seed, config_hashes)
             callbacks.append(JointValidationCallback(joint_validator, args.eval_frequency))
         if not args.training_only and not args.joint_selection:
             validation_args = (args.bridge, args.config, args.simfile, root / "solver_validation")

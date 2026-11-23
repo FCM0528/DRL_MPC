@@ -597,6 +597,74 @@ def neutral_rank(row):
             -row['stability_margin'],row['candidate'])
 
 
+def replay_wave(lock_path, runs, output, bridge):
+    from dataset_manager import read_json,sha,write_json
+    from dual_segment import score_case,wave_sources
+    from report import run_csv
+    from scenario import snapshot_scenario,read_scenario
+    import shutil
+
+    lock,dataset,sets,models=wave_sources(lock_path,runs)
+    archive=Path(lock['source_replay_lock'])
+    source=read_json(archive)
+    if sha(archive.parent/'replay_metrics.csv')!=source['replay_metrics_sha256']:
+        raise ValueError('Original fixed replay evidence differs from lock')
+    policy=controller_policy_signature(lock['policy_config'])
+    output=Path(output).resolve()
+    output.mkdir(parents=True,exist_ok=False)
+    (output/'audit').mkdir()
+    shutil.copy2(archive.parent/'audit/gap_review.json',output/'audit/gap_review.json')
+    rows=[row for row in run_csv(archive.parent/'replay_metrics.csv') if row['controller']=='weak_mpc']
+    fixed={r['speed_kmh']:r for r in rows}
+    comparison=[]
+    for split in ('train','validation'):
+        for case in sets[split]:
+            speed=str(int(case['target_speed_kmh']))
+            work=output/f'case_{speed}'
+            sim=snapshot_scenario(case,work/'source')
+            provenance=read_scenario(sim)
+            common=dict(speed_kmh=speed,split=split,experiment_signature=case['experiment_signature'],
+                        parsfile_sha256=case['parsfile_sha256'],replay_simfile=str(sim),
+                        replay_simfile_sha256=provenance['simfile_sha256'])
+            weak=fixed[speed]
+            for algorithm,item in models.items():
+                validator=run_csv(Path(item['run'])/'checkpoint_segment_metrics.csv')
+                for kind,model in item['models'].items():
+                    result=run_policy(algorithm,model,bridge,item['config'],sim,work/f'{algorithm}_{kind}',
+                                      seed=42,export_report=True)
+                    trace=Path(result['trace'])
+                    metrics=dict(terminated=result['terminated'],truncated=result['truncated'],failed=result['failed'],
+                                 return_=result['return'],decisions=result['decisions'],**_tracking_metrics(trace))
+                    data=control_trace(trace)
+                    legal=stable_legal(metrics) and data['x_m'][-1]>=120
+                    diagnostics=replay_diagnostics(trace)|full4_horizon(data,policy)
+                    score=score_case(data,lock['bounds_m'],lock['baselines'][speed],legal=legal)
+                    if split=='validation':
+                        checkpoint=item['best_checkpoint'] if kind=='best' else 'final_model.zip'
+                        match,=[r for r in validator if r['speed_kmh']==speed and Path(r['checkpoint']).name==checkpoint]
+                        for k in ('rmse_y_m','rmse_heading_deg','peak1','peak2','rmse1','rmse2'):
+                            if not np.isclose(float(match[k]),score[k],rtol=0,atol=1e-10):
+                                raise ValueError(f'Validation replay does not match {checkpoint}: {speed} {k}')
+                    rows.append(dict(**common,controller=algorithm,kind=kind,model_sha256=item['model_sha256'][kind],
+                        legal=legal,**metrics,**diagnostics,
+                        policy_inference_mean_ms=result['policy_inference_mean_ms'],
+                        policy_inference_p95_ms=result['policy_inference_p95_ms'],
+                        iy_percent=100*(1-metrics['rmse_y_m']/float(weak['rmse_y_m'])),
+                        iheading_percent=100*(1-metrics['rmse_heading_deg']/float(weak['rmse_heading_deg'])),
+                        trace_sha256=sha(trace),simulation_sha256=sha(trace.with_name('simulation.csv')),
+                        cpp_report_sha256=sha(trace.with_name('report.html'))))
+                    comparison.append(dict(speed_kmh=speed,controller=algorithm,kind=kind,
+                        trace=str(trace),trace_sha256=sha(trace),**score))
+    write_rows(output/'replay_metrics.csv',rows)
+    write_rows(output/'wave_replay_metrics.csv',comparison)
+    write_json(output/'replay_lock.json',dict(dataset_hash=dataset['dataset_hash'],models=models,
+        episodes=lock['training_budget']['episodes'],eval_frequency=lock['training_budget']['eval_frequency'],
+        experiment_lock=source['experiment_lock'],experiment_lock_sha256=source['experiment_lock_sha256'],
+        wave_lock=str(Path(lock_path).resolve()),wave_lock_sha256=sha(lock_path),
+        replay_metrics_sha256=sha(output/'replay_metrics.csv'),
+        wave_replay_metrics_sha256=sha(output/'wave_replay_metrics.csv')),exclusive=True)
+
+
 def search_neutral(experiment, replay, output, controller):
     """Tune only on the archived 70 km/h training case before testing the choice."""
     from dataset_manager import read_json,sha,write_json
@@ -694,6 +762,10 @@ def main():
                    help='Freeze a run-private four-action weak configuration and verify all three parity cases')
     p.add_argument('--experiment-lock',type=Path,help='Independent lock from --full4-preflight')
     p.add_argument('--neutral-search',type=Path,metavar='SEARCH_DIR',help='Tune a fixed MPC on the locked 70 km/h case')
+    p.add_argument('--wave-prepare',type=Path,metavar='SEARCH_DIR',help='Audit archived checkpoints and freeze wave reward')
+    p.add_argument('--wave-preflight',type=Path,metavar='WAVE_LOCK',help='Verify old rewards and new full-duration parity')
+    p.add_argument('--wave-replay',type=Path,metavar='WAVE_LOCK',help='Replay the fresh wave-balanced best/final policies')
+    p.add_argument('--neutral-run',type=Path,help='Frozen neutral MPC tuning and replay evidence')
     p.add_argument('--replay',type=Path,help='Existing full4 replay to reuse with --neutral-search')
     p.add_argument('--weak-demo',type=Path,metavar='SEARCH_DIR',help='Replay best and final demo models on 70/65/75')
     p.add_argument('--runs',nargs='+',type=Path)
@@ -705,6 +777,21 @@ def main():
     p.add_argument('--controller',default='out/python-rl-build/Release/MPC_DoubleLaneChange.exe')
     p.add_argument('--bridge',default='out/python-rl-build/Release/MPC_RL_Bridge.exe')
     args=p.parse_args()
+    if args.wave_replay:
+        if not args.runs or not args.out:
+            p.error('--wave-replay requires --runs and --out')
+        replay_wave(args.wave_replay,args.runs,args.out,args.bridge)
+        return
+    if args.wave_preflight:
+        from dual_segment import check_preflight
+        check_preflight(args.wave_preflight,args.bridge,args.controller)
+        return
+    if args.wave_prepare:
+        if not args.replay or not args.neutral_run or not args.out:
+            p.error('--wave-prepare requires --replay, --neutral-run and --out')
+        from dual_segment import prepare
+        prepare(args.wave_prepare,args.replay,args.neutral_run,args.out)
+        return
     if args.neutral_search:
         if not args.replay or not args.out:
             p.error('--neutral-search requires --replay and a new --out directory')

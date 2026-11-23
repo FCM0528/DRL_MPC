@@ -168,6 +168,9 @@ def test_episode_axis_uses_irregular_physical_episode_end_boundaries(tmp_path):
     assert [(r['actual_decisions'],r['completed_episode'],r['decisions_into_next_episode'])
             for r in rows if r['metric']=='rmse_y_m']==[(6,1,1),(16,3,0)]
     assert rows[-1]['source_line']==3
+    wave_rows=training_episode_axis('tqc',monitor,progress,validation,tmp_path,
+                                   validation_source='checkpoint_segment_metrics.csv')
+    assert Path(wave_rows[-1]['source_log'])==tmp_path/'checkpoint_segment_metrics.csv'
 
 
 def test_neutral_rank_honors_target_window_before_heading():
@@ -191,3 +194,35 @@ def test_wave_windows_and_reversals_come_from_geometry_not_tracking_errors():
     assert not first['end_inclusive'] and second['end_inclusive']
     assert (first['sign'],second['sign'])==(1,-1)
     assert reversal_station(np.array([1.,2.]),np.array([2.,-2.]),1,1.8)==1.5
+
+
+def test_dual_segment_gate_uses_the_better_fixed_reference_for_each_metric():
+    from dual_segment import aggregate,rank,score_case
+
+    bounds=(20.,60.,84.)
+    data=dict(x_m=np.array([20.,59.,60.,84.]),ey_m=np.array([.12,-.16,.2,-.24]),
+              epsi_rad=np.full(4,.01))
+    baseline={'weak_mpc':dict(peak1=.18,peak2=.30,rmse1=.15,rmse2=.28),
+        'neutral_mpc':dict(peak1=.20,peak2=.245,rmse1=.17,rmse2=.26,rmse_y_m=.21,rmse_heading_deg=.6)}
+    good=score_case(data,bounds,baseline,legal=True)
+    assert good['samples1']==good['samples2']==2
+    assert good['peak1_ref_controller']=='weak_mpc'
+    assert good['peak2_ref_controller']=='neutral_mpc'
+    assert good['passed'] and good['margin_2pct']
+    tied=score_case(dict(data,ey_m=np.array([.12,-.16,.2,-.245])),bounds,baseline,legal=True)
+    assert tied['full_ok'] and not tied['passed'] and tied['unmet']==['peak2']
+    group=aggregate([dict(good,speed_kmh=65),dict(tied,speed_kmh=75)])
+    assert group['gmin']==0 and group['unmet']==['75:peak2']
+    with pytest.raises(ValueError,match='development'):
+        aggregate([dict(good,speed_kmh=70),dict(tied,speed_kmh=75)])
+    assert rank(dict(group,decisions=1000))>rank(dict(group,full_ok=False,decisions=2000))
+
+
+def test_wave_loss_is_local_length_balanced_and_grows_before_old_threshold():
+    from dual_segment import wave_terms
+
+    data=dict(x_m=np.array([19.,20.,59.9,60.,84.,84.1]),ey_m=np.full(6,.23))
+    tracking,peak=wave_terms(data,(20.,60.,84.),(.2,.2),(.3,.3))
+    assert (tracking[[0,-1]]==0).all() and (peak[[0,-1]]==0).all()
+    assert 0<peak[2]<peak[3]
+    assert tracking[3]/tracking[2]==pytest.approx(40/24)

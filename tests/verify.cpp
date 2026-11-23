@@ -532,6 +532,24 @@ void testRlModule() {
     require(terms.growth > 0 && terms.parameter_switch > 0 &&
             std::abs(total_reward + joint.reward.reward_scale * terms.total()) < 1e-10,
             "Joint reward components must include growth and switching and sum to scalar reward");
+    auto wave = joint;
+    wave.reward.mode = "joint_tracking_wave_balance";
+    wave.reward.wave_bounds = {20, 60, 80};
+    wave.reward.wave_rmse_refs = {0.2, 0.2};
+    wave.reward.wave_peak_refs = {0.3, 0.3};
+    wave.reward.w_wave_tracking = 0.25;
+    wave.reward.w_wave_peak = 0.5;
+    const auto wave_terms = [&](double ey, double x) {
+        return jointRewardTerms(ey, 0.02, 0, neutral.np, config.mpc, wave,
+                                0, neutral.np, neutral, neutral, 0, 0, 0, 0, x);
+    };
+    require(wave_terms(0.24, 19.99).wave_tracking == 0 &&
+            wave_terms(0.24, 80.01).wave_peak == 0 &&
+            std::abs(wave_terms(0.24, 60).wave_tracking-2*wave_terms(0.24, 59.99).wave_tracking)<1e-12 &&
+            wave_terms(0.24, 60).wave_peak > wave_terms(0.22, 60).wave_peak &&
+            wave_terms(0.24, 60).heading == wave_terms(0.24, 19.99).heading &&
+            wave_terms(2.0, 60).wave_tracking > wave_terms(1.0, 60).wave_tracking,
+            "Wave loss must own the divider in wave two and preserve old heading terms");
     require(neutral.np == config.mpc.np &&
             std::abs(neutral.q_y - config.mpc.q_y) < 1e-12 &&
             std::abs(neutral.q_psi - config.mpc.q_psi) < 1e-12 &&

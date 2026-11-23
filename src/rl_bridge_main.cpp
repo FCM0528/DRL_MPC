@@ -129,7 +129,7 @@ public:
                << "step,x_m,y_m,vx_mps,ey_m,epsi_rad,steer_rad,np,q_y,q_psi,r_delta,qp_failed,vy_mps,psi_rad,yaw_rate_radps,sideslip_rad,"
                   "time_s,body_ax_mps2,body_ay_mps2,measured_beta_rad,driver_curvature_inv_m,"
                   "front_lateral_force_n,rear_lateral_force_n,actual_steer_rad,reference_curvature_inv_m,"
-                  "front_lagged_slip_rad,rear_lagged_slip_rad,e_heading_rad,e_course_rad,e_yaw_rate_radps,reward_y_loss,reward_heading_loss,reward_course_loss,action_np_normalized,action_q_y_normalized,action_q_psi_normalized,action_r_delta_normalized,target_np,target_q_y,target_q_psi,target_r_delta,reward_peak_loss,reward_growth_loss,reward_steering_loss,reward_parameter_switch_loss,reward_safety_loss,reward_other_loss,reward_total_loss,reward_step\n";
+                  "front_lagged_slip_rad,rear_lagged_slip_rad,e_heading_rad,e_course_rad,e_yaw_rate_radps,reward_y_loss,reward_heading_loss,reward_course_loss,action_np_normalized,action_q_y_normalized,action_q_psi_normalized,action_r_delta_normalized,target_np,target_q_y,target_q_psi,target_r_delta,reward_peak_loss,reward_growth_loss,reward_steering_loss,reward_parameter_switch_loss,reward_safety_loss,reward_other_loss,reward_total_loss,reward_step,reward_wave_tracking_loss,reward_wave_peak_loss\n";
     }
 
     RoadPreviewObservation observation() const {
@@ -212,13 +212,13 @@ public:
                     current_.np, cfg_.mpc, cfg_.rl, prior_steer,
                     i == 0 ? previous_action.np : current_.np,
                     current_, reward_previous_action, state_.vy,
-                    state_.r - state_.vx * next.curvature, sideslip, lateralErrorRate(state_, next));
-                const auto terms = cfg_.rl.reward.mode == "joint_tracking" ?
+                    state_.r - state_.vx * next.curvature, sideslip, lateralErrorRate(state_, next), state_.x);
+                const auto terms = cfg_.rl.reward.jointTracking() ?
                     jointRewardTerms(ey, epsi, command.steer, current_.np, cfg_.mpc,
                         cfg_.rl, prior_steer, i == 0 ? previous_action.np : current_.np,
                         current_, reward_previous_action, state_.vy,
                         state_.r - state_.vx * next.curvature, sideslip,
-                        lateralErrorRate(state_, next)) : JointRewardTerms{};
+                        lateralErrorRate(state_, next), state_.x) : JointRewardTerms{};
                 step_reward_sum += row.reward;
                 if (!cfg_.rl.reward.tracking_v2 && bad_qp && cfg_.rl.penalize_qp_failure)
                     row.reward -= cfg_.rl.reward.reward_scale * cfg_.rl.reward.failure_penalty;
@@ -243,7 +243,8 @@ public:
                        << target_action.np << ',' << target_action.q_y << ',' << target_action.q_psi
                        << ',' << target_action.r_delta << ',' << terms.peak << ',' << terms.growth
                        << ',' << terms.steering << ',' << terms.parameter_switch << ',' << terms.safety
-                       << ',' << terms.other << ',' << terms.total() << ',' << row.reward << '\n';
+                       << ',' << terms.other << ',' << terms.total() << ',' << row.reward
+                       << ',' << terms.wave_tracking << ',' << terms.wave_peak << '\n';
             } catch (const std::exception& e) {
                 std::cerr << "BRIDGE_STEP_FAILURE " << e.what() << '\n';
                 failed = true;
@@ -267,7 +268,7 @@ public:
         const bool incomplete = ended_ && state_.x < cfg_.distance_m;
         const double reward = rlDecisionReward(step_reward_sum, steps, qp_failed_count,
                                                failed, incomplete, cfg_.rl);
-        if (cfg_.rl.reward.mode == "joint_tracking") {
+        if (cfg_.rl.reward.jointTracking()) {
             const int valid = std::max(1, steps - static_cast<int>(failed));
             const double mean = step_reward_sum / (valid * cfg_.rl.reward.reward_scale);
             const double qp_penalty = cfg_.rl.penalize_qp_failure ?

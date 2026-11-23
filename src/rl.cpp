@@ -27,7 +27,7 @@ JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
     const MpcParameters& mpc, const RlConfig& config, double previous_steer,
     int previous_np, const MpcTuningAction& action,
     const MpcTuningAction& previous_action, double vy, double yaw_error,
-    double sideslip, double ey_dot) {
+    double sideslip, double ey_dot, double x) {
     const auto& r = config.reward;
     JointRewardTerms t;
     const double heading = angleDifference(epsi, 0.0);
@@ -64,6 +64,14 @@ JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
     }
     t.other += r.w_horizon * clip((np - config.min_np) / span_np, 0.0, 1.0) +
         r.w_vy * std::pow(clip(vy / 2.0, -3.0, 3.0), 2);
+    if (r.mode == "joint_tracking_wave_balance" && x >= r.wave_bounds.front() && x <= r.wave_bounds.back()) {
+        const std::size_t i = x < r.wave_bounds[1] ? 0 : 1;
+        const double weight = (r.wave_bounds.back() - r.wave_bounds.front()) /
+            (2 * (r.wave_bounds[i+1] - r.wave_bounds[i]));
+        const auto huber = [](double z) { return z <= 1.0 ? z*z : 2*z-1; };
+        t.wave_tracking = weight * r.w_wave_tracking * huber(std::abs(ey) / r.wave_rmse_refs[i]);
+        t.wave_peak = weight * r.w_wave_peak * huber(std::max(0.0, std::abs(ey) / r.wave_peak_refs[i] - 0.7));
+    }
     return t;
 }
 
@@ -72,12 +80,12 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           double previous_steer, int previous_np,
                           const MpcTuningAction& action,
                           const MpcTuningAction& previous_action,
-                          double vy, double yaw_error, double sideslip, double ey_dot) {
+                          double vy, double yaw_error, double sideslip, double ey_dot, double x) {
     const auto& r = config.reward;
-    if (r.mode == "joint_tracking") {
+    if (r.jointTracking()) {
         return -r.reward_scale * jointRewardTerms(ey, epsi, steer, np, mpc,
             config, previous_steer, previous_np, action, previous_action,
-            vy, yaw_error, sideslip, ey_dot).total();
+            vy, yaw_error, sideslip, ey_dot, x).total();
     }
     const double normalized_ey = ey / r.ey_scale_m;
     if (r.tracking_v2 && mpc.track_course)
@@ -149,7 +157,7 @@ double rlDecisionReward(double step_reward_sum, int steps, int qp_failures,
                         bool failed, bool incomplete, const RlConfig& config) {
     const auto& r = config.reward;
     const int penalized_qp = config.penalize_qp_failure ? qp_failures : 0;
-    if (r.tracking_v2 || r.mode == "joint_tracking") {
+    if (r.tracking_v2 || r.jointTracking()) {
         const int valid_steps = steps - static_cast<int>(failed);
         const double mean = step_reward_sum / (std::max(1, valid_steps) * r.reward_scale);
         const double terminal = failed ? r.failure_penalty

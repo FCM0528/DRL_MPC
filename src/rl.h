@@ -11,7 +11,11 @@
 using RoadPreviewObservation = std::vector<double>;
 
 struct RlRewardConfig {
-    std::string mode = "legacy"; // legacy | joint_tracking
+    std::string mode = "legacy";
+    bool jointTracking() const { return mode == "joint_tracking" || mode == "joint_tracking_wave_balance"; }
+    std::array<double,3> wave_bounds{};
+    std::array<double,2> wave_rmse_refs{}, wave_peak_refs{};
+    double w_wave_tracking = 0.0, w_wave_peak = 0.0;
     double w_heading = 1.0;
     double w_course = 0.0;
     double heading_scale_rad = 0.035;
@@ -93,16 +97,17 @@ struct MpcTuningAction {
 struct JointRewardTerms {
     double lateral = 0, heading = 0, course = 0, peak = 0, growth = 0;
     double steering = 0, parameter_switch = 0, safety = 0, other = 0;
+    double wave_tracking = 0, wave_peak = 0;
     double total() const {
         return lateral + heading + course + peak + growth + steering +
-               parameter_switch + safety + other;
+               parameter_switch + safety + other + wave_tracking + wave_peak;
     }
 };
 JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
     const MpcParameters& mpc, const RlConfig& config, double previous_steer,
     int previous_np, const MpcTuningAction& action,
     const MpcTuningAction& previous_action, double vy, double yaw_error,
-    double sideslip, double ey_dot);
+    double sideslip, double ey_dot, double x = -1.0);
 
 MpcTuningAction neutralRlAction(const RlConfig& config);
 MpcTuningAction advanceRlTuning(const std::array<double, 4>& action,
@@ -123,7 +128,7 @@ double scalarizedRlReward(double ey, double epsi, double steer, int np,
                           const MpcTuningAction& action = {},
                           const MpcTuningAction& previous_action = {},
                           double vy = 0.0, double yaw_error = 0.0, double sideslip = 0.0,
-                          double ey_dot = 0.0);
+                          double ey_dot = 0.0, double x = -1.0);
 double lateralErrorRate(const VehicleState& state, const ReferencePoint& reference);
 double rlDecisionReward(double step_reward_sum, int steps, int qp_failures,
                         bool failed, bool incomplete, const RlConfig& config);

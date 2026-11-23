@@ -89,6 +89,17 @@ QP 项由 penalize_qp_failure 开关决定，失败优先于未完赛，两者�
 
 legacy 奖励保留原函数分支，不能按上式解释旧模型。MPC 预测代价使用 Qy/Qpsi/Rdelta 等优化预测控制序列；上述 reward 评价真实闭环；TQC 熵正则是学习算法内部目标；四者必须分开。
 
+## 双区段均衡奖励
+
+`joint_tracking_wave_balance_v1` 是独立奖励版本。它保留 `joint_tracking_v1` 的全部损失和决策级 QP、终止惩罚。只在两个锁定区段增加两项损失，分界 60.50 m 归第二段。设区段长度为 `L_i`，两段总长度为 `L`，70 km/h 中性 MPC 的各段横向 RMSE、峰值分别为 `s_i`、`p_i`。对当前实际位置所在区段 `i` 有
+
+\[
+L_{\mathrm{wave}}=\frac{L}{2L_i}\left[0.25\,H(|e_y|/s_i)+0.50\,H\big(\max(0,|e_y|/p_i-0.7)\big)\right],
+\qquad H(z)=\begin{cases}z^2,&z\le 1,\\2z-1,&z>1.\end{cases}
+\]
+
+Huber 型损失在接点保持一阶连续，线性长尾限制远端梯度。峰值项在达到参考峰值前开始计损。长度权重让短区段的每步误差权重更高，依据是距离而非未来采样数。它使用当前实测位置和误差，不保留跨回合峰值或读取未来车辆状态。各段的参考量只用 70 km/h 固定中性 MPC。65/75 km/h 的较优固定基线只用于验证门槛和排序。新旧环境回报的数值尺度分别展示。
+
 ## 验证选模
 
 validation 不进入梯度更新，test 不参与选模。合法需完整结束、QP=0、Ay≤0.85g、|Beta|≤5°；逐工况同时计算相对原始和强 MPC 的改善。只有全部验证工况均双RMSE改善才生成 best_joint；best_legal 允许未达标，按最差工况 min(Iy,Iheading) 最大化。保留全部周期候选和 Pareto，final 只诊断。严格全部达标、平均改善、最差改善和达标工况比例分别报告。

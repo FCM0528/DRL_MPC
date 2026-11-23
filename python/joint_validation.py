@@ -119,3 +119,52 @@ class JointValidationCallback(BaseCallback):
             self.model.save(path)
             self.validator.evaluate(self.model,path)
         return True
+
+
+class DualSegmentValidator:
+    """Strict two-wave selection. Uses frozen fixed traces and never ranks final."""
+    def __init__(self, root, bridge, config, cases, seed, lock):
+        self.root,self.bridge,self.config,self.seed=Path(root),bridge,config,seed
+        self.cases={int(describe_case(case)['target_speed_kmh']):case for case in cases}
+        if set(self.cases)!={65,75} or any(describe_case(case)['experiment_signature']!=
+                lock['case_signatures'][str(speed)] for speed,case in self.cases.items()):
+            raise ValueError('Dual-segment validation requires the frozen 65 and 75 km/h cases')
+        self.lock,self.rows,self.candidates=lock,[],[]
+
+    def evaluate(self, model, checkpoint, diagnostic=False):
+        from dataset_manager import sha
+        from dual_segment import aggregate,score_case,rank
+        from evaluate import write_rows
+        from evaluate_dual import stable_legal
+        from report import control_trace
+
+        checkpoint=Path(checkpoint)
+        digest=sha(checkpoint)
+        rows=[]
+        for speed,case in self.cases.items():
+            result=_episode(self.bridge,self.config,case,
+                self.root/'validation_traces'/checkpoint.stem/f'case_{speed}',model,self.seed,export_report=False)
+            trace=Path(result['trace'])
+            data=control_trace(trace)
+            score=score_case(data,self.lock['bounds_m'],self.lock['baselines'][str(speed)],
+                             legal=stable_legal(result) and data['x_m'][-1]>=120)
+            rows.append(dict(checkpoint=str(checkpoint),checkpoint_sha256=digest,
+                diagnostic_only=diagnostic,speed_kmh=speed,trace=str(trace),trace_sha256=sha(trace),
+                **{k:result[k] for k in ('peak_measured_ay_mps2','peak_measured_beta_deg','terminated',
+                                        'truncated','failed','qp_failures','distance_m')},**score))
+        self.rows.extend(rows)
+        current=dict(checkpoint=str(checkpoint),checkpoint_sha256=digest,diagnostic_only=diagnostic,
+                     decisions=int(model.num_timesteps),**aggregate(rows))
+        self.candidates.append(current)
+        legal=[r for r in self.candidates if r['legal'] and not r['diagnostic_only']]
+        best=max(legal,key=rank,default=None)
+        if best:
+            shutil.copy2(best['checkpoint'],self.root/'best_segment_legal_model.zip')
+            if best['passed']:
+                shutil.copy2(best['checkpoint'],self.root/'best_segment_model.zip')
+        write_rows(self.root/'checkpoint_segment_metrics.csv',self.rows)
+        write_rows(self.root/'dual_segment_candidates.csv',self.candidates)
+        (self.root/'dual_segment_selection.json').write_text(json.dumps(dict(
+            kind='dual_segment_prospective_selection',best=best,
+            qualified=bool(best and best['passed']),candidates=self.candidates),indent=2),encoding='utf-8')
+        return current

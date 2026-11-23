@@ -323,7 +323,7 @@ SimulationRun runConfiguredSimulation(AppConfig opts) {
                 control.steer, current_action.np, opts.mpc, opts.rl, prev_delta, previous_action.np,
                 current_action, previous_action, next.vy,
                 next.r - next.vx * next_reference.curvature, vehicleSideslip(next),
-                lateralErrorRate(next, next_reference));
+                lateralErrorRate(next, next_reference), next.x);
             state = next;
             prev_increment = control.steer - prev_delta;
             prev_delta = control.steer;

@@ -796,7 +796,7 @@ def validation_rankings(rows):
         policies=by_algorithm)
 
 
-def training_episode_axis(algorithm, monitor, progress, validation, run):
+def training_episode_axis(algorithm, monitor, progress, validation, run, *, validation_source='joint_validation.csv'):
     """Map logged decision coordinates to the number of fully completed episodes."""
     lengths=np.asarray([int(row['l']) for row in monitor],dtype=np.int64)
     if not len(lengths) or np.any(lengths<=0):
@@ -826,19 +826,20 @@ def training_episode_axis(algorithm, monitor, progress, validation, run):
         diagnostic=row['diagnostic_only']=='True'
         step=int(ends[-1]) if diagnostic else int(Path(checkpoint).stem.split('_')[1])
         for metric in ('rmse_y_m','rmse_heading_deg'):
-            add(step,metric,float(row[metric]),'joint_validation.csv',line,
+            add(step,metric,float(row[metric]),validation_source,line,
                 checkpoint=checkpoint,case=row['case'],diagnostic=diagnostic)
     return rows
 
 
-def full4_training_tables(logs, models, rows, output):
+def full4_training_tables(logs, models, rows, output, *, wave_balance=False):
     from evaluate import write_rows
 
     axis={}
     summaries=[]
     for key,item in models.items():
         run=Path(item['run'])
-        mapping=training_episode_axis(key,*logs[key],run)
+        validation_source='checkpoint_segment_metrics.csv' if wave_balance else 'joint_validation.csv'
+        mapping=training_episode_axis(key,*logs[key],run,validation_source=validation_source)
         counts={}
         for row in mapping:
             group=(row['metric'],row['completed_episode'],row['case'],row['diagnostic_only'])
@@ -850,13 +851,16 @@ def full4_training_tables(logs, models, rows, output):
         returns=[row['value'] for row in mapping if row['metric']=='return']
         log_rows=[row for row in mapping if row['checkpoint_name']==item['best_checkpoint']]
         selected=[r for r in rows if r['controller']==key and r['kind']=='best']
+        passed=({'dual_segment_passed':item['best_joint'],
+                 'dual_segment_margin_2pct':item['selection']['best']['margin_2pct']}
+                if wave_balance else {'strong_joint_passed':item['best_joint']})
         summaries.append(dict(algorithm=key,completed_episodes=len(returns),
             actual_decisions=item['collected_decisions'],sb3_timesteps=item['sb3_timesteps'],
             replay_buffer_size=item['final_replay_decisions'],gradient_updates=item['gradient_updates'],
             training_qp_failures=sum(r['qp_failures'] for r in item['exposure'].values()),
             best_checkpoint=item['best_checkpoint'],best_episode=log_rows[0]['completed_episode'],
             best_checkpoint_decisions=log_rows[0]['actual_decisions'],
-            final_checkpoint='final_model.zip',final_episode=len(returns),strong_joint_passed=item['best_joint'],
+            final_checkpoint='final_model.zip',final_episode=len(returns),**passed,
             best_np_min=min(int(r['np_min']) for r in selected),
             best_np_max=max(int(r['np_max']) for r in selected),target_entropy=item.get('target_entropy',''),
             first_30_return=float(np.mean(returns[:30])),previous_30_return=float(np.mean(returns[-60:-30])),
@@ -948,25 +952,102 @@ def read_neutral_extension(neutral, replay, dataset_hash):
     return source,rows,selected,lock
 
 
+def wave_report_evidence(replay,replay_lock,lock,old_replay,rows,models,logs,output):
+    import shutil
+    from dataset_manager import read_json,sha,write_json
+    from dual_segment import METRICS,score_case
+    from evaluate import write_rows
+
+    archive=read_json(old_replay/'replay_lock.json')
+    if (sha(old_replay/'replay_metrics.csv')!=archive['replay_metrics_sha256'] or
+        sha(replay/'wave_replay_metrics.csv')!=replay_lock['wave_replay_metrics_sha256']):
+        raise ValueError('Wave comparison replay hashes changed')
+    old_rows=[row for row in run_csv(old_replay/'replay_metrics.csv') if row['kind'] in ('best','final')]
+    raw_new=run_csv(replay/'wave_replay_metrics.csv')
+    recorded={(r['controller'],r['speed_kmh'],r['kind']):r for r in raw_new}
+    if len(recorded)!=18 or len(raw_new)!=18:
+        raise ValueError('Incomplete wave comparison replays')
+    comparisons=[]
+    for phase,group in (('original',old_rows),('wave_balance',[r for r in rows if r['kind'] in ('best','final')])):
+        for row in group:
+            speed=row['speed_kmh']
+            trace=row['trace']
+            if sha(trace)!=row['trace_sha256']:
+                raise ValueError(f'Comparative source trace changed: {trace}')
+            if phase=='original' and row['model_sha256']!=archive['models'][row['controller']]['model_sha256'][row['kind']]:
+                raise ValueError('Historical model identity differs from original lock')
+            score=score_case(control_trace(trace),lock['bounds_m'],lock['baselines'][speed],legal=row['legal']=='True')
+            if phase=='wave_balance':
+                match=recorded[row['controller'],speed,row['kind']]
+                for k in (*METRICS,'rmse_y_m','rmse_heading_deg','gmin'):
+                    if not np.isclose(float(match[k]),score[k],rtol=0,atol=1e-10):
+                        raise ValueError(f'Segment replay metric mismatch: {k} in {trace}')
+            comparisons.append(dict(reward_version=phase,speed_kmh=int(speed),controller=row['controller'],
+                kind=row['kind'],trace=trace,peak_ay_mps2=float(row['peak_measured_ay_mps2']),
+                peak_beta_deg=float(row['peak_measured_beta_deg']),qp_failures=int(row['qp_failures']),**score))
+    write_rows(output/'peak_comparison.csv',comparisons)
+    root=Path(replay_lock['wave_lock']).parent
+    old_candidates=run_csv(root/'dual_segment_candidates.csv')
+    old_checkpoints=run_csv(root/'all_checkpoint_segment_metrics.csv')
+    new_checkpoints=[]
+    histories=[]
+    for algo,model in models.items():
+        old_monitor=run_csv(Path(archive['models'][algo]['run'])/'train_monitor.csv',True)
+        cohort=[r for r in old_candidates if r['algorithm']==algo]
+        for version,monitor,candidates in (
+            ('original',old_monitor,cohort),('wave_balance',logs[algo][0],model['selection']['candidates'])):
+            ends=np.cumsum([int(r['l']) for r in monitor])
+            for item in candidates:
+                step=int(item['decisions'])
+                histories.append(dict(reward_version=version,algorithm=algo,actual_decisions=step,
+                    episode=int(np.searchsorted(ends,step,side='right')),checkpoint=Path(item['checkpoint']).name,
+                    diagnostic_only=item['diagnostic_only'],gmin=item['gmin'],legal=item['legal'],
+                    passed=item['passed'],margin_2pct=item['margin_2pct']))
+        new_checkpoints.extend(dict(algorithm=algo,**r) for r in logs[algo][2])
+    write_rows(output/'checkpoint_segment_metrics.csv',
+        [dict(reward_version='original',**r) for r in old_checkpoints]+
+        [dict(reward_version='wave_balance',**r) for r in new_checkpoints])
+    write_rows(output/'checkpoint_gmin_history.csv',histories)
+    for name in ('wave_lock.json','wave_preflight.json','reward_numeric_audit.csv','reward_numeric_audit.json',
+                 'all_checkpoint_segment_metrics.csv','dual_segment_candidates.csv'):
+        shutil.copy2(root/name,output/'audit'/name)
+    result=dict(kind='dual_segment_prospective_selection',bounds_m=lock['bounds_m'],
+        old_retrospective=read_json(root/'dual_segment_selection.json'),
+        new={key:item['selection'] for key,item in models.items()},
+        source_replay_metrics_sha256=archive['replay_metrics_sha256'],
+        criteria='Strict positive improvements in all four metrics at both speeds; legal; full error no worse than Neutral; maximize Gmin')
+    write_json(output/'dual_segment_selection.json',result,exclusive=True)
+    return result,comparisons,histories,[row for row in old_rows if row['kind']=='best'],archive
+
+
 def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, history_300=None, neutral=None):
     """Rebuild the four-controller report from locked offline replay and training evidence."""
     import shutil
     from dataset_manager import read_json, sha, write_json
     from evaluate import _tracking_metrics, write_rows
-    from evaluate_dual import weak_demo_sources, weak_gap_review
+    from evaluate_dual import weak_demo_sources, weak_gap_review, weak_lock
     from paper_style import configure, demo_bars, demo_line, DEMO_STYLE, finish
 
     experiment,replay,output=(Path(p).resolve() for p in (experiment,replay,output))
     replay_lock=read_json(replay/'replay_lock.json')
+    wave='wave_lock' in replay_lock
     episodes=replay_lock.get('episodes')
     frequency=replay_lock.get('eval_frequency')
     lock_source=Path(replay_lock.get('experiment_lock',experiment/'preflight/experiment_lock.json'))
     if 'experiment_lock' in replay_lock and sha(lock_source)!=replay_lock['experiment_lock_sha256']:
         raise ValueError('Replay experiment lock changed')
-    lock,dataset,sets,models=weak_demo_sources(experiment,runs,episodes=episodes,eval_frequency=frequency,
-                                             experiment_lock=lock_source,verify_test_payload=neutral is None)
+    if wave:
+        from dual_segment import wave_sources
+        if not neutral or sha(replay_lock['wave_lock'])!=replay_lock['wave_lock_sha256']:
+            raise ValueError('Wave report requires its independent lock and fixed Neutral MPC evidence')
+        wave_lock,dataset,sets,models=wave_sources(replay_lock['wave_lock'],runs)
+        lock,_,_,_,_=weak_lock(experiment,lock_source,verify_test_payload=False)
+        old_replay=Path(wave_lock['source_replay_lock']).parent
+    else:
+        lock,dataset,sets,models=weak_demo_sources(experiment,runs,episodes=episodes,eval_frequency=frequency,
+                                                 experiment_lock=lock_source,verify_test_payload=neutral is None)
     full4=lock.get('action_profile')=='full4'
-    if full4 and history_300 is None:
+    if full4 and not wave and history_300 is None:
         raise ValueError('Four-action report requires the original 300-episode comparison replay')
     if (replay_lock['dataset_hash']!=dataset['dataset_hash'] or replay_lock['models']!=models or
         sha(replay/'replay_metrics.csv')!=replay_lock['replay_metrics_sha256']):
@@ -976,7 +1057,8 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
     if neutral:
         if not full4:
             raise ValueError('Neutral comparison requires the locked full4 run')
-        neutral_source,neutral_rows,neutral_selection,neutral_lock=read_neutral_extension(neutral,replay,dataset['dataset_hash'])
+        neutral_source,neutral_rows,neutral_selection,neutral_lock=read_neutral_extension(
+            neutral,old_replay if wave else replay,wave_lock['source_dataset_hash'] if wave else dataset['dataset_hash'])
         rows.extend(neutral_rows)
         fixed_controls+=('neutral_mpc',)
     controls=fixed_controls+('ddpg','td3','tqc')
@@ -1040,14 +1122,17 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
     if gap!=read_json(replay/'audit/gap_review.json'):
         raise ValueError('Internal audit differs from the revised gap review')
     for algorithm,item in models.items():
-        source=run_csv(Path(item['run'])/'joint_validation.csv')
+        source=run_csv(Path(item['run'])/('checkpoint_segment_metrics.csv' if wave else 'joint_validation.csv'))
         for i,speed in enumerate((65,75)):
             for kind in ('best','final'):
                 checkpoint=item['best_checkpoint'] if kind=='best' else 'final_model.zip'
-                matches=[r for r in source if Path(r['checkpoint']).name==checkpoint and r['case']==str(i)]
+                index='speed_kmh' if wave else 'case'
+                matches=[r for r in source if Path(r['checkpoint']).name==checkpoint and r[index]==str(speed if wave else i)]
                 row=rows_by_key[(str(speed),algorithm,kind)]
+                keys=('rmse_y_m','rmse_heading_deg','qp_failures') if wave else (
+                    'rmse_y_m','rmse_heading_deg','peak_y_m','peak_heading_deg','qp_failures')
                 if len(matches)!=1 or any(not np.isclose(float(matches[0][key]),float(row[key]),rtol=0,atol=1e-9)
-                        for key in ('rmse_y_m','rmse_heading_deg','peak_y_m','peak_heading_deg','qp_failures')):
+                        for key in keys):
                     raise ValueError(f'Deterministic replay differs from validation: {algorithm} {kind} at {speed} km/h')
     output.mkdir(parents=True,exist_ok=False)
     figures=output/'figures'
@@ -1069,11 +1154,16 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                 row[key]=str(100*(1-float(row[metric])/float(baseline[metric])))
     comparison,old_models=(weak_budget_comparison(experiment,replay,replay_lock,rows_by_key,models,output,baseline_replay)
                            if episodes is not None and not full4 else ([],{}))
-    logs={key:(run_csv(Path(item['run'])/'train_monitor.csv',True),
-               run_csv(Path(item['run'])/'training_logs/progress.csv'),
-               run_csv(Path(item['run'])/'joint_validation.csv')) for key,item in models.items()}
-    axis=full4_training_tables(logs,models,rows,output) if full4 else None
-    if full4:
+    logs={}
+    for key,item in models.items():
+        run=Path(item['run'])
+        validation=run_csv(run/('checkpoint_segment_metrics.csv' if wave else 'joint_validation.csv'))
+        if wave:
+            for row in validation:
+                row['case']=str((65,75).index(int(row['speed_kmh'])))
+        logs[key]=(run_csv(run/'train_monitor.csv',True),run_csv(run/'training_logs/progress.csv'),validation)
+    axis=full4_training_tables(logs,models,rows,output,wave_balance=wave) if full4 else None
+    if full4 and not wave:
         full4_history(experiment,[r for r in rows if r['controller']!='neutral_mpc'],output,
                       baseline_replay,history_300,verify_test_payload=neutral is None)
     if neutral:
@@ -1082,24 +1172,32 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         windows,segments,wave_comparison=wave_diagnostics(main_rows,cases,models,output)
         reward_rows,reward_diffs,rewards,reward_pairs=training_reward_diagnostics(
             models,{key:value[0] for key,value in logs.items()},main_rows,output)
+    if wave:
+        wave_results,wave_gains,wave_history,wave_old_rows,wave_archive=wave_report_evidence(
+            replay,replay_lock,wave_lock,old_replay,rows,models,logs,output)
     write_rows(output/'metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']!='final'])
     write_rows(output/'final_metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']=='final'])
     rankings=validation_rankings(rows)
+    model_summary=({key:{k:v for k,v in item.items() if k!='best_joint'}|
+                         {'dual_segment_passed':item['best_joint']} for key,item in models.items()}
+                   if wave else models)
     write_json(output/'summary.json',dict(dataset_hash=dataset['dataset_hash'],parent_dataset_hash=dataset['parent_dataset_hash'],
         scope='Train-case demonstration at 70 km/h; development validation at 65 and 75 km/h',
         seed=42,decision_budget=7900 if episodes is None else None,episode_budget=episodes,
-        validation_frequency=frequency or 790,models=models,revised_gap_review=gap,unit_labels=columns,
-        controller_config_sha256=lock['policy_config_sha256'],replay_metrics_sha256=replay_lock['replay_metrics_sha256'],
+        validation_frequency=frequency or 790,models=model_summary,revised_gap_review=gap,unit_labels=columns,
+        controller_config_sha256=(wave_lock if wave else lock)['policy_config_sha256'],
+        replay_metrics_sha256=replay_lock['replay_metrics_sha256'],
         validation_rankings=rankings,source_replay=str(replay),
         action_profile='full4' if full4 else 'weights3',
         policy_action_names=lock.get('policy_action_names',['q_y','q_psi','r_delta']),
         training_axis='completed_episode' if full4 else 'decisions',
         experiment_lock_sha256=sha(lock_source),
+        **({'wave_balance':wave_results} if wave else {}),
         **({'neutral':neutral_selection,'neutral_checks':neutral_lock} if neutral else {})),exclusive=True)
     configure()
     section_figures={}
 
-    def draw(name, panels, section, xlabel, labels=None, *, sharex=True, step=False, y_ticks=None):
+    def draw(name, panels, section, xlabel, labels=None, *, sharex=True, step=False, y_ticks=None, zero_line=False):
         fig,axes=plt.subplots(len(panels),1,figsize=(7.15,1.88*len(panels)+.7),squeeze=False,sharex=sharex)
         handles={}
         for ax,(ylabel,series) in zip(axes[:,0],panels):
@@ -1108,6 +1206,8 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                 handles[controller]=ax.lines[-1]
             ax.set_ylabel(ylabel)
             ax.grid(alpha=.2)
+            if zero_line:
+                ax.axhline(0,color='.45',linewidth=.8)
             if labels:
                 ax.set_xticks(range(len(labels)),labels)
             if y_ticks is not None:
@@ -1121,6 +1221,22 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         fig.legend(handles.values(),[DEMO_STYLE[key][0] for key in handles],loc='upper center',
                    ncol=min(5,len(handles)),frameon=False,fontsize=9)
         # Save with the layout above so the legend occupies its own band.
+        finish(fig,figures/name,dpi=300,layout=False)
+        section_figures.setdefault(section,[]).append(name)
+
+    def paper_figure(name,panels,section):
+        fig,axes=plt.subplots(2,2,figsize=(7.2,5.25),sharex=True)
+        for ax,(label,series),title in zip(axes.flat,panels,(
+            '(a) Trajectory Comparison','(b) Lateral Tracking Error',
+            '(c) Heading Tracking Error','(d) Steering Angle'),strict=True):
+            for key,x,y in series:
+                demo_line(ax,key,x,y)
+            ax.set(title=title,ylabel=label)
+            ax.grid(alpha=.2)
+        for ax in axes[-1]:
+            ax.set_xlabel('X (m)')
+        fig.legend(*axes[0,0].get_legend_handles_labels(),loc='upper center',ncol=3,frameon=False,fontsize=8)
+        fig.tight_layout(rect=(0,0,1,.90))
         finish(fig,figures/name,dpi=300,layout=False)
         section_figures.setdefault(section,[]).append(name)
 
@@ -1160,29 +1276,26 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         heading=panel('Heading error (°)','epsi_rad',180/np.pi)
         front=panel('Front wheel angle (°)','actual_steer_rad',180/np.pi)
         if neutral:
-            fig,axes=plt.subplots(2,2,figsize=(7.2,5.25),sharex=True)
-            for ax,(label,series),name in zip(axes.flat,(track,lateral,heading,front),(
-                '(a) Trajectory Comparison','(b) Lateral Tracking Error',
-                '(c) Heading Tracking Error','(d) Steering Angle'),strict=True):
-                for key,x,y in series:
-                    demo_line(ax,key,x,y)
-                ax.set(title=name,ylabel=label)
-                ax.grid(alpha=.2)
-            for ax in axes[-1]:
-                ax.set_xlabel('X (m)')
-            fig.legend(*axes[0,0].get_legend_handles_labels(),loc='upper center',ncol=3,frameon=False,fontsize=8)
-            fig.tight_layout(rect=(0,0,1,.90))
-            paper_name=f'paper_tracking_{speed}'
-            finish(fig,figures/paper_name,dpi=300,layout=False)
-            section_figures.setdefault(section,[]).append(paper_name)
+            paper_figure(f'paper_tracking_{speed}',(track,lateral,heading,front),section)
+            if wave:
+                historical={key:data[key] for key in fixed_controls}
+                historical.update({r['controller']:control_trace(r['trace'])
+                    for r in wave_old_rows if int(r['speed_kmh'])==speed})
+                old_panels=[]
+                for label,key,scale in (('Y (m)','y_m',1),('Lateral error (m)','ey_m',1),
+                                          ('Heading error (°)','epsi_rad',180/np.pi),
+                                          ('Front wheel angle (°)','actual_steer_rad',180/np.pi)):
+                    old_panels.append((label,[(k,historical[k]['x_m'],historical[k][key]*scale) for k in controls]))
+                old_panels[0][1].insert(0,track[1][0])
+                paper_figure(f'old_paper_tracking_{speed}',old_panels,'旧奖励 500 回合原选检查点')
             zoom_panels=[]
-            for wave,window in enumerate(windows[speed],1):
+            for wave_index,window in enumerate(windows[speed],1):
                 series=[]
                 for key,x,y in lateral[1]:
                     upper=x<=window['end_m'] if window['end_inclusive'] else x<window['end_m']
                     mask=(x>=window['start_m']) & upper
                     series.append((key,x[mask],y[mask]))
-                zoom_panels.append((f'Wave {wave} lateral error (m)',series))
+                zoom_panels.append((f'Wave {wave_index} lateral error (m)',series))
             draw(f'wave_zoom_{speed}',zoom_panels,'误差波峰诊断','X (m)',sharex=False)
             draw(f'errors_{speed}',[course],section,'X (m)')
         else:
@@ -1214,6 +1327,42 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
     training_xlabel='Episode' if full4 else 'Training decisions'
     draw('episode_return',[('Raw episode return',raw),('Episode return (10-episode mean)',smooth)],
          '训练过程',training_xlabel)
+    if wave:
+        original_returns=[]
+        for key,data in wave_archive['models'].items():
+            values=[float(r['r']) for r in run_csv(Path(data['run'])/'train_monitor.csv',True)]
+            original_returns.append((key,np.arange(1,len(values)+1),values))
+        draw('original_episode_return',[('Original reward return',original_returns)],
+             '旧奖励 500 回合原选检查点','Episode')
+        shapes=[]
+        for version,label in (('original','Original reward Gmin (%)'),('wave_balance','Wave balance Gmin (%)')):
+            series=[]
+            for key in models:
+                group=[r for r in wave_history if r['reward_version']==version and r['algorithm']==key
+                       and str(r['diagnostic_only'])=='False' and r['gmin'] not in (None,'')]
+                series.append((key,[r['episode'] for r in group],[float(r['gmin']) for r in group]))
+            shapes.append((label,series))
+        draw('checkpoint_gmin',shapes,'双区段达标与新旧对照','Episode',zero_line=True)
+        from dual_segment import METRICS
+        best=[r for r in wave_gains if r['reward_version']=='wave_balance' and r['kind']=='best']
+        panels=[]
+        for metric in METRICS:
+            label=metric.replace('peak','Peak ').replace('rmse','RMSE ')+' improvement (%)'
+            series=[(key,list(range(3)),[next(r[metric+'_gain_percent'] for r in best
+                if r['speed_kmh']==s and r['controller']==key) for s in sorted(speeds)]) for key in models]
+            panels.append((label,series))
+        draw('segment_gain',panels,'双区段达标与新旧对照','Scenario speed (km/h)',
+             [str(s) for s in sorted(speeds)],zero_line=True)
+        statuses=np.asarray([[int(next(r['passed'] for r in best if r['controller']==key and r['speed_kmh']==s))
+                             for s in sorted(speeds)] for key in models])
+        fig,ax=plt.subplots(figsize=(6.8,2.45))
+        ax.imshow(statuses, vmin=0,vmax=1,cmap='Greys',alpha=.23,aspect='auto')
+        for i,j in np.ndindex(statuses.shape):
+            ax.text(j,i,'Pass' if statuses[i,j] else 'Below gate',ha='center',va='center')
+        ax.set_xticks(range(3),[f'{s} km/h' for s in sorted(speeds)])
+        ax.set_yticks(range(len(models)),[DEMO_STYLE[key][0] for key in models])
+        finish(fig,figures/'segment_acceptance',dpi=300)
+        section_figures['双区段达标与新旧对照'].append('segment_acceptance')
     if old_models:
         old_smooth=[]
         for key,item in old_models.items():
@@ -1258,21 +1407,24 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                 series.append((key,[r['episode'] for r in data],[r[metric] for r in data]))
             rmse_panels.append((columns[metric],series))
         draw('reward_rmse',rmse_panels,'奖励诊断','Episode')
-        fig,axes=plt.subplots(3,4,figsize=(11,6.2))
+        fig,axes=plt.subplots(4 if wave else 3,4,figsize=(11,8 if wave else 6.2))
         labels={'y':'Lateral','heading':'Body heading','course':'Course','peak':'Lateral peak',
                 'growth':'Lateral growth','steering':'Steering','parameter_switch':'Tuning change',
-                'safety':'Safety','other':'Other','qp':'QP','terminal':'Terminal'}
-        for ax,key in zip(axes.flat,(*LOSS_TERMS,'qp','terminal')):
+                'safety':'Safety','other':'Other','qp':'QP','terminal':'Terminal',
+                'wave_tracking':'Wave tracking','wave_peak':'Wave peak'}
+        parts=(*LOSS_TERMS,'qp','terminal')+(('wave_tracking','wave_peak') if wave else ())
+        for ax,key in zip(axes.flat,parts):
             demo_bars(ax,models,[100*rewards[k]['last50_component_fractions'][key+'_loss'] for k in models])
             ax.set(title=labels[key],ylabel='Loss share (%)')
             ax.tick_params(axis='x',labelsize=7,rotation=14)
             ax.grid(axis='y',alpha=.2)
-        axes.flat[-1].set_axis_off()
+        for ax in list(axes.flat)[len(parts):]:
+            ax.set_axis_off()
         finish(fig,figures/'reward_components',dpi=300)
         section_figures['奖励诊断'].append('reward_components')
 
         lookup={(r['speed_kmh'],r['controller'],r['segment']):r for r in segments}
-        for name,wave,metrics in (
+        for name,wave_name,metrics in (
             ('wave_peak_first','wave_1',('peak_y_m','peak_heading_deg')),
             ('wave_peak_second','wave_2',('peak_y_m','peak_heading_deg')),
             ('wave_rmse_first','wave_1',('rmse_y_m','rmse_heading_deg')),
@@ -1280,7 +1432,7 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
             fig,axes=plt.subplots(len(speeds),2,figsize=(9,7.2))
             for speed,pair in zip(sorted(speeds),axes,strict=True):
                 for ax,metric in zip(pair,metrics,strict=True):
-                    demo_bars(ax,controls,[lookup[speed,key,wave][metric] for key in controls])
+                    demo_bars(ax,controls,[lookup[speed,key,wave_name][metric] for key in controls])
                     ax.set(ylabel=columns[metric],title=f'{speed} km/h')
                     ax.tick_params(axis='x',labelsize=7,rotation=12)
                     ax.grid(axis='y',alpha=.2)
@@ -1377,10 +1529,17 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         'wave_peak_first':'第一变道区段绝对误差峰值','wave_peak_second':'第二变道区段绝对误差峰值',
         'wave_rmse_first':'第一变道区段 RMSE','wave_rmse_second':'第二变道区段 RMSE',
         'reward_difference':'最后 50 轮逐轮回报差','reward_rmse':'真实训练轨迹逐轮横向与航向 RMSE',
-        'reward_components':'最后 50 轮环境回报损失构成'}
-    for title in ('训练过程',*(['奖励诊断'] if neutral else []),
+        'reward_components':'最后 50 轮环境回报损失构成',
+        'old_paper_tracking':'旧奖励 500 回合原选模型的五控制器结果',
+        'original_episode_return':'旧奖励版本训练回报',
+        'checkpoint_gmin':'新旧奖励候选的开发验证最差区段改善率',
+        'segment_gain':'新奖励 best 的四项改善率（对每项较优固定基线）',
+        'segment_acceptance':'各速度安全、全程和四项局部门槛的联合达标情况'}
+    for title in (*(['旧奖励 500 回合原选检查点'] if wave else []),
+                  '训练过程',*(['奖励诊断'] if neutral else []),
                   *(f'{s} km/h · '+('同工况诊断' if s==70 else '开发验证') for s in speeds),
                   *(['误差波峰诊断'] if neutral else []),
+                  *(['双区段达标与新旧对照'] if wave else []),
                   '跨速度指标','最终模型补充诊断'):
         cards=[]
         for name in section_figures[title]:
@@ -1389,6 +1548,41 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
             cards.append(f'<figure><img src="figures/{name}.png" alt="{esc(caption)}" loading="lazy">'
                          f'<figcaption>{esc(caption)} · <a href="figures/{name}.pdf">矢量 PDF</a></figcaption></figure>')
         cards=''.join(cards)
+        if title=='旧奖励 500 回合原选检查点':
+            archived=[r for r in rows if r['kind']=='fixed']+wave_old_rows
+            archived.sort(key=lambda row:(speeds.index(int(row['speed_kmh'])),controls.index(row['controller'])))
+            cards=('<p>原试验按当时的既有验证规则选出的模型。回溯双区段候选在独立表中呈现。'
+                   '新旧奖励使用不同尺度，环境回报分图展示。</p>'+table(archived)+cards)
+        if title=='双区段达标与新旧对照':
+            gain_rows=[]
+            for row in wave_gains:
+                if row['kind']=='final':
+                    continue
+                phase='旧原选' if row['reward_version']=='original' else '新 best'
+                values=(phase,row['controller'].upper(),row['speed_kmh'],
+                        *(f'{row[k+"_gain_percent"]:+.2f}%' for k in ('peak1','peak2','rmse1','rmse2')),
+                        f'{row["gmin"]:+.2f}%', '通过' if row['passed'] else '未通过',
+                        '达到' if row['margin_2pct'] else '未到',
+                        ', '.join(row['unmet']) or '—')
+                gain_rows.append('<tr>'+''.join(f'<td>{esc(str(value))}</td>' for value in values)+'</tr>')
+            candidates=[]
+            for key,item in models.items():
+                old=wave_results['old_retrospective']['algorithms'][key]
+                new=item['selection']['best']
+                outcome='通过' if new['passed'] else '保留最接近的合法候选'
+                candidates.append(f'<li>{key.upper()} · 旧回溯 {old["passed_count"]} 个严格达标，'
+                                  f'{old["margin_count"]} 个达 2% · 新 {outcome}，跨速度 Gmin {new["gmin"]:+.2f}% · '
+                                  f'{esc(", ".join(new["unmet"]) or "全部要求通过")}</li>')
+            cards=('<p>Peak1、Peak2、RMSE1、RMSE2 分别以同速度弱与中性 MPC 两者中的较小值为分母。'
+                   '一个工况的四项均须正改善，且横向和航向全程 RMSE 均不劣于中性 MPC。'
+                   '安全完赛是前置条件，65 与 75 km/h 都通过才达标，70 km/h 仅作诊断。</p>'
+                   '<ul>'+''.join(candidates)+'</ul><div class="table"><table><thead>'
+                   '<tr><th>阶段</th><th>算法</th><th>km/h</th><th>Peak1</th><th>Peak2</th><th>RMSE1</th>'
+                   '<th>RMSE2</th><th>Gmin</th><th>状态</th><th>2% 裕量</th><th>未达标项</th></tr>'
+                   '</thead><tbody>'+''.join(gain_rows)+'</tbody></table></div>'
+                   '<p><a href="peak_comparison.csv">新旧完整比较及 final</a> · '
+                   '<a href="checkpoint_segment_metrics.csv">所有候选与稳定性</a> · '
+                   '<a href="dual_segment_selection.json">严格选模与未达标原因</a></p>')+cards
         if title=='训练过程':
             axis_note=('横轴为已完成训练轮次。轮次中途触发的检查点使用当时的已完成轮次数，CSV 保留原始决策步和轮内偏移。'
                        '同一轮次的多条损失或熵日志取均值，CSV 保留源行和值。' if full4 else
@@ -1463,6 +1657,20 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                       f'三速度安全检查{"均通过" if neutral_lock["safe_all_speeds"] else "存在未通过工况"}。'
                       'DRL 零动作对应原弱 MPC。</p><p><a href="audit/neutral/neutral_selection.json">选参及配置 SHA256</a>'
                       ' · <a href="audit/neutral/candidate_metrics.csv">全部候选</a></p></section>')
+    if wave:
+        title='四维 DRL-MPC 双区段均衡控制'
+        budget_links=(' <a href="training_episode_axis.csv">训练轮次映射</a>'
+                      ' <a href="training_summary.csv">训练摘要</a>'
+                      ' <a href="audit/wave_lock.json">双区段冻结锁</a>')
+        profile_note=('<p>新旧策略动作均为 [Np, Qy, Qpsi, Rdelta]，弱 MPC 零动作起点一致。'
+                      '新奖励 joint_tracking_wave_balance 在旧奖励上增加按区段长度和 70 km/h 中性 MPC 参考归一的'
+                      'Huber 横向损失及 0.7 倍局部峰值起罚项。原航向、安全和动作惩罚保留。'
+                      '固定控制器使用同一批锁定的真实回放。</p>'
+                      '<p><a href="audit/reward_numeric_audit.csv">训练前旧轨迹离线奖励对照</a> · '
+                      '<a href="audit/wave_preflight.json">零动作三速度及旧奖励数值回归</a></p>')
+        model_list=''.join(f'<li>{DEMO_STYLE[k][0]} · {esc(v["best_checkpoint"])} · '
+                           f'{esc(v["model_sha256"]["best"][:12])} · '
+                           f'双区段门槛{"通过" if v["best_joint"] else "未通过"}</li>' for k,v in models.items())
     ranking_rows=[]
     for key,stats in rankings['policies'].items():
         worst_metric='横向' if stats['worst_metric']=='iy_percent' else '航向'

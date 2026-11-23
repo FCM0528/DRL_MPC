@@ -226,3 +226,34 @@ uv run --no-project --with-requirements python/requirements.txt python python/re
 ```
 
 离线重建时，将 `$neutral` 指向已有的中性调参及回放目录，再运行最后一条命令并使用新的输出路径。正式目录为 `runs/weak_neutral_3drl_500episodes_20261123/`。训练与开发源重新核验原生 SHA，预留测试源仅校验冻结清单元数据。报告从各自的训练 Monitor、逐步桥接数据和决策日志重建环境回报。两波段外端点取 LTARG 两个有符号斜率波瓣的 10% 交点，分界取两斜率极值之间的最大反向几何曲率点。分界样本只计入第二段。
+
+## 双区段均衡诊断与前瞻训练
+
+先归档旧检查点的真实开发验证轨迹，并逐项计算相对弱与中性两者最优值的改善率。旧规则的 `best_legal` 和 `best_joint` 归档保持原样。只有各算法均存在严格达标旧检查点时，流程在回溯诊断处结束。新奖励训练从空经验池开始，经旧奖励数值回归、离线损失验收和三速度全程零动作检查后使用独立选模器。训练清单只含 70 km/h 训练和 65/75 km/h 验证。
+
+```powershell
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$env:PYTHONDONTWRITEBYTECODE='1'
+$old='runs/weak_mpc_demo_20261121'
+$originalReplay='runs/weak_mpc_full4_500episodes_20261121_225029/replay'
+$neutral='runs/weak_neutral_3drl_500episodes_20261123'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$r="runs/dual_segment_balanced_4drl_$stamp"
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --wave-prepare $old --replay $originalReplay --neutral-run $neutral --out $r
+if ($LASTEXITCODE -ne 0) { throw 'Checkpoint or reward audit failed' }
+$lock="$r/wave_lock.json"
+if (!(Test-Path $lock)) { return }
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --wave-preflight $lock
+if ($LASTEXITCODE -ne 0) { throw 'Wave parity failed' }
+foreach($algo in @('ddpg','td3','tqc')){
+  uv run --no-project --with-requirements python/requirements.txt python python/train.py --algorithm $algo --dual-segment-lock $lock --training-only --keep-training-traces --parity-blocks 200 --out "$r/$algo"
+  if ($LASTEXITCODE -ne 0) { throw "Training failed for $algo" }
+}
+$models=@('ddpg','td3','tqc') | ForEach-Object { (Get-ChildItem "$r/$_" -Directory | Select-Object -First 1).FullName }
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --wave-replay $lock --runs $models --out "$r/replay"
+if ($LASTEXITCODE -ne 0) { throw 'Wave replay failed' }
+uv run --no-project --with-requirements python/requirements.txt python python/report.py --weak-demo $old --neutral $neutral --replay "$r/replay" --runs $models --out "reports/dual_segment_balanced_4drl_$stamp"
+```
+
+`dual_segment_candidates.csv` 保留最差改善率和未达标项。前瞻训练仍每 1,000 个真实决策验证一次，合法性及两个工况的全程 RMSE 门槛先于四项分区改善。通过时最大化两个工况合计八项中的最小改善率，差值相同再比较全程横向、航向 RMSE。若均未达标，则按相同顺序保留合法候选并标记失守项。`final_model.zip` 保持诊断角色。离线重建可直接使用保存的 replay，最后一条命令无需启动求解器。

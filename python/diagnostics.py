@@ -119,8 +119,9 @@ def segment_metrics(data, window, *, angle_limit_deg, rate_limit_degps=None):
         front_slip_at_y_peak_deg=float(np.rad2deg(data['front_lagged_slip_rad'][active][peak])),
         front_force_at_y_peak_n=float(data['front_lateral_force_n'][active][peak]))
     if 'reward_peak_loss' in data:
+        terms=LOSS_TERMS+tuple(key for key in ('wave_tracking','wave_peak') if f'reward_{key}_loss' in data)
         result.update(peak_loss_active_fraction=float(np.mean(data['reward_peak_loss'][active]>0)),
-            **{f'mean_{key}_loss':float(np.mean(data[f'reward_{key}_loss'][active])) for key in LOSS_TERMS})
+            **{f'mean_{key}_loss':float(np.mean(data[f'reward_{key}_loss'][active])) for key in terms})
     if 'reference_heading_peak_x_m' in window:
         center=window['reference_heading_peak_x_m']
         signals={'reference_curvature':data['reference_curvature_inv_m'][active],
@@ -195,6 +196,9 @@ def training_reward_diagnostics(models, monitor_logs, main_rows, output):
     for algo,item in models.items():
         run=Path(item['run'])
         config=item['config']
+        loss_terms=LOSS_TERMS
+        if lookup(config,'rl_reward','mode')=='joint_tracking_wave_balance':
+            loss_terms+=('wave_tracking','wave_peak')
         max_steer=np.deg2rad(float(lookup(sources[algo],'constraints','max_steer_deg')))
         episodes=[]
         for ep,monitor in enumerate(monitor_logs[algo],1):
@@ -211,11 +215,11 @@ def training_reward_diagnostics(models, monitor_logs, main_rows, output):
                 raise ValueError(f'Unexpected decision ledger: {decision}')
             terms,_=reward_terms(data,config,max_steer,lookup=lookup)
             terms['other']=np.zeros_like(terms['total'])
-            for key in LOSS_TERMS:
+            for key in loss_terms:
                 np.testing.assert_allclose(terms[key],data[f'reward_{key}_loss'],atol=1e-10,rtol=0,
                                            err_msg=f'{trace}: {key}')
             np.testing.assert_allclose(terms['total'],data['reward_total_loss'],atol=1e-10,rtol=0)
-            losses={key:np.add.reduceat(terms[key],starts)/steps for key in LOSS_TERMS}
+            losses={key:np.add.reduceat(terms[key],starts)/steps for key in loss_terms}
             qps=np.add.reduceat(data['qp_failed'],starts)
             qp_loss=qps*float(lookup(config,'rl_reward','qp_failure_penalty'))
             terminal=np.array([float(row['terminal_penalty']) for row in ledger])
@@ -233,14 +237,14 @@ def training_reward_diagnostics(models, monitor_logs, main_rows, output):
                 max_logged_decision_error=float(np.max(np.abs(logged-computed))),
                 rmse_y_m=rms(data['ey_m']),rmse_heading_deg=rms(np.rad2deg(data['epsi_rad'])),
                 trace_sha256=sha(trace),decision_sha256=sha(decision),trace=str(trace),decision_log=str(decision),
-                **{key+'_loss':float(losses[key].sum()) for key in LOSS_TERMS},
+                **{key+'_loss':float(losses[key].sum()) for key in loss_terms},
                 qp_loss=float(qp_loss.sum()),terminal_loss=float(terminal.sum()),
                 **action_metrics(data,np.ones(len(data['ey_m']),dtype=bool),config)))
         all_episodes.extend(episodes)
         series=np.array([r['monitor_return'] for r in episodes])
         rewards[algo]=series
         tail=episodes[-50:]
-        columns=[key+'_loss' for key in (*LOSS_TERMS,'qp','terminal')]
+        columns=[key+'_loss' for key in (*loss_terms,'qp','terminal')]
         means={key:float(np.mean([r[key] for r in tail])) for key in columns}
         summary[algo]=dict(monitor_path=str(run/'train_monitor.csv'),
             monitor_sha256=sha(run/'train_monitor.csv'),progress_sha256=sha(run/'training_logs/progress.csv'),

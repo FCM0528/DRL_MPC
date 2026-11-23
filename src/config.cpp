@@ -85,6 +85,15 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     if (key == "rl_reward.w_heading") { c.rl.reward.w_heading = readDouble(value, key); return; }
     if (key == "rl_reward.w_course") { c.rl.reward.w_course = readDouble(value, key); return; }
     if (key == "rl_reward.heading_scale_rad") { c.rl.reward.heading_scale_rad = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_start_m") { c.rl.reward.wave_bounds[0] = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_split_m") { c.rl.reward.wave_bounds[1] = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_end_m") { c.rl.reward.wave_bounds[2] = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_rmse_1_m") { c.rl.reward.wave_rmse_refs[0] = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_rmse_2_m") { c.rl.reward.wave_rmse_refs[1] = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_peak_1_m") { c.rl.reward.wave_peak_refs[0] = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_peak_2_m") { c.rl.reward.wave_peak_refs[1] = readDouble(value, key); return; }
+    if (key == "rl_reward.w_wave_tracking") { c.rl.reward.w_wave_tracking = readDouble(value, key); return; }
+    if (key == "rl_reward.w_wave_peak") { c.rl.reward.w_wave_peak = readDouble(value, key); return; }
     // Read archived INIs without restoring retired options.
     static const std::set<std::string> retired_rl_keys{
         "rl.algorithm", "rl.actor_learning_rate", "rl.np_exploration_scale",
@@ -437,8 +446,18 @@ void validateConfig(const AppConfig& c) {
         if (!supported.count(compact) || dims != rl.policy_action_dims)
             throw std::invalid_argument("Invalid policy_action_names or dimension mismatch");
     }
-    if (rl.reward.mode != "legacy" && rl.reward.mode != "joint_tracking")
+    if (rl.reward.mode != "legacy" && !rl.reward.jointTracking())
         throw std::invalid_argument("Invalid rl_reward.mode");
+    if (rl.reward.mode == "joint_tracking_wave_balance") {
+        const auto& r = rl.reward;
+        const auto valid = [](double value) { return std::isfinite(value) && value > 0.0; };
+        if (!(r.wave_bounds[0] >= 0.0 && r.wave_bounds[0] < r.wave_bounds[1] &&
+              r.wave_bounds[1] < r.wave_bounds[2] && std::isfinite(r.wave_bounds[2])) ||
+            !std::all_of(r.wave_rmse_refs.begin(), r.wave_rmse_refs.end(), valid) ||
+            !std::all_of(r.wave_peak_refs.begin(), r.wave_peak_refs.end(), valid) ||
+            !valid(r.w_wave_tracking) || !valid(r.w_wave_peak))
+            throw std::invalid_argument("Invalid wave-balance reward parameters");
+    }
     if (rl.min_np < 2 ||
         rl.max_np > 150 || rl.max_np <= rl.min_np)
         throw std::invalid_argument("RL horizons require 2 <= min_np < max_np <= 150");
@@ -671,6 +690,17 @@ std::string configToIni(const AppConfig& c) {
         << "\nqp_failure_penalty = " << c.rl.reward.qp_failure_penalty
         << "\nincomplete_episode_penalty = "
         << c.rl.reward.incomplete_episode_penalty << '\n';
+    if (c.rl.reward.mode == "joint_tracking_wave_balance") {
+        out << "wave_start_m = " << c.rl.reward.wave_bounds[0] << '\n';
+        out << "wave_split_m = " << c.rl.reward.wave_bounds[1] << '\n';
+        out << "wave_end_m = " << c.rl.reward.wave_bounds[2] << '\n';
+        out << "wave_rmse_1_m = " << c.rl.reward.wave_rmse_refs[0] << '\n';
+        out << "wave_rmse_2_m = " << c.rl.reward.wave_rmse_refs[1] << '\n';
+        out << "wave_peak_1_m = " << c.rl.reward.wave_peak_refs[0] << '\n';
+        out << "wave_peak_2_m = " << c.rl.reward.wave_peak_refs[1] << '\n';
+        out << "w_wave_tracking = " << c.rl.reward.w_wave_tracking << '\n';
+        out << "w_wave_peak = " << c.rl.reward.w_wave_peak << '\n';
+    }
     return out.str();
 }
 
