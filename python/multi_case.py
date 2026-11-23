@@ -1,6 +1,7 @@
 """Freeze native fixed baselines and a case-conditioned, shared all-six policy contract."""
 import configparser
 from itertools import product
+import math
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,16 @@ ACTION_VERSION='case_conditioned_named_actions_v1'
 
 def parameter_point(config):
     return tuple(int(resolve_config_value(config,*v.split('.'))) for v in PARAMETERS.values())
+
+
+def weight_range(choices, center, reference_points=()):
+    neutral_index=len(choices)//2
+    scaled=[center*value/choices[neutral_index] for value in choices]
+    if reference_points:
+        scaled[0]=min(scaled[0],*reference_points)
+        scaled[-1]=max(scaled[-1],*reference_points)
+        scaled[neutral_index]=center
+    return scaled
 
 
 def baseline_rank(row, role):
@@ -178,9 +189,15 @@ def load_baselines(path, dataset):
 
     path=Path(path).resolve(strict=True)
     value=read_json(path)
-    if (value['version']!='all6_static_baselines_v1' or value['dataset_hash']!=dataset['dataset_hash'] or
-        sha(path.with_name('neutral_weak_search_plan.json'))!=value['plan_sha256'] or
-        sha(path.with_name('tuning_summary.csv'))!=value['metrics_sha256'] or
+    if value['version']=='all6_static_baselines_v3':
+        from baseline_calibration import verify_case_map
+
+        verify_case_map(path,value)
+    elif (value['version']!='all6_static_baselines_v1' or
+          sha(path.with_name('neutral_weak_search_plan.json'))!=value['plan_sha256'] or
+          sha(path.with_name('tuning_summary.csv'))!=value['metrics_sha256']):
+        raise ValueError('Unsupported or changed baseline evidence')
+    if (value['dataset_hash']!=dataset['dataset_hash'] or
         set(value['cases'])!={r['physical_signature'] for r in dataset['scenarios'].values()}):
         raise ValueError('All-six baseline map does not match the frozen study')
     for sig,item in value['cases'].items():
@@ -196,16 +213,20 @@ def load_baselines(path, dataset):
     return value
 
 
-def prepare_study(manifest, baseline_map, wave_path, output, bridge, controller):
+def prepare_study(manifest, baseline_map, wave_path, output, bridge, controller, *, require_v3=False):
     from dual_segment import load_lock, wave_terms
     from evaluate import reward_terms, write_rows
     from evaluate_dual import full4_horizon
+    from envs.carsim_mpc_env import CarSimMPCEnv
     from parity import check_neutral_parity
     from report import control_trace
     from train import controller_config_hashes
 
     dataset,sets=load_dataset(manifest)
     baseline=load_baselines(baseline_map,dataset)
+    upgraded=baseline['version']=='all6_static_baselines_v3'
+    if require_v3 and not upgraded:
+        raise ValueError('The baseline-first study requires a passing v3 calibration')
     wave=load_lock(wave_path)
     old=Path(wave['policy_config'])
     contract=controller_policy_signature(old)
@@ -221,10 +242,18 @@ def prepare_study(manifest, baseline_map, wave_path, output, bridge, controller)
         if not 28<point[0]<44:
             raise ValueError('Weak anchor lies outside the supported open horizon interval')
         changes={key:value for key,value in zip(PARAMETERS.values(),point,strict=True)}
-        for key,center in zip(('q_y','q_psi','r_delta'),point[1:],strict=True):
+        fixed={role:parameter_point(entry['baselines'][role]['config']) for role in ('strong','neutral')} if upgraded else {}
+        envelope={}
+        for i,key in enumerate(('q_y','q_psi','r_delta'),1):
+            center=point[i]
             choices=contract[f'rl.{key}_values']
-            old_center=choices[len(choices)//2]
-            changes[f'rl.{key}_values']=', '.join(format(center*value/old_center,'.17g') for value in choices)
+            weights=weight_range(choices,center,tuple(v[i] for v in fixed.values()))
+            changes[f'rl.{key}_values']=', '.join(format(v,'.17g') for v in weights)
+            if upgraded:
+                ratio=contract['rl.max_weight_ratio_per_decision'][0]
+                envelope[key]=dict(minimum=weights[0],weak_center=center,maximum=weights[-1],ratio=ratio,
+                    references={role:dict(value=v[i],decisions_from_weak=math.ceil(abs(math.log(v[i]/center))/math.log(ratio)))
+                                for role,v in fixed.items()})
         bounds=entry['bounds_m']
         changes.update({f'rl_reward.wave_{name}_m':value for name,value in zip(('start','split','end'),bounds,strict=True)})
         changes.update({f'rl_reward.wave_{kind}_{i}_m':neutral[f'{kind}{i}'] for i in (1,2) for kind in ('rmse','peak')})
@@ -244,6 +273,10 @@ def prepare_study(manifest, baseline_map, wave_path, output, bridge, controller)
         terms,_=reward_terms(data,cfg,np.deg2rad(float(resolve_config_value(
             next((directory/'parity'/'fixed').glob('*/effective_config.ini')),'constraints','max_steer_deg'))))
         np.testing.assert_allclose(data['reward_total_loss'],terms['total'],rtol=0,atol=1e-10)
+        if upgraded:
+            reward_audit.append(dict(scenario_id=entry['scenario_id'],speed_kmh=entry['speed_kmh'],road_mu=entry['road_mu'],
+                term='total',control_steps=len(terms['total']),mean=float(terms['total'].mean()),
+                max_absolute_error=float(np.max(np.abs(data['reward_total_loss']-terms['total'])))))
         for key,values in (('tracking',tracking),('peak',peak)):
             delta=float(np.max(np.abs(data[f'reward_wave_{key}_loss']-values)))
             np.testing.assert_allclose(data[f'reward_wave_{key}_loss'],values,rtol=0,atol=1e-10)
@@ -253,6 +286,32 @@ def prepare_study(manifest, baseline_map, wave_path, output, bridge, controller)
             parsfile_sha256=native['parsfile_sha256'],config=str(cfg),config_chain_sha256=controller_config_hashes(cfg),
             parity=parity,parity_trace=str(trace),parity_sha256=sha(trace),weak_np=point[0],
             neutral_refs={key:neutral[key] for key in METRICS},bounds_m=bounds)
+        if upgraded:
+            horizon_limit=int(cfg_contract['rl.max_np_change_per_decision'][0])
+            envelope['np']=dict(minimum=28,weak_center=point[0],maximum=44,slew_limit=horizon_limit,
+                references={role:dict(value=v[0],decisions_from_weak=math.ceil(abs(v[0]-point[0])/horizon_limit))
+                            for role,v in fixed.items()})
+            decisions=math.ceil(parity['control_steps']/parity['decision_steps'])
+            if any(ref['decisions_from_weak']>decisions for item in envelope.values()
+                   for ref in item['references'].values()):
+                raise ValueError('A frozen fixed reference cannot be reached within a native episode')
+            probe=CarSimMPCEnv(bridge,cfg,sim,directory/'action_probe')
+            try:
+                probe.reset(seed=42)
+                for sign in (1.,-1.):
+                    for _ in range(4):
+                        _,_,done,truncated,_=probe.step(np.full(4,sign,dtype=np.float32))
+                        if done or truncated:
+                            raise ValueError('Extreme action probe ended before checking execution limits')
+            finally:
+                probe.close()
+            probe_trace=directory/'action_probe'/'episode_000001'/'bridge_trace.csv'
+            execution=full4_horizon(control_trace(probe_trace),cfg_contract)
+            if execution['np_target_min']!=28 or execution['np_target_max']!=44 or execution['np_max_change_per_decision']!=2:
+                raise ValueError('Version 3 requires the frozen horizon bounds and slew limit')
+            wave_start=int(np.flatnonzero(data['x_m']>=bounds[0])[0]//parity['decision_steps'])+1
+            cases[sig].update(action_probe_trace=str(probe_trace),action_probe_sha256=sha(probe_trace),
+                              action_probe=execution,action_envelope=envelope,weak_first_wave_start_decision=wave_start)
         print(f'{entry["scenario_id"]}: {parity["control_steps"]} zero-action control steps and v2 reward verified',flush=True)
     write_rows(output/'reward_numeric_audit.csv',reward_audit)
     lock=dict(version='all6_shared_policy_v1',dataset_manifest=str(Path(manifest).resolve()),dataset_hash=dataset['dataset_hash'],
@@ -265,6 +324,9 @@ def prepare_study(manifest, baseline_map, wave_path, output, bridge, controller)
         bridge_sha256=sha(bridge),controller_sha256=sha(controller),
         solver_sha256=sha(resolve_config_value(old,'carsim','solver_dll')),
         independent_validation=False,independent_test=False)
+    if upgraded:
+        lock.update(baseline_version=baseline['version'],reward_contract_version='case_neutral_wave_reference_v3',
+                    action_envelope_rule='weak_relative_ranges_cover_strong_and_neutral_v3',adjacent_ranking_margin_pct=2.)
     path=output/'study_lock.json'; write_json(path,lock,exclusive=True)
     return path
 
@@ -285,6 +347,10 @@ def load_study(path, *, bridge=None):
             {case['experiment_signature'] for case in sets['train']}):
         raise ValueError('Shared policy study case set changed')
     baselines=load_baselines(lock['baseline_case_map'],dataset)
+    if baselines['version']=='all6_static_baselines_v3' and (
+        lock.get('baseline_version')!=baselines['version'] or
+        lock.get('reward_contract_version')!='case_neutral_wave_reference_v3'):
+        raise ValueError('Study lock does not bind the certified baseline and reward-reference version')
     for sig,item in lock['cases'].items():
         cfg=Path(item['config']); native=describe_case(item['simfile'])
         if (native['experiment_signature']!=sig or native['simfile_sha256']!=item['simfile_sha256'] or
@@ -293,6 +359,8 @@ def load_study(path, *, bridge=None):
             sha(resolve_config_value(cfg,'carsim','solver_dll'))!=lock['solver_sha256'] or
             sha(item['parity_trace'])!=item['parity_sha256'] or not item['parity']['passed']):
             raise ValueError(f'Restored policy config, native case or parity trace changed: {sig}')
+        if baselines['version']=='all6_static_baselines_v3' and sha(item['action_probe_trace'])!=item['action_probe_sha256']:
+            raise ValueError('Version 3 action-probe evidence changed')
     return lock,dataset,baselines
 
 
@@ -377,6 +445,8 @@ def verify_training_runs(lock_path, lock, runs):
             sha(run/'final_model.zip')!=m['final_model_sha256'] or
             any(sha(run/name)!=expected for name,expected in m['evidence_sha256'].items())):
             raise ValueError(f'Run failed all-six provenance or episode quota checks: {run}')
+        if any(m.get(k)!=lock[k] for k in ('baseline_version','reward_contract_version') if k in lock):
+            raise ValueError(f'Run uses a different calibrated baseline/reward-reference contract: {run}')
         schedule=sha(run/'completion_schedule.json')
         if common_schedule and schedule!=common_schedule:
             raise ValueError('Algorithms used different case schedules')
@@ -455,6 +525,8 @@ def replay_study(lock_path, runs, output, bridge):
                 **facts,**_tracking_metrics(trace),**replay_diagnostics(trace),**full4_horizon(data,contract),
                 trace_sha256=sha(trace),cpp_report_sha256=sha(trace.with_name('report.html')))
             row['legal']=stable_legal(row) and row['distance_m']>=120
+            if 'baseline_version' in lock:
+                row['episode_return']=result['return']
             rows.append(row)
             write_rows(output/'policy_replay_metrics.csv',rows)
             print(f'{algo} {key}: {row["distance_m"]:.3f} m, QP={row["qp_failures"]}, legal={row["legal"]}',flush=True)

@@ -2004,6 +2004,36 @@ Iy 与 Iheading 使用同速度弱 MPC 的 RMSE。{neutral_metric_note}求解和
     return output/'index.html'
 
 
+def case_rankings(rows, meaningful_margin):
+    fields=('peak1','peak2','mae1','mae2','rmse1','rmse2','peak_y_m','mae_y_m','rmse_y_m','rmse_heading_deg')
+    algorithms=('tqc','td3','ddpg')
+    labels={row['scenario_id']:(row['speed_kmh'],row['road_mu']) for row in rows}
+    lookup={(row['scenario_id'],row['controller']):row for row in rows if row['controller'] in algorithms}
+    result=[]
+    for key,(speed,mu) in labels.items():
+        for field in fields:
+            values={algo:lookup[key,algo][field] for algo in algorithms}
+            available=all(x is not None and np.isfinite(x) for x in values.values())
+            order=sorted(algorithms,key=lambda algo:values[algo]) if available else []
+            strict=available and all(values[a]<values[b] for a,b in zip(order,order[1:]))
+            tqc,td3,ddpg=values.values()
+            relative=lambda better,worse:100*(1-better/worse) if available and worse>0 else None
+            margin1,margin2=relative(tqc,td3),relative(td3,ddpg)
+            supported=strict and tuple(order)==algorithms
+            result.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,metric=field,**values,
+                ranking=' < '.join(a.upper() for a in order) if strict else 'tie' if available else 'unavailable',
+                tqc_first=bool(available and tqc<min(td3,ddpg)),
+                td3_second=bool(available and min(tqc,ddpg)<td3<max(tqc,ddpg)),
+                ddpg_third=bool(available and ddpg>max(tqc,td3)),hypothesis_supported=bool(supported),
+                td3_minus_tqc=td3-tqc if available else None,ddpg_minus_td3=ddpg-td3 if available else None,
+                tqc_vs_td3_gain_percent=margin1,td3_vs_ddpg_gain_percent=margin2,
+                meaningful_margin_pct=meaningful_margin,
+                meets_both_margins=bool(supported and margin1 is not None and margin2 is not None and
+                                        min(margin1,margin2)>=meaningful_margin),
+                all_safe=all(lookup[key,algo]['legal']=='True' for algo in algorithms)))
+    return result
+
+
 def render_all6(lock_path, replay, output):
     """Build the six-case training-diagnostic report from sealed native replays."""
     import shutil
@@ -2016,6 +2046,7 @@ def render_all6(lock_path, replay, output):
 
     replay,output=Path(replay).resolve(strict=True),Path(output).resolve()
     lock,dataset,static=load_study(lock_path)
+    upgraded=static['version']=='all6_static_baselines_v3'
     evidence=read_json(replay/'replay_lock.json')
     models=verify_training_runs(lock_path,lock,[m['path'] for m in evidence['models'].values()])
     if (models!=evidence['models'] or evidence['study_lock_sha256']!=sha(lock_path) or
@@ -2093,7 +2124,7 @@ def render_all6(lock_path, replay, output):
     draw('training',[('回报','Episode return',[(k,np.arange(1,episodes+1),training_series[k]['value']) for k in algos]),
          ('Actor','Loss',loss_series('train/actor_loss',algos)),('Critic','Loss',loss_series('train/critic_loss',algos)),
          ('TQC','Entropy coefficient',loss_series('train/ent_coef',('tqc',)))],episode_count=episodes,layout=(2,2))
-    tracking=[]; segments=[]; gains=[]; native_links=[]; fixed_rows=[]; cards=[]; labels={}
+    tracking=[]; segments=[]; gains=[]; native_links=[]; fixed_rows=[]; cards=[]; labels={}; behavior=[]
     gmin={algo:[] for algo in algos}
     for key in dataset['train_scenarios']:
         record=dataset['scenarios'][key]; sig=record['physical_signature']; baseline=static['cases'][sig]; bounds=baseline['bounds_m']
@@ -2106,9 +2137,11 @@ def render_all6(lock_path, replay, output):
         ref=np.array([[float(x) for x in r.split(',')[:2]] for r in reference[1:-1]])
         fixed={role:baseline['baselines'][role]['metrics'] for role in ROLES}
         for role,item in fixed.items():
+            selection=baseline['baselines'][role]['selection']
             fixed_rows.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,controller=role,**item,
                                    target_met=baseline['baselines'][role]['selection']['target_met'],
-                                   lateral_gap_percent=baseline['baselines'][role]['selection']['lateral_gap_percent']))
+                                   lateral_gap_percent=selection.get('lateral_gap_percent',0.),
+                                   **({'separation_percent':selection.get('separation_percent')} if upgraded else {})))
         traces={}
         for ctrl in controls:
             if ctrl in algos:
@@ -2120,7 +2153,8 @@ def render_all6(lock_path, replay, output):
             trace=Path(row['trace']); data=control_trace(trace); traces[ctrl]=data
             if sha(trace)!=row['trace_sha256'] or ctrl in algos and sha(trace.with_name('report.html'))!=row['cpp_report_sha256']:
                 raise ValueError(f'Frozen CarSim replay output changed: {trace}')
-            measured=measure(data,bounds); independently=independent_errors(trace,bounds,full_metrics=True)
+            measured=measure(data,bounds,include_mae=upgraded)
+            independently=independent_errors(trace,bounds,full_metrics=True,include_mae=upgraded)
             for field,v in independently.items():
                 expected=measured.get(field,row.get(field))
                 if v is not None and not np.isclose(float(expected),v,rtol=0,atol=1e-10):
@@ -2131,12 +2165,25 @@ def render_all6(lock_path, replay, output):
             for i in (1,2):
                 segments.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,controller=ctrl,segment=i,
                     start_m=bounds[i-1],end_m=bounds[i],peak_y_m=measured[f'peak{i}'],rmse_y_m=measured[f'rmse{i}'],
+                    **({'mae_y_m':measured[f'mae{i}']} if upgraded else {}),
                     samples=measured[f'samples{i}']))
             if ctrl in algos:
                 score=score_case(data,bounds,{'weak_mpc':fixed['weak'],'neutral_mpc':fixed['neutral']},
                                  legal=row['legal']=='True',allow_missing_baseline=True)
                 gmin[ctrl].append(score)
                 gains.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,algorithm=ctrl,**score))
+                if upgraded:
+                    stride=int(lock['cases'][sig]['parity']['decision_steps'])
+                    for field in ('np','q_y','q_psi','r_delta'):
+                        actual=data[field][::stride]; requested=data[f'action_{field}_normalized'][::stride]
+                        target=data[f'target_{field}'][::stride]
+                        behavior.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,algorithm=ctrl,tuning=field,
+                            requested_saturated_fraction=float(np.mean(np.abs(requested)>=.98)),
+                            executed_min=float(actual.min()),executed_max=float(actual.max()),executed_std=float(actual.std()),
+                            slew_limited_fraction=float(np.mean(~np.isclose(actual,target,rtol=1e-8,atol=1e-8))),
+                            final_episode_return=row['episode_return'],rmse_y_m=independently['rmse_y_m'],
+                            rmse_heading_deg=independently['rmse_heading_deg'],
+                            reward_y_loss=row['mean_reward_y_loss'],reward_heading_loss=row['mean_reward_heading_loss']))
             native=Path('cpp_reports')/suffix/ctrl
             shutil.copytree(trace.parent,output/native)
             native_links.append(f'<li><a href="{(native/"report.html").as_posix()}">{title} · {DEMO_STYLE[ctrl][0]}</a></li>')
@@ -2150,13 +2197,33 @@ def render_all6(lock_path, replay, output):
              ('(d) Steering angle','Wheel angle (°)',series('actual_steer_rad',180/np.pi))],title=title,layout=(2,2))
         draw(weights,[(k,unit,series(k.lower())) for k,unit in (
              ('Np','Steps'),('q_y','Qy'),('q_psi','Qpsi'),('r_delta','Rdelta'))],title=title,layout=(2,2))
-        cards.append((title,paper,weights))
-    write_rows(output/'scenario_baseline_metrics.csv',fixed_rows)
+        details=[]
+        if upgraded:
+            if np.any([measured[f'samples{i}'] for i in (1,2)]):
+                panels=[]
+                for i in (1,2):
+                    curves=[]
+                    for ctrl,d in traces.items():
+                        x=d['x_m']; last=x<bounds[i] if i==1 else x<=bounds[i]
+                        mask=(x>=bounds[i-1])&last
+                        curves.append((ctrl,x[mask],d['ey_m'][mask]))
+                    panels.append((f'Wave {i} lateral error','ey (m)',curves))
+                detail=f'wave_detail_{suffix}'; draw(detail,panels,title=title,layout=(1,2)); details.append(detail)
+        cards.append((title,paper,*details,weights))
+    fixed_name='baseline' if upgraded else 'scenario_baseline'
+    write_rows(output/f'{fixed_name}_metrics.csv',fixed_rows)
     fields=('scenario_id','speed_kmh','road_mu','controller','np','nc','dt_s','q_y','q_psi','r_delta','lateral_gap_percent','target_met')
-    write_rows(output/'scenario_baseline_parameters.csv',[{k:r[k] for k in fields} for r in fixed_rows])
+    if upgraded:
+        fields+=('separation_percent',)
+    write_rows(output/f'{fixed_name}_parameters.csv',[{k:r[k] for k in fields} for r in fixed_rows])
     write_rows(output/'metrics.csv',tracking)
     write_rows(output/'segment_metrics.csv',segments)
     write_rows(output/'segment_gains.csv',gains)
+    rankings=[]
+    if upgraded:
+        rankings=case_rankings(tracking,lock['adjacent_ranking_margin_pct'])
+        write_rows(output/'algorithm_ranking_by_case.csv',rankings)
+        write_rows(output/'action_diagnostics.csv',behavior)
     minima=[dict(algorithm=k,six_case_gmin=diagnostic_minimum([r['gmin'] for r in gmin[k]]),
                  passed_cases=sum(r['passed'] for r in gmin[k]),safe_cases=sum(r['legal'] for r in gmin[k])) for k in algos]
     write_rows(output/'six_case_gmin.csv',minima)
@@ -2186,9 +2253,18 @@ def render_all6(lock_path, replay, output):
         return (f'<figure><img src="figures/{name}.png" alt="{name}" loading="lazy">'
                 f'<figcaption><a href="figures/{name}.pdf">矢量 PDF</a></figcaption></figure>')
 
-    links=' · '.join(f'<a href="{file}.csv">{file}</a>' for file in ('metrics','scenario_baseline_parameters',
-        'scenario_baseline_metrics','training_exposure','training_summary','episode_returns','segment_metrics','segment_gains','six_case_gmin'))
+    links=' · '.join(f'<a href="{file}.csv">{file}</a>' for file in ('metrics',fixed_name+'_parameters',
+        fixed_name+'_metrics','training_exposure','training_summary','episode_returns','segment_metrics','segment_gains','six_case_gmin')+
+        (('algorithm_ranking_by_case','action_diagnostics') if upgraded else ()))
     title='六工况共享四维 DRL-MPC · 训练内诊断'
+    metric_labels=('speed_kmh','road_mu','controller','rmse_y_m','rmse_heading_deg','rmse_course_deg','peak1','peak2',
+        'rmse1','rmse2','peak_measured_ay_mps2','peak_measured_beta_deg','qp_failures','terminated','legal')
+    rank_section=''
+    if upgraded:
+        metric_labels=metric_labels[:6]+('peak_y_m','mae_y_m','mae1','mae2')+metric_labels[6:]
+        rank_section=('<h2>逐工况误差排序审计</h2><p>越小越好。相邻算法均改善至少 2% 为本报告的实用裕量标记。'
+            '详细差距按两个相邻比较分别记录。</p>'+table(rankings,('speed_kmh','road_mu','metric','ranking',
+                'tqc_vs_td3_gain_percent','td3_vs_ddpg_gain_percent','hypothesis_supported','meets_both_margins'))+'\n')
     (output/'index.html').write_text(f'''<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>{title}</title>
 <style>body{{font:16px "Times New Roman",SimHei,serif;max-width:1100px;margin:30px auto;padding:0 18px}} .table{{overflow:auto}}table{{border-collapse:collapse}}td,th{{padding:6px 9px;border-bottom:1px solid #ddd;white-space:nowrap}}figure{{margin:24px auto;max-width:890px}}img{{width:100%}}figcaption{{text-align:center}}</style>
@@ -2199,10 +2275,10 @@ def render_all6(lock_path, replay, output):
 <h2>训练与经验池</h2>{table(training,('algorithm','completed_episodes','collected_decisions','replay_samples','gradient_updates','qp_failures','safety_abnormal_episodes'))}
 {plot('training')}{plot('reward_by_case')}
 <h2>工况曝光</h2>{table(exposure,('algorithm','case','completed','decisions','replay_samples','mean_episode_return','qp_failures','safety_abnormal_episodes'))}
-<h2>全程与双区段指标</h2>{table(tracking,('speed_kmh','road_mu','controller','rmse_y_m','rmse_heading_deg','rmse_course_deg','peak1','peak2','rmse1','rmse2','peak_measured_ay_mps2','peak_measured_beta_deg','qp_failures','terminated','legal'))}
+<h2>全程与双区段指标</h2>{table(tracking,metric_labels)}
 {table(minima,('algorithm','six_case_gmin','passed_cases','safe_cases'))}
 <p>Gmin 取六工况各四项横向区段改善率的最小值。每项使用同工况 Weak 与 Neutral 指标的较优值。严格通过仍要求全程 RMSE 不劣于 Neutral，且完赛和稳定性通过。</p>
-{''.join(f'<section><h2>{name}</h2>{plot(paper)}{plot(weights)}</section>' for name,paper,weights in cards)}
+{rank_section}{''.join(f'<section><h2>{name}</h2>{"".join(plot(card) for card in names)}</section>' for name,*names in cards)}
 <h2>固定基线整定</h2>{table(fixed_rows,fields)}
 <h2>C++ 详细报告</h2><ul>{''.join(native_links)}</ul></html>''',encoding='utf-8')
     return output/'index.html'
@@ -2219,6 +2295,7 @@ def main():
     parser.add_argument('--neutral',type=Path,help='Accepted fixed-MPC tuning directory for the five-controller report')
     parser.add_argument('--wave-extension',type=Path,help='Frozen additional CarSim wave diagnostic replays')
     parser.add_argument('--all6-lock',type=Path,help='Render the completed six-case shared-policy study')
+    parser.add_argument('--all6-calibration',type=Path,help='Render the independent fixed-baseline stage audit')
     parser.add_argument('--strong-tuning',type=Path,help='Frozen scenario Strong MPC search and audit; append to the wave report or render alone')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
@@ -2227,6 +2304,13 @@ def main():
     parser.add_argument('--out',type=Path,help='New figure directory for locked validation')
     parser.add_argument('--case',type=int,default=0)
     args = parser.parse_args()
+    if args.all6_calibration:
+        from baseline_calibration import render_calibration
+
+        if not args.out:
+            parser.error('--all6-calibration requires --out')
+        print(render_calibration(args.all6_calibration,args.out))
+        return
     if args.all6_lock:
         if not args.replay or not args.out:
             parser.error('--all6-lock requires --replay and --out')

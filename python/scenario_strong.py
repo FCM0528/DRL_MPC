@@ -312,7 +312,7 @@ def tune(dataset_path, output, controller, tune_ids, retain_ids, bounds, *,
         scope='known_case_static_tuning'),exclusive=True)
 
 
-def independent_errors(trace, bounds, *, full_metrics=False):
+def independent_errors(trace, bounds, *, full_metrics=False, include_mae=False):
     """Recompute from native CSV rows with scalar arithmetic and no trace adapter."""
     with Path(trace).open(newline='',encoding='utf-8') as file:
         data = list(csv.DictReader(file))
@@ -330,6 +330,10 @@ def independent_errors(trace, bounds, *, full_metrics=False):
     result=dict(rmse_y_m=rms(y),rmse_heading_deg=rms(heading),
                 peak1=max(map(abs,wave1),default=None),peak2=max(map(abs,wave2),default=None),
                 rmse1=rms(wave1) if wave1 else None,rmse2=rms(wave2) if wave2 else None)
+    if include_mae:
+        result['mae_y_m']=math.fsum(map(abs,y))/len(y)
+        for i,samples in enumerate((wave1,wave2),1):
+            result[f'mae{i}']=math.fsum(map(abs,samples))/len(samples) if samples else None
     if full_metrics:
         states=data if bridge else data[1:]
         beta=[float(r['sideslip_rad']) if bridge else

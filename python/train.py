@@ -310,6 +310,7 @@ def train_all6(path, algorithm, bridge, destination):
         independent_validation=False,independent_test=False,training_data=dict(source='online_carsim_closed_loop',
             scenario_sampling_rule=BALANCED_SAMPLING_RULE,weights_initialization='random',initial_replay_decisions=0,
             replay_prefilled=False,synthetic_rollouts=False,fixed_mpc_labels=False,validation_used_for_updates=False))
+    manifest.update({k:lock[k] for k in ('baseline_version','reward_contract_version') if k in lock})
     write_json(root/'manifest.json',manifest,exclusive=True)
     shutil.copy2(lock['training_config'],root/'source_training.ini')
     write_json(root/'completion_schedule.json',dict(case_ids=dataset['train_scenarios'],

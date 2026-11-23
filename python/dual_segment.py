@@ -75,7 +75,7 @@ def qualified_model(model):
     return path
 
 
-def measure(data, bounds):
+def measure(data, bounds, *, include_mae=False):
     x=data['x_m']
     y=data['ey_m']
     heading=np.rad2deg(data['epsi_rad'])
@@ -86,6 +86,8 @@ def measure(data, bounds):
                                   ('heading_rmse',rms,heading)):
             result[f'{prefix}{i}']=fn(samples[mask]) if np.any(mask) else None
         result[f'samples{i}']=int(mask.sum())
+        if include_mae:
+            result[f'mae{i}']=float(np.mean(np.abs(y[mask]))) if np.any(mask) else None
     return result
 
 

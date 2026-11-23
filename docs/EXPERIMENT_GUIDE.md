@@ -300,7 +300,7 @@ uv run --offline --no-project --with-requirements python/requirements.txt python
 
 离线重建使用已有 `$ext='runs/dual_segment_wave_extension_20261123_161643'`，只读取模型锁并执行最后一个 `report.py` 命令。`five_case_gmin.csv` 分列历史开发选模 Gmin 和五工况诊断 Gmin。`scenario_coverage.json` 记录每个工况的实际研究用途、原始划分、完整性及冻结签名。凡缺少有效分段分母，诊断 Gmin 留空。历史 final 只供指标附录查看。分工况 Strong MPC 作为独立附录，60／80 km/h 标记 `not_tuned`。
 
-## 六工况共享四维策略
+## 六工况共享四维策略（历史基线）
 
 六工况研究从 `dataset_v2_all6_train` 读取独立研究划分，使用完整物理签名查找固定基线。以下命令用已发布的 65／70／75 强基线和本轮新增三工况强基线，再冻结六套条件化动作配置和各自奖励参考。`--all6-lock` 一次运行一个共享策略，保存全部周期检查点和 final。每工况 500 次完赛由排程和真实 Solver 账本对账。完整训练目录必须为新路径。
 
@@ -329,3 +329,41 @@ uv run --offline --no-project --with-requirements python/requirements.txt python
 ```
 
 已有训练的离线重建只执行最后一条命令。以 `episode_returns.csv` 和 `training_exposure.csv` 区分实际完赛数、决策数、经验池贡献与安全异常。两个同速度工况在主图名中分别使用 `70_mu08`、`70_mu06`。本数据集只有训练内诊断，选模记录标明 `final_training_diagnostic`。
+
+## 六工况先整定三层基线，再训练共享策略（v3）
+
+使用原生 `dataset_v2_all6_train` 和原有基线映射作为输入。Strong、Neutral、Weak 和总验收依次独立执行，后续阶段核对前序 SHA。每个 Strong 先独立回放历史配置，执行 32 个粗扫和 28 个局部搜索，再独立回放选中的点。Neutral 从各工况的 Strong 出发，Weak 使用该工况的 Strong 和已验收 Neutral 作为参考。完整规则、候选预算和 Solver SHA 在新目录的 `protocol.json` 中冻结。18 套通过独立复验后才发布 `all6_static_baselines_v3`。
+
+```powershell
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$env:OPENBLAS_NUM_THREADS='1'
+$env:PYTHONDONTWRITEBYTECODE='1'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$dataset='datasets/carsim/manifests/dataset_v2_all6_train.json'
+$previous='runs/multi_case_mpc_baselines_20261123_164631/baseline_case_map.json'
+$wave='runs/dual_segment_balanced_4drl_20261123/wave_lock.json'
+$base="runs/all6_mpc_baseline_calibration_$stamp"
+$baselineReport="reports/all6_mpc_baseline_calibration_$stamp"
+$all="D:/DRL_MPC_runs/all6_baseline_first_drl_$stamp"
+$studyReport="reports/all6_baseline_first_drl_$stamp"
+$py=@('run','--offline','--no-project','--with-requirements','python/requirements.txt','python')
+
+foreach($stage in @('strong','neutral','weak','acceptance')) {
+  uv @py python/evaluate_dual.py --calibrate-all6-stage $stage --dataset-manifest $dataset --parent-baselines $previous --out $base
+  if ($LASTEXITCODE -ne 0) { break }
+}
+uv @py python/report.py --all6-calibration $base --out $baselineReport
+if ($LASTEXITCODE -ne 0 -or !(Test-Path "$base/baseline_case_map.json")) { throw 'Calibration stopped. Inspect the independent baseline report.' }
+uv @py python/evaluate_dual.py --all6-prepare "$base/baseline_case_map.json" --require-baselines-v3 --dataset-manifest $dataset --strong-wave-lock $wave --out $all
+if ($LASTEXITCODE -ne 0) { throw 'Zero-action, reward or signed-action preflight failed' }
+foreach($algo in @('ddpg','td3','tqc')) {
+  uv @py python/train.py --all6-lock "$all/study_lock.json" --algorithm $algo --out "$all/$algo"
+  if ($LASTEXITCODE -ne 0) { throw "Training failed for $algo" }
+}
+uv @py python/evaluate_dual.py --all6-replay "$all/study_lock.json" --runs "$all/ddpg" "$all/td3" "$all/tqc" --out "$all/replay"
+if ($LASTEXITCODE -ne 0) { throw 'Final diagnostic replay failed' }
+uv @py python/report.py --all6-lock "$all/study_lock.json" --replay "$all/replay" --out $studyReport
+```
+
+单独执行两条报告命令即可从各自冻结的证据离线重建。可将 `$all` 指向有足够空间的新绝对目录。零动作锚定各工况 Weak。每项权重沿用历史相对范围，必要时扩展端点以覆盖同工况 Strong 和 Neutral。锁中记录从 Weak 到各固定参数至少需要的决策数，并保存正负端点的真实执行探针。六工况共享排程以种子 42 冻结，每算法从空经验池开始，每个工况完成 500 次。奖励保留 v2 公式和系数，由 v3 契约绑定各工况 Neutral 的四项实测归一化常数。研究集缺少独立验证，报告只回放训练结束的模型，并按工况和指标分别列出排序、差值及 2% 的相邻实用阈值。

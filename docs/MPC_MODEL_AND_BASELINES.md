@@ -201,3 +201,11 @@ Python 的 DDPG、TD3 或 TQC 每 `decision_steps` 个控制周期输出四个�
 公用映射 `runs/multi_case_mpc_baselines_20261123_164631/baseline_case_map.json` 以完整物理签名索引每工况的 Strong、Neutral、Weak 配置、哈希与真实回放。复用已发布的 65／70／75 km/h、μ=0.8 Strong 和 70 km/h、μ=0.8 Neutral／Weak。60／80 km/h、μ=0.8 和 70 km/h、μ=0.6 分别执行 60 次 Strong 真车模型搜索。其余五工况的 Neutral 和 Weak 共用各自冻结的 79 点真实筛选池。
 
 中、弱基线以 `100 × (1 − RMSE_strong / RMSE_baseline)` 为横向差距，目标分别为 15–25% 和 25–40%。安全筛选要求完赛、QP=0、Ay≤0.85g、|Beta|≤5°，并限制转向速率与航向退化。60 km/h 的候选池在航向筛选后只能保留 Strong 参数供两种角色复用。70 km/h、μ=0.6 与 80 km/h 的 Weak 最接近安全候选分别达到 21.57% 和 22.59%。所有 18 套发布配置已独立复跑。参数与精确指标见映射旁的 `tuning_summary.csv`。
+
+### 分层基线 v3 验收规则
+
+`all6_static_baselines_v3` 由四个依次验收的阶段生成。六个工况各以自己的历史 Strong 开始，保留全程横向 RMSE、航向 RMSE 及两段横向峰值和 RMSE 构成的六目标 Pareto 集。Strong 更新要求全程双 RMSE 严格改善，随后比较六目标最小归一化改善率、平均改善率及转向平顺性。
+
+Neutral 和 Weak 均以更新后的对应工况 Strong 为目标差距参考，优先区间分别为 18–22% 和 30–35%。Weak 另要求以自身横向 RMSE 为分母、相对 Neutral 至少相差 5%，并采用 29–43 的中性 Np，使 `[28,44]` 内双向调节可用。两个阶段均增加航向 RMSE ≤1.25 倍 Strong、转向命令速率 RMS≤100°/s 和峰值≤180°/s 的预先冻结筛选。判定失败时保留最接近的独立安全候选及失败状态。
+
+总验收用 18 次新 CarSim 回放对照已选轨迹，并独立重算全程和分段横向峰值、MAE、RMSE 及车身航向 RMSE。每套基线保存完整物理签名、INI 继承链 SHA、求解器 SHA、原生场景及真实轨迹。通过总验收才生成新映射及后续策略的动作和奖励参考。旧版本保留原契约和数据。

@@ -859,6 +859,9 @@ def main():
     p.add_argument('--all6-baselines',action='store_true',help='Freeze all-six case-specific Strong, Neutral and Weak baselines')
     p.add_argument('--published-strong-map',action='append',default=[],type=Path)
     p.add_argument('--all6-prepare',type=Path,metavar='BASELINE_MAP',help='Certify all-six conditioned policy and reward')
+    p.add_argument('--require-baselines-v3',action='store_true',help='Require a passing version 3 baseline calibration')
+    p.add_argument('--calibrate-all6-stage',choices=('strong','neutral','weak','acceptance'))
+    p.add_argument('--parent-baselines',type=Path,help='Historical all-six baseline map used as search center')
     p.add_argument('--all6-replay',type=Path,metavar='STUDY_LOCK',help='Replay the three completed shared final policies')
     p.add_argument('--neutral-run',type=Path,help='Frozen neutral MPC tuning and replay evidence')
     p.add_argument('--replay',type=Path,help='Existing full4 replay to reuse with --neutral-search')
@@ -872,6 +875,16 @@ def main():
     p.add_argument('--controller',default='out/python-rl-build/Release/MPC_DoubleLaneChange.exe')
     p.add_argument('--bridge',default='out/python-rl-build/Release/MPC_RL_Bridge.exe')
     args=p.parse_args()
+    if args.calibrate_all6_stage:
+        from baseline_calibration import calibrate,stage_lock
+
+        stage=args.calibrate_all6_stage
+        if not args.out or (stage=='strong' and not args.parent_baselines):
+            p.error('Calibration requires --out and the Strong stage also requires --parent-baselines')
+        print(calibrate(stage,args.out,args.controller,manifest=args.dataset_manifest,previous=args.parent_baselines))
+        if not stage_lock(args.out,stage,require_pass=False)['passed']:
+            raise SystemExit(f'{stage} calibration_failed; later stages were not started')
+        return
     if args.all6_replay:
         from multi_case import replay_study
 
@@ -894,7 +907,7 @@ def main():
         if not (args.strong_wave_lock and args.out):
             p.error('--all6-prepare requires --strong-wave-lock and a new --out')
         print(prepare_study(args.dataset_manifest,args.all6_prepare,args.strong_wave_lock,args.out,
-                            args.bridge,args.controller))
+                            args.bridge,args.controller,require_v3=args.require_baselines_v3))
         return
     if args.wave_extension:
         if not args.neutral_run or not args.report_case or not args.out:
