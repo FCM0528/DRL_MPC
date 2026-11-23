@@ -12,7 +12,10 @@ using RoadPreviewObservation = std::vector<double>;
 
 struct RlRewardConfig {
     std::string mode = "legacy";
-    bool jointTracking() const { return mode == "joint_tracking" || mode == "joint_tracking_wave_balance"; }
+    bool waveBalance() const {
+        return mode == "joint_tracking_wave_balance" || mode == "joint_tracking_wave_balance_v2";
+    }
+    bool jointTracking() const { return mode == "joint_tracking" || waveBalance(); }
     std::array<double,3> wave_bounds{};
     std::array<double,2> wave_rmse_refs{}, wave_peak_refs{};
     double w_wave_tracking = 0.0, w_wave_peak = 0.0;

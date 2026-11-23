@@ -289,7 +289,7 @@ def reward_terms(data, config, max_steer, *, lookup=resolve_config_value):
         change=np.clip(np.log(v/np.r_[choices[len(choices)//2],v[:-1]])/logspan,-2,2)
         switch+=r('w_weight_change')*change**2/3
     terms['parameter_switch']=switch
-    if lookup(config,'rl_reward','mode')=='joint_tracking_wave_balance':
+    if lookup(config,'rl_reward','mode') in ('joint_tracking_wave_balance','joint_tracking_wave_balance_v2'):
         from dual_segment import wave_terms
         bounds=[r(f'wave_{key}_m') for key in ('start','split','end')]
         tracking,peak=wave_terms(data,bounds,[r('wave_rmse_1_m'),r('wave_rmse_2_m')],

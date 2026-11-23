@@ -299,3 +299,33 @@ uv run --offline --no-project --with-requirements python/requirements.txt python
 ```
 
 离线重建使用已有 `$ext='runs/dual_segment_wave_extension_20261123_161643'`，只读取模型锁并执行最后一个 `report.py` 命令。`five_case_gmin.csv` 分列历史开发选模 Gmin 和五工况诊断 Gmin。`scenario_coverage.json` 记录每个工况的实际研究用途、原始划分、完整性及冻结签名。凡缺少有效分段分母，诊断 Gmin 留空。历史 final 只供指标附录查看。分工况 Strong MPC 作为独立附录，60／80 km/h 标记 `not_tuned`。
+
+## 六工况共享四维策略
+
+六工况研究从 `dataset_v2_all6_train` 读取独立研究划分，使用完整物理签名查找固定基线。以下命令用已发布的 65／70／75 强基线和本轮新增三工况强基线，再冻结六套条件化动作配置和各自奖励参考。`--all6-lock` 一次运行一个共享策略，保存全部周期检查点和 final。每工况 500 次完赛由排程和真实 Solver 账本对账。完整训练目录必须为新路径。
+
+```powershell
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$dataset='datasets/carsim/manifests/dataset_v2_all6_train.json'
+$wave='runs/dual_segment_balanced_4drl_20261123'
+$strong='runs/strong_mpc_scenario_tuning_20261123_144205/strong_case_map.json'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$base="runs/multi_case_mpc_baselines_$stamp"
+$all="runs/multi_scenario_6cases_4drl_$stamp"
+uv run --offline --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --strong-tune --scenario-set $dataset --tune-case cs_c3795eb276ef9ab53a0f --tune-case cs_3666b760495501987d4d --tune-case cs_37580cac3f141fec7281 --strong-bounds 20.664083710407237 60.5 84.11738501125762 --out "$base/strong_search"
+if ($LASTEXITCODE -ne 0) { throw 'Strong search failed' }
+uv run --offline --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --all6-baselines --dataset-manifest $dataset --published-strong-map $strong --published-strong-map "$base/strong_search/strong_case_map.json" --replay "$wave/replay" --neutral-run runs/weak_neutral_3drl_500episodes_20261123 --out $base
+if ($LASTEXITCODE -ne 0) { throw 'Fixed baselines failed' }
+uv run --offline --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --all6-prepare "$base/baseline_case_map.json" --dataset-manifest $dataset --strong-wave-lock "$wave/wave_lock.json" --out $all
+if ($LASTEXITCODE -ne 0) { throw 'Parity or reward preflight failed' }
+foreach($algo in @('ddpg','td3','tqc')) {
+  uv run --offline --no-project --with-requirements python/requirements.txt python python/train.py --all6-lock "$all/study_lock.json" --algorithm $algo --out "$all/$algo"
+  if ($LASTEXITCODE -ne 0) { throw "Training failed for $algo" }
+}
+uv run --offline --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --all6-replay "$all/study_lock.json" --runs "$all/ddpg" "$all/td3" "$all/tqc" --out "$all/replay"
+if ($LASTEXITCODE -ne 0) { throw 'Final diagnostic replay failed' }
+uv run --offline --no-project --with-requirements python/requirements.txt python python/report.py --all6-lock "$all/study_lock.json" --replay "$all/replay" --out "reports/multi_scenario_6cases_4drl_$stamp"
+```
+
+已有训练的离线重建只执行最后一条命令。以 `episode_returns.csv` 和 `training_exposure.csv` 区分实际完赛数、决策数、经验池贡献与安全异常。两个同速度工况在主图名中分别使用 `70_mu08`、`70_mu06`。本数据集只有训练内诊断，选模记录标明 `final_training_diagnostic`。

@@ -7,6 +7,29 @@ from pathlib import Path
 from scenario import read_scenario, snapshot_scenario
 
 SAMPLING_RULE = 'uniform_episode_v1'
+BALANCED_SAMPLING_RULE = 'shuffled_complete_case_blocks_v1'
+
+
+class EpisodeBlockSchedule:
+    """A fixed sequence of case blocks, with the same case repeated after an incomplete run."""
+    def __init__(self, cases, per_case, seed):
+        import numpy as np
+
+        if cases<1 or per_case<1:
+            raise ValueError('Expected positive case count and completed-episode quota')
+        rng=np.random.default_rng(seed)
+        self.sequence=np.concatenate([rng.permutation(cases) for _ in range(per_case)]).tolist()
+        self.completed=0
+
+    @property
+    def finished(self):
+        return self.completed==len(self.sequence)
+
+    def case(self):
+        return self.sequence[self.completed]
+
+    def advance(self, completed):
+        self.completed+=int(completed)
 
 
 def training_source(config, simfile=None, *, scenario_set=None, validation_simfile=None, joint_selection=False,

@@ -124,6 +124,8 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10,
     mode = effective.get("rl_reward", "mode", fallback="legacy")
     if mode in ("joint_tracking", "joint_tracking_wave_balance"):
         version = mode + "_v1"
+    elif mode == 'joint_tracking_wave_balance_v2':
+        version = mode
     elif effective.getfloat("rl_reward", "w_lateral_growth", fallback=0.0) > 0:
         version += "_lateral_growth"
     summary = {"passed": True, "control_steps": len(bridge_rows),

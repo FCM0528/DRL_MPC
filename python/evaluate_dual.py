@@ -856,6 +856,10 @@ def main():
     p.add_argument('--wave-extension',type=Path,metavar='BASE_REPLAY',help='Run qualified wave bests on additional catalog cases')
     p.add_argument('--dataset-manifest',type=Path,default=Path('datasets/carsim/manifests/dataset_v1.json'))
     p.add_argument('--report-case',action='append',default=[],metavar='SCENARIO_ID')
+    p.add_argument('--all6-baselines',action='store_true',help='Freeze all-six case-specific Strong, Neutral and Weak baselines')
+    p.add_argument('--published-strong-map',action='append',default=[],type=Path)
+    p.add_argument('--all6-prepare',type=Path,metavar='BASELINE_MAP',help='Certify all-six conditioned policy and reward')
+    p.add_argument('--all6-replay',type=Path,metavar='STUDY_LOCK',help='Replay the three completed shared final policies')
     p.add_argument('--neutral-run',type=Path,help='Frozen neutral MPC tuning and replay evidence')
     p.add_argument('--replay',type=Path,help='Existing full4 replay to reuse with --neutral-search')
     p.add_argument('--weak-demo',type=Path,metavar='SEARCH_DIR',help='Replay best and final demo models on 70/65/75')
@@ -868,6 +872,30 @@ def main():
     p.add_argument('--controller',default='out/python-rl-build/Release/MPC_DoubleLaneChange.exe')
     p.add_argument('--bridge',default='out/python-rl-build/Release/MPC_RL_Bridge.exe')
     args=p.parse_args()
+    if args.all6_replay:
+        from multi_case import replay_study
+
+        if not (args.runs and args.out):
+            p.error('--all6-replay requires --runs and a new --out')
+        replay_study(args.all6_replay,args.runs,args.out,args.bridge)
+        return
+    if args.all6_baselines:
+        from multi_case import freeze_baselines
+
+        if not (args.published_strong_map and args.replay and args.neutral_run and args.out):
+            p.error('--all6-baselines requires --published-strong-map, --replay, --neutral-run and --out')
+        Path(args.out).mkdir(parents=True,exist_ok=True)
+        print(freeze_baselines(args.dataset_manifest,args.published_strong_map,args.out,args.controller,
+                               args.replay,args.neutral_run))
+        return
+    if args.all6_prepare:
+        from multi_case import prepare_study
+
+        if not (args.strong_wave_lock and args.out):
+            p.error('--all6-prepare requires --strong-wave-lock and a new --out')
+        print(prepare_study(args.dataset_manifest,args.all6_prepare,args.strong_wave_lock,args.out,
+                            args.bridge,args.controller))
+        return
     if args.wave_extension:
         if not args.neutral_run or not args.report_case or not args.out:
             p.error('--wave-extension requires --neutral-run, --report-case and a new --out')

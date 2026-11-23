@@ -9,7 +9,7 @@ from gymnasium import spaces
 from bridge.client import BridgeClient, BridgeError
 from scenario import resolve_config_value
 from action_mapping import action_contract, bridge_action
-from scenario_sets import SAMPLING_RULE
+from scenario_sets import SAMPLING_RULE, BALANCED_SAMPLING_RULE, EpisodeBlockSchedule
 
 
 class CarSimMPCEnv(gym.Env):
@@ -40,6 +40,8 @@ class CarSimMPCEnv(gym.Env):
         self._episode_id = 0
         self._done = False
         self.scenario_pool = [self.simfile]
+        self.case_schedule = None
+        self.case_configs = None
         self.scenario_decision_counts = {}
         self.scenario_exposure = {}
         self._episode_decisions = 0
@@ -50,6 +52,19 @@ class CarSimMPCEnv(gym.Env):
         for file in (self.executable, self.config, self.simfile):
             if not file.is_file():
                 raise FileNotFoundError(file)
+
+    def bind_case_schedule(self, pairs, episodes_per_case, seed):
+        cases,configs=zip(*pairs,strict=True)
+        self.scenario_pool=list(cases)
+        self.case_configs=list(configs)
+        self.case_schedule=EpisodeBlockSchedule(len(cases),episodes_per_case,seed)
+        if any(action_contract(c)!=(self.policy_action_names,self.action_mapping_version) or
+               resolve_config_value(c,'rl','observation_profile')!=self.observation_profile for c in configs):
+            raise ValueError('All conditioned configs must have the same observation and action spaces')
+
+    @property
+    def sampling_rule(self):
+        return BALANCED_SAMPLING_RULE if self.case_schedule else SAMPLING_RULE
 
     def _observation(self, fields):
         if len(fields) != self._observation_size:
@@ -63,15 +78,21 @@ class CarSimMPCEnv(gym.Env):
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
         self.close()
+        if self.case_schedule and self.case_schedule.finished:
+            # DummyVecEnv resets before invoking the completion callback. No new solver or step is needed.
+            return self._terminal_observation.copy(), {'quota_complete':True}
         self._episode_id += 1
-        selected = int(self.np_random.integers(len(self.scenario_pool)))
+        selected = self.case_schedule.case() if self.case_schedule else int(self.np_random.integers(len(self.scenario_pool)))
         self._case_index = selected
         self.simfile = Path(self.scenario_pool[selected]).resolve(strict=True)
+        if self.case_configs is not None:
+            self.config=Path(self.case_configs[selected]).resolve(strict=True)
         import json
         with (self.output_root / "episode_scenarios.jsonl").open("a", encoding="utf-8") as log:
             log.write(json.dumps(dict(episode=self._episode_id, case_index=selected,
                                       simfile=str(self.simfile), seed=seed,
-                                      sampling_rule=SAMPLING_RULE,pool_size=len(self.scenario_pool))) + "\n")
+                                      sampling_rule=self.sampling_rule,pool_size=len(self.scenario_pool),
+                                      **({'config':str(self.config)} if self.case_schedule else {}))) + "\n")
         base = self.output_root / f"episode_{self._episode_id:06d}"
         self._bridge = BridgeClient(
             self.executable, self.config, self.simfile,
@@ -137,8 +158,12 @@ class CarSimMPCEnv(gym.Env):
         self._episode_return += reward
         self._episode_qp += info['qp_failures']
         if self._done:
-            counts['completed'] += int(terminated and not truncated and not info['failed'])
-            self._record_episode(terminated and not truncated and not info['failed'])
+            completed=terminated and not truncated and not info['failed']
+            counts['completed'] += int(completed)
+            self._record_episode(completed)
+            if self.case_schedule:
+                self.case_schedule.advance(completed)
+                self._terminal_observation=obs.copy()
         info.update(case_index=self._case_index,simfile=path)
         return obs, reward, terminated, truncated, info
 
@@ -150,7 +175,7 @@ class CarSimMPCEnv(gym.Env):
             log.write(json.dumps(dict(episode=self._episode_id,simfile=str(self.simfile),
                 case_index=self._case_index,decisions=self._episode_decisions,
                 return_=self._episode_return,qp_failures=self._episode_qp,
-                completed=bool(completed),sampling_rule=SAMPLING_RULE))+'\n')
+                completed=bool(completed),sampling_rule=self.sampling_rule))+'\n')
         self._episode_recorded = True
 
     def close(self):

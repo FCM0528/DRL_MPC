@@ -96,3 +96,9 @@ python python/dataset_manager.py summary --manifest datasets/carsim/manifests/da
 
 
 当前只保留15个Python根模块。训练、验证、报告分别使用 train.py、evaluate_dual.py、report.py；dataset_manager 管理工况及精确配置恢复。工况注册仍不要求修改训练核心，train/validation/test及不可变版本语义不变。未来变速/分段附着等类型仍需独立任务验收，不能因删去诊断脚本便声称已支持训练。多工况训练可增加 --action-profile 指定动作空间；不改dataset_v1，也不将验证集移入训练。
+
+## 六工况独立研究版本
+
+`dataset_v2_all6_train` 通过 `dataset_manager.py release-all6-study --parent datasets/carsim/manifests/dataset_v1.json` 派生。它沿用六个原生工况记录及文件哈希，新增逐工况 `original_split`、`study_split`、物理签名、源 SHA256 和用途变更原因。本版本的有效划分由 `study_assignments` 决定。65／75 km/h 的 μ=0.8 工况和原先预留的 70 km/h、μ=0.6 进入本研究的 train。registry 和 v1 的原始划分及摘要仍可逐字节验证。
+
+新研究使用 `shuffled_complete_case_blocks_v1`。局部 RNG 用种子 42 预先生成 500 个区组，每组六种工况各出现一次。算法间共用排程规则，经验池分开。未完赛的尝试记录真实交互并重试当次工况，完成配额后停止。新版本中 validation 和 test 为空。未来独立验证和测试需要另行登记不同物理签名的真实工况。

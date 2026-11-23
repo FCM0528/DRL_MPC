@@ -12,12 +12,12 @@ from scenario_sets import describe_case, freeze_sets, load_case_sets, training_s
 from scenario import read_scenario
 
 
-def native(tmp_path, speed=70, reference=True, law='', points=None):
+def native(tmp_path, speed=70, reference=True, law='', points=None, mu=.8):
     folder=tmp_path/f'native_{speed}_{len(list(tmp_path.iterdir()))}'
     folder.mkdir()
     lines=['ENTER_PARSFILE Vehicles\\Assembly\\fixture.par', 'M_SU 1000',
            'EXIT_PARSFILE Vehicles\\Assembly\\fixture.par',f'SPEED_TARGET_CONSTANT {speed}',
-           'MU_ROAD_CONSTANT 0.8',law]
+           f'MU_ROAD_CONSTANT {mu}',law]
     lines += ['IMPORT IMP_STEER_L1 Replace 0.0', 'IMPORT IMP_STEER_R1 Replace 0.0']
     lines += ['EXPORT '+s for s in dm.EXPORTS]
     if reference: lines += ['LTARG_TABLE SPLINE_FLAT', *(points or ['0,0','70,2','150,0']), 'ENDTABLE']
@@ -71,6 +71,28 @@ def test_development_review_uses_heldout_metadata_without_reading_payload(tmp_pa
     assert 'simfile' not in sets['test'][0]
     with pytest.raises(AssertionError,match='Held-out'):
         dm.load_dataset(manifest)
+
+
+def test_new_study_keeps_original_registry_and_heldout_split(tmp_path):
+    root=tmp_path/'dataset'
+    for speed,split,mu in ((60,'train',.8),(65,'validation',.8),(70,'train',.8),
+                           (75,'validation',.8),(80,'train',.8),(70,'test',.6)):
+        source=native(tmp_path,speed,mu=mu)
+        dm.register(root,source,split,'double_lane_change',baseline_proof=proof(tmp_path,describe_case(source)))
+    v1=dm.release(root,'dataset_v1')
+    source_sha=dm.sha(v1)
+    registry_sha=dm.sha(root/'registry.json')
+    new=dm.release_all6_study(v1)
+    manifest,sets=dm.load_dataset(new)
+    assert len(sets['train'])==6 and not sets['validation'] and not sets['test']
+    former_test,=[r for r in sets['train'] if r['original_split']=='test']
+    key=former_test['scenario_id']
+    assert manifest['scenarios'][key]['split']=='test'
+    assert manifest['study_assignments'][key]['study_split']=='train'
+    assert manifest['study_assignments'][key]['source_sha256']['parsfile']==former_test['parsfile_sha256']
+    assert dm.sha(v1)==source_sha and dm.sha(root/'registry.json')==registry_sha
+    with pytest.raises(FileExistsError):
+        dm.release_all6_study(v1)
 
 
 def test_wave_report_cohort_keeps_extension_diagnostic_and_rejects_test(tmp_path):

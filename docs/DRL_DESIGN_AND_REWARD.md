@@ -110,3 +110,9 @@ validation 不进入梯度更新，test 不参与选模。合法需完整结束�
 当前1D/2D由 train.py 在原 strong_weights3 基础上生成run私有 delta，4种profile均已与对应历史有效配置逐项比较，控制参数、观测、奖励、映射和限速等价。为公平比较，变化只限所声明动作维度；旧策略不能按新名字加载。历史 Np前缀配置从模型冻结目录或精确恢复机制读取。
 
 不再增加 wy2/wy4、Actor学习率或噪声专用INI；使用显式单因素覆盖，并保留实际 source_training.ini、run_delta.ini 与 manifest。正文所有奖励公式、系数和MPC物理含义不因结构精简改变。TQC分位数审计函数在 algorithms.quantile_summary；旧控制/奖励审计纯函数在 evaluate；只有正式 joint_validation 实施当前全工况安全选模规则。
+
+## 六工况条件化动作与奖励 v2
+
+`case_conditioned_named_actions_v1` 为每个新 Solver episode 按真实工况签名加载冻结的 Weak MPC 中性点。一个共享网络输出 `[Np,Qy,Qpsi,Rdelta]` 的四个归一化动作，C++ 继续使用 28–44 的整数 Np、每决策最多 2 步和权重倍率限速 1.08。各 Q/R 选项相对自身中值的比例从同一历史四维设计继承，转换为该工况的绝对权重。控制周期与决策周期仍为 0.04／0.08 s。20 维观测本来就包含实测车速以及当前与前方路面附着特征，现保留原维数和归一方式。策略执行映射中的工况权重来自预先整定。
+
+`joint_tracking_wave_balance_v2` 沿用上述 Huber 公式和原损失系数，按每个训练工况的真实 Neutral MPC 峰值与 RMSE 替换四个分母。两段由冻结的原生 LTARG 几何确定；六个工况的参考相同。v1 仍读取单工况参考。学习率、网络、熵、截断及探索设置沿用 v1。为容纳完整六工况实际经验，新组 Replay Buffer 上限为 500,000，每个算法由空池启动。所有周期检查点保留；本研究的主回放使用 final，六工况 Gmin 属于训练内诊断。

@@ -64,7 +64,7 @@ JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
     }
     t.other += r.w_horizon * clip((np - config.min_np) / span_np, 0.0, 1.0) +
         r.w_vy * std::pow(clip(vy / 2.0, -3.0, 3.0), 2);
-    if (r.mode == "joint_tracking_wave_balance" && x >= r.wave_bounds.front() && x <= r.wave_bounds.back()) {
+    if (r.waveBalance() && x >= r.wave_bounds.front() && x <= r.wave_bounds.back()) {
         const std::size_t i = x < r.wave_bounds[1] ? 0 : 1;
         const double weight = (r.wave_bounds.back() - r.wave_bounds.front()) /
             (2 * (r.wave_bounds[i+1] - r.wave_bounds[i]));

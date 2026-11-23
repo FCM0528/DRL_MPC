@@ -243,6 +243,107 @@ def controller_config_hashes(config: Path) -> dict[str, str]:
             for path in sorted(seen)}
 
 
+def train_all6(path, algorithm, bridge, destination):
+    from stable_baselines3.common.callbacks import BaseCallback
+    from stable_baselines3.common.logger import configure
+    from dataset_manager import read_json,sha,write_json
+    from multi_case import ACTION_VERSION,REWARD_MODE,audit_exposure,load_study
+    from scenario_sets import BALANCED_SAMPLING_RULE
+
+    class CompletionCallback(BaseCallback):
+        def __init__(self, env):
+            super().__init__()
+            self.env=env
+
+        def _on_step(self):
+            schedule=self.env.case_schedule
+            if self.locals['dones'][0] and schedule.completed % 60==0:
+                print(f'{algorithm} completed={schedule.completed}/{len(schedule.sequence)} '
+                      f'decisions={self.num_timesteps}',flush=True)
+            if not schedule.finished:
+                if self.model.replay_buffer.size()==self.model.buffer_size:
+                    raise RuntimeError('Replay capacity exhausted before completing all case quotas')
+                return True
+
+            # SB3 calls on_step before storing the transition. Store this actual last
+            # terminal transition once, then let SB3 return without a new solver episode.
+            model=self.model
+            values=self.locals
+            model._update_info_buffer(values['infos'],values['dones'])
+            model._store_transition(model.replay_buffer,values['buffer_actions'],values['new_obs'],
+                                    values['rewards'],values['dones'],values['infos'])
+            model._episode_num+=1
+            return False
+
+    path=Path(path).resolve(strict=True)
+    lock,dataset,_=load_study(path,bridge=bridge)
+    root=Path(destination).resolve(); root.mkdir(parents=True,exist_ok=False)
+    settings=load_training_settings(lock['training_config'])
+    settings['buffer_size']=lock['replay_buffer_size']
+    ordered=[(dataset['scenarios'][key]['physical_signature'],key) for key in dataset['train_scenarios']]
+    cases={}
+    for sig,key in ordered:
+        from scenario_sets import describe_case
+
+        item=lock['cases'][sig]
+        cfg=snapshot_config(item['config'],root/'cases'/key/'config')
+        sim=snapshot_scenario(describe_case(item['simfile']),root/'cases'/key/'source')
+        if controller_config_hashes(cfg)!=item['config_chain_sha256']:
+            raise ValueError('Case config changed while copying the study contract')
+        cases[sig]=dict(item,config=str(cfg),simfile=str(sim),simfile_sha256=sha(sim))
+    first=next(iter(cases.values()))
+    raw=TrainingEnv(bridge,first['config'],first['simfile'],root/'solver_train')
+    raw.keep_training_traces=True
+    raw.bind_case_schedule([(c['simfile'],c['config']) for c in cases.values()],lock['episodes_per_case'],lock['seed'])
+    env=Monitor(raw,filename=str(root/'train_monitor.csv'))
+    design=tqc_design(settings['tqc_profile'],settings['tqc_drop'],settings) if algorithm=='tqc' else deterministic_design(algorithm,settings)
+    kwargs=dict(design,seed=lock['seed'],verbose=1,gamma=first['parity']['gamma_per_decision'],
+                tensorboard_log=str(root/'tensorboard'))
+    if algorithm in ('ddpg','td3'):
+        kwargs['action_noise']=NormalActionNoise(np.zeros(4),np.full(4,settings[f'{algorithm}_exploration_noise_sigma']))
+    manifest=dict(algorithm=algorithm,seed=lock['seed'],case_contracts=cases,episodes_per_case=lock['episodes_per_case'],
+        dataset=dict(dataset_version=dataset['dataset_version'],dataset_hash=dataset['dataset_hash'],
+                     scenario_ids=dataset['train_scenarios'],sampling_strategy=BALANCED_SAMPLING_RULE),
+        study_lock=str(path),study_lock_sha256=sha(path),reward_scheme=REWARD_MODE,action_mapping_version=ACTION_VERSION,
+        observation_profile='road_preview_joint',observation_dim=20,policy_action_dims=4,policy_action_names=list(raw.policy_action_names),
+        training_settings=settings,algorithm_design=design,selection_split='training_diagnostic',
+        independent_validation=False,independent_test=False,training_data=dict(source='online_carsim_closed_loop',
+            scenario_sampling_rule=BALANCED_SAMPLING_RULE,weights_initialization='random',initial_replay_decisions=0,
+            replay_prefilled=False,synthetic_rollouts=False,fixed_mpc_labels=False,validation_used_for_updates=False))
+    write_json(root/'manifest.json',manifest,exclusive=True)
+    shutil.copy2(lock['training_config'],root/'source_training.ini')
+    write_json(root/'completion_schedule.json',dict(case_ids=dataset['train_scenarios'],
+        indices=raw.case_schedule.sequence,seed=lock['seed'],episodes_per_case=lock['episodes_per_case']),exclusive=True)
+    model=TRAINING_ALGORITHMS[algorithm]('MlpPolicy',env,**kwargs)
+    prepare_online_training(model,settings['learning_starts'])
+    model.set_logger(configure(str(root/'training_logs'),['csv','tensorboard']))
+    try:
+        model.learn(total_timesteps=model.buffer_size+1,callback=[CheckpointCallback(
+            save_freq=lock['checkpoint_interval'],save_path=str(root/'checkpoints')),CompletionCallback(raw)])
+        if not raw.case_schedule.finished or model.replay_buffer.size()!=model.num_timesteps:
+            raise ValueError('Online collection finished without the exact case quotas and replay reconciliation')
+        model.train(gradient_steps=settings['gradient_steps'],batch_size=settings['batch_size'])
+        model.dump_logs()
+        model.save(root/'final_model')
+        model.save_replay_buffer(root/'replay_buffer.pkl')
+    finally:
+        env.close()
+    exposure=audit_exposure(root,manifest)
+    counts=manifest['training_data']
+    counts.update(collected_decisions=int(model.num_timesteps),final_replay_decisions=int(model.replay_buffer.size()),
+                  gradient_updates=int(model._n_updates),exposure_by_scenario=exposure,
+                  replay_buffer_sha256=sha(root/'replay_buffer.pkl'))
+    if sum(c['decisions'] for c in exposure.values())!=model.num_timesteps:
+        raise ValueError('Case ledger does not account for every stored training transition')
+    manifest['completed_episodes']=sum(c['completed'] for c in exposure.values())
+    manifest['final_model_sha256']=sha(root/'final_model.zip')
+    manifest['evidence_sha256']={name:sha(root/name) for name in (
+        'completion_schedule.json','episode_returns.csv','training_exposure.csv','train_monitor.csv',
+        'training_logs/progress.csv','solver_train/episode_outcomes.jsonl','solver_train/episode_scenarios.jsonl')}
+    write_json(root/'manifest.json',manifest)
+    print(f'{algorithm}: {manifest["completed_episodes"]} complete episodes, {model.num_timesteps} real replay transitions',flush=True)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--algorithm", choices=TRAINING_ALGORITHMS, required=True)
@@ -286,7 +387,16 @@ def main():
                    help="Practical CPU profile: 3 critics x 25 quantiles, 2x256; paper: 5 critics, 3x512")
     p.add_argument("--tqc-drop", type=int,
                    help="Highest target quantiles removed per critic (paper tests 0..5)")
+    p.add_argument('--all6-lock',type=Path,help='Train one new shared policy from the frozen six-case study')
     args = p.parse_args()
+    if args.all6_lock:
+        import sys
+
+        allowed={'--all6-lock','--algorithm','--bridge','--out'}
+        if {a.split('=',1)[0] for a in sys.argv[1:] if a.startswith('--')}-allowed:
+            p.error('All-six configuration, seed, episode quotas and training settings come from --all6-lock')
+        train_all6(args.all6_lock,args.algorithm,args.bridge,args.out)
+        return
     if args.strong_case_map:
         if not args.joint_selection or args.dual_segment_lock:
             p.error('--strong-case-map requires --joint-selection and cannot alter a frozen wave selection')

@@ -30,7 +30,7 @@ def bridge_action(action, names):
     return result
 
 
-def check_model_contract(model_path, config):
+def check_model_contract(model_path, config, *, simfile=None):
     names, version = action_contract(config)
     path=Path(model_path).resolve()
     source=next((p/'manifest.json' for p in path.parents if (p/'manifest.json').is_file()),None)
@@ -40,6 +40,17 @@ def check_model_contract(model_path, config):
     manifest=json.loads(source.read_text(encoding='utf-8'))
     prior=tuple(manifest.get('policy_action_names',BRIDGE_NAMES[:int(manifest.get('policy_action_dims',4))]))
     prior_version=manifest.get('action_mapping_version','legacy_prefix_v1')
+    if prior_version=='case_conditioned_named_actions_v1':
+        from scenario_sets import describe_case
+        from train import controller_config_hashes
+
+        if simfile is None or prior!=names or version!='named_actions_v1':
+            raise ValueError('Conditioned policy requires an explicit frozen physical case and four named actions')
+        signature=describe_case(simfile)['experiment_signature']
+        case=manifest['case_contracts'].get(signature)
+        if case is None or controller_config_hashes(Path(config))!=case['config_chain_sha256']:
+            raise ValueError('Conditioned policy config is not the frozen contract for this physical case')
+        return
     if prior!=names or prior_version!=version:
         raise ValueError('Model action names/mapping version differ from evaluation config')
     frozen=manifest.get('frozen_config')

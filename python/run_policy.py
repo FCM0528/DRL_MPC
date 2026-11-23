@@ -18,7 +18,7 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, 
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     from action_mapping import check_model_contract
-    check_model_contract(model_path, config)
+    check_model_contract(model_path, config,simfile=simfile)
     model = ALGORITHMS[algorithm].load(model_path, device="cpu")
     inputs = {"algorithm": algorithm, "model": str(Path(model_path).resolve()),
               "bridge": str(Path(bridge).resolve()), "config": str(Path(config).resolve()),

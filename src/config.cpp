@@ -448,7 +448,7 @@ void validateConfig(const AppConfig& c) {
     }
     if (rl.reward.mode != "legacy" && !rl.reward.jointTracking())
         throw std::invalid_argument("Invalid rl_reward.mode");
-    if (rl.reward.mode == "joint_tracking_wave_balance") {
+    if (rl.reward.waveBalance()) {
         const auto& r = rl.reward;
         const auto valid = [](double value) { return std::isfinite(value) && value > 0.0; };
         if (!(r.wave_bounds[0] >= 0.0 && r.wave_bounds[0] < r.wave_bounds[1] &&
@@ -690,7 +690,7 @@ std::string configToIni(const AppConfig& c) {
         << "\nqp_failure_penalty = " << c.rl.reward.qp_failure_penalty
         << "\nincomplete_episode_penalty = "
         << c.rl.reward.incomplete_episode_penalty << '\n';
-    if (c.rl.reward.mode == "joint_tracking_wave_balance") {
+    if (c.rl.reward.waveBalance()) {
         out << "wave_start_m = " << c.rl.reward.wave_bounds[0] << '\n';
         out << "wave_split_m = " << c.rl.reward.wave_bounds[1] << '\n';
         out << "wave_end_m = " << c.rl.reward.wave_bounds[2] << '\n';

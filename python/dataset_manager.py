@@ -15,7 +15,7 @@ import shutil
 import tempfile
 from datetime import datetime, timezone
 
-from scenario_sets import describe_case, SAMPLING_RULE
+from scenario_sets import describe_case, SAMPLING_RULE, BALANCED_SAMPLING_RULE
 from scenario import reference_bounds
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[1] / 'datasets' / 'carsim'
@@ -322,12 +322,46 @@ def dataset_root(manifest, value):
     return Path(override).resolve() if override else (Path(manifest).resolve().parent/value['dataset_root']).resolve()
 
 
+def release_all6_study(parent):
+    """Create a second immutable split over the same original native payloads."""
+    parent=Path(parent).resolve(strict=True)
+    source,_=load_dataset(parent)
+    expected={(s,.8) for s in (60,65,70,75,80)}|{(70,.6)}
+    records=source['scenarios']
+    root=dataset_root(parent,source)
+    registered=registry(root)['scenarios']
+    if (source['dataset_version']!='dataset_v1' or len(records)!=6 or
+        {(r['target_speed_kmh'],r['road_friction']) for r in records.values()}!=expected or
+        any(r!=registered[key] for key,r in records.items())):
+        raise ValueError('Expected all six original approved records in dataset_v1 and the registry')
+    assignments={key:dict(scenario_id=key,original_split=r['split'],study_split='train',
+        physical_signature=r['physical_signature'],source_sha256={k:r[k+'_sha256'] for k in ('simfile','parsfile')},
+        reassignment_reason=('Explicitly repurposed former held-out case for this new online training study'
+            if r['split']=='test' else 'Included in the six-case online training study')) for key,r in records.items()}
+    version='dataset_v2_all6_train'
+    target=parent.with_name(version+'.json')
+    ordered=sorted(records,key=lambda k:(records[k]['target_speed_kmh'],-records[k]['road_friction']))
+    value=dict(schema_version=2,dataset_name=source['dataset_name'],dataset_version=version,task_profile=TASK,
+        sampling_strategy=BALANCED_SAMPLING_RULE,train_scenarios=ordered,validation_scenarios=[],test_scenarios=[],
+        scenarios=records,study_assignments=assignments,parent_dataset_hash=source['dataset_hash'],
+        parent_manifest_sha256=sha(parent),independent_validation=False,independent_test=False)
+    value['dataset_hash']=digest(value)
+    value['dataset_root']=os.path.relpath(root,target.parent).replace('\\','/')
+    write_json(target,value,exclusive=True)
+    load_dataset(target)
+    return target
+
+
 def load_dataset(manifest, *, verify_test_payload=True):
     path = Path(manifest).resolve(strict=True)
     value = read_json(path)
     if digest({k:v for k,v in value.items() if k not in ('dataset_hash', 'dataset_root')}) != value['dataset_hash']:
         raise ValueError('Dataset manifest hash mismatch')
-    if value['task_profile'] != TASK or value['sampling_strategy'] != SAMPLING_RULE:
+    study=value.get('schema_version')==2
+    if (value['task_profile'] != TASK or value['sampling_strategy'] != (BALANCED_SAMPLING_RULE if study else SAMPLING_RULE)
+        or study and (value['dataset_version']!='dataset_v2_all6_train' or value['validation_scenarios'] or
+                      value['test_scenarios'] or len(value['train_scenarios'])!=6 or
+                      set(value['study_assignments'])!=set(value['scenarios']))):
         raise ValueError('Unsupported task profile or sampling strategy')
     root = dataset_root(path, value)
     sets, seen, seen_ids = {}, set(), set()
@@ -336,7 +370,12 @@ def load_dataset(manifest, *, verify_test_payload=True):
         sets[split] = []
         for key in value[split+'_scenarios']:
             record = value['scenarios'][key]
-            if key in seen_ids or record['scenario_id'] != key or record['split'] != split:
+            assignment=value['study_assignments'][key] if study else None
+            effective_split=assignment['study_split'] if study else record['split']
+            if (key in seen_ids or record['scenario_id'] != key or effective_split != split or study and
+                (assignment['scenario_id']!=key or assignment['original_split']!=record['split'] or
+                 assignment['physical_signature']!=record['physical_signature'] or not assignment['reassignment_reason'] or
+                 assignment['source_sha256']!={k:record[k+'_sha256'] for k in ('simfile','parsfile')})):
                 raise ValueError('Duplicate or changed dataset split')
             seen_ids.add(key)
             if not record['enabled'] or record['validation_status'] != 'accepted' or not record['checks']['task_compatible'] or not record.get('solver_acceptance'):
@@ -357,6 +396,8 @@ def load_dataset(manifest, *, verify_test_payload=True):
                 raise ValueError('Dataset vehicle/I/O contracts differ')
             contract = current
             info.update(scenario_id=key, dataset_version=value['dataset_version'], dataset_hash=value['dataset_hash'])
+            if study:
+                info.update(original_split=record['split'],study_split=split)
             sets[split].append(info)
     if seen_ids != set(value['scenarios']):
         raise ValueError('Manifest has unassigned scenarios')
@@ -472,6 +513,7 @@ def main():
     sub.add_parser('list'); sub.add_parser('validate')
     res = sub.add_parser('restore'); res.add_argument('--from-root', help='Optional complete native dataset backup; default original frozen source paths')
     exp = sub.add_parser('export'); exp.add_argument('--version', required=True); exp.add_argument('--name', default='carsim_lateral'); exp.add_argument('--out')
+    study=sub.add_parser('release-all6-study'); study.add_argument('--parent',required=True)
     summary = sub.add_parser('summary'); summary.add_argument('--manifest', required=True); summary.add_argument('--out', required=True)
     summary.add_argument('--run', action='append', default=[])
     args = p.parse_args(); root = Path(args.root).resolve()
@@ -487,6 +529,8 @@ def main():
                   for s in SPLITS for c in sets[s]]
     elif args.command == 'export':
         result = str(release(root, args.version, name=args.name, out=args.out))
+    elif args.command == 'release-all6-study':
+        result = str(release_all6_study(args.parent))
     elif args.command == 'accept':
         result = accept(root, args.scenario_id, args.baseline_proof)
     elif args.command == 'restore':

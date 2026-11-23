@@ -550,6 +550,14 @@ void testRlModule() {
             wave_terms(0.24, 60).heading == wave_terms(0.24, 19.99).heading &&
             wave_terms(2.0, 60).wave_tracking > wave_terms(1.0, 60).wave_tracking,
             "Wave loss must own the divider in wave two and preserve old heading terms");
+    const auto historical = wave_terms(0.24, 60);
+    wave.reward.mode = "joint_tracking_wave_balance_v2";
+    require(std::abs(wave_terms(0.24, 60).total() - historical.total()) < 1e-12,
+            "Version 2 must preserve the wave formula for identical references");
+    wave.reward.wave_rmse_refs[1] *= 2;
+    require(wave_terms(0.24, 60).wave_tracking < historical.wave_tracking &&
+            wave_terms(0.24, 60).heading == historical.heading,
+            "Version 2 references must only change the intended segment term");
     require(neutral.np == config.mpc.np &&
             std::abs(neutral.q_y - config.mpc.q_y) < 1e-12 &&
             std::abs(neutral.q_psi - config.mpc.q_psi) < 1e-12 &&

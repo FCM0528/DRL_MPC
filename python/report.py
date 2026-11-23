@@ -2004,6 +2004,210 @@ Iy 与 Iheading 使用同速度弱 MPC 的 RMSE。{neutral_metric_note}求解和
     return output/'index.html'
 
 
+def render_all6(lock_path, replay, output):
+    """Build the six-case training-diagnostic report from sealed native replays."""
+    import shutil
+    from dataset_manager import read_json,sha,write_json
+    from dual_segment import METRICS,diagnostic_minimum,measure,score_case
+    from evaluate import write_rows
+    from multi_case import ROLES,load_study,verify_training_runs
+    from paper_style import DEMO_STYLE,configure,demo_line,finish
+    from scenario_strong import independent_errors
+
+    replay,output=Path(replay).resolve(strict=True),Path(output).resolve()
+    lock,dataset,static=load_study(lock_path)
+    evidence=read_json(replay/'replay_lock.json')
+    models=verify_training_runs(lock_path,lock,[m['path'] for m in evidence['models'].values()])
+    if (models!=evidence['models'] or evidence['study_lock_sha256']!=sha(lock_path) or
+        evidence['policy_replay_metrics_sha256']!=sha(replay/'policy_replay_metrics.csv') or
+        evidence['buffer_audit_sha256']!=sha(replay/'replay_buffer_audit.json')):
+        raise ValueError('All-six policy and replay evidence differs from its lock')
+    output.mkdir(parents=True,exist_ok=False)
+    figures=output/'figures'; figures.mkdir()
+    audit=output/'audit'; audit.mkdir()
+    configure()
+    algos=('ddpg','td3','tqc')
+    controls=('weak_mpc','neutral_mpc',*algos)
+    rows=run_csv(replay/'policy_replay_metrics.csv')
+    by_case={(r['scenario_id'],r['controller']):r for r in rows}
+    wanted={(case,algo) for case in dataset['train_scenarios'] for algo in algos}
+    if set(by_case)!=wanted or len(rows)!=len(wanted):
+        raise ValueError('Incomplete or duplicated frozen case replays')
+
+    def draw(name,panels,*,title='',episode_count=None,layout=None):
+        nr,nc=layout or (len(panels),1)
+        fig,axes=plt.subplots(nr,nc,figsize=(8.4,2.15*nr+.8),squeeze=False,
+                             sharex=not bool(layout))
+        for ax,(label,unit,series) in zip(axes.flat,panels,strict=True):
+            for key,x,value in series:
+                demo_line(ax,key,x,value,step=name.startswith('weights_'))
+            ax.set(title=label,ylabel=unit)
+            if episode_count:
+                ax.set(xlabel='Episode',xlim=(1,episode_count))
+            ax.grid(alpha=.22)
+        if not episode_count:
+            for ax in axes[-1]:
+                ax.set_xlabel('X (m)')
+        handles={}
+        for ax in axes.flat:
+            for line,name_ in zip(*ax.get_legend_handles_labels()):
+                handles.setdefault(name_,line)
+        if title:
+            fig.suptitle(title,y=.995,fontsize=13)
+        fig.legend(handles.values(),handles.keys(),loc='upper center',bbox_to_anchor=(.5,.94 if title else .99),
+                   ncol=3,frameon=False,fontsize=8)
+        fig.tight_layout(rect=(0,0,1,.82 if title else .89))
+        finish(fig,figures/name,dpi=300,layout=False)
+
+    exposure,training,returns=[],[],[]
+    training_series={}
+    episodes=lock['episodes_per_case']*6
+    for algo in algos:
+        run=Path(models[algo]['path']); m=read_json(run/'manifest.json'); stats=m['training_data']
+        ledger=run_csv(run/'episode_returns.csv')
+        valid=[r for r in ledger if r['completed']=='True']
+        decisions=np.cumsum([int(r['decisions']) for r in ledger])
+        done_axis=np.cumsum([r['completed']=='True' for r in ledger])
+        training_series[algo]=dict(value=[float(r['return_']) for r in valid],logs=run_csv(run/'training_logs/progress.csv'),
+                                   decisions=decisions,completed=done_axis,episodes=valid)
+        returns.extend(dict(algorithm=algo,completed_episode=int(n),**r) for n,r in zip(done_axis,ledger,strict=True))
+        exposure.extend(dict(algorithm=algo,scenario_id=key,**counts) for key,counts in stats['exposure_by_scenario'].items())
+        training.append(dict(algorithm=algo,completed_episodes=m['completed_episodes'],attempts=len(ledger),
+            collected_decisions=stats['collected_decisions'],replay_samples=stats['final_replay_decisions'],
+            gradient_updates=stats['gradient_updates'],qp_failures=sum(c['qp_failures'] for c in stats['exposure_by_scenario'].values()),
+            safety_abnormal_episodes=sum(c['safety_abnormal_episodes'] for c in stats['exposure_by_scenario'].values()),
+            final_model_sha256=m['final_model_sha256']))
+    write_rows(output/'training_exposure.csv',exposure)
+    write_rows(output/'training_summary.csv',training)
+    write_rows(output/'episode_returns.csv',returns)
+
+    def loss_series(field, names):
+        result=[]
+        for algo in names:
+            series=training_series[algo]
+            logs=[r for r in series['logs'] if r.get(field)]
+            pos=np.searchsorted(series['decisions'],[int(r['time/total_timesteps']) for r in logs],side='right')-1
+            result.append((algo,series['completed'][np.maximum(pos,0)],[float(r[field]) for r in logs]))
+        return result
+
+    draw('training',[('回报','Episode return',[(k,np.arange(1,episodes+1),training_series[k]['value']) for k in algos]),
+         ('Actor','Loss',loss_series('train/actor_loss',algos)),('Critic','Loss',loss_series('train/critic_loss',algos)),
+         ('TQC','Entropy coefficient',loss_series('train/ent_coef',('tqc',)))],episode_count=episodes,layout=(2,2))
+    tracking=[]; segments=[]; gains=[]; native_links=[]; fixed_rows=[]; cards=[]; labels={}
+    gmin={algo:[] for algo in algos}
+    for key in dataset['train_scenarios']:
+        record=dataset['scenarios'][key]; sig=record['physical_signature']; baseline=static['cases'][sig]; bounds=baseline['bounds_m']
+        speed,mu=baseline['speed_kmh'],baseline['road_mu']
+        suffix=f'{speed:g}_mu{round(10*mu):02d}'
+        title=f'{speed:g} km/h · μ={mu:g}'; labels[key]=title
+        sim=lock['cases'][sig]['simfile']
+        from scenario_sets import describe_case
+        reference=describe_case(sim)['reference_table']
+        ref=np.array([[float(x) for x in r.split(',')[:2]] for r in reference[1:-1]])
+        fixed={role:baseline['baselines'][role]['metrics'] for role in ROLES}
+        for role,item in fixed.items():
+            fixed_rows.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,controller=role,**item,
+                                   target_met=baseline['baselines'][role]['selection']['target_met'],
+                                   lateral_gap_percent=baseline['baselines'][role]['selection']['lateral_gap_percent']))
+        traces={}
+        for ctrl in controls:
+            if ctrl in algos:
+                row=by_case[key,ctrl]
+                if row['physical_signature']!=sig or row['model_sha256']!=models[ctrl]['final_sha256']:
+                    raise ValueError('Frozen replay uses another case or model')
+            else:
+                row=fixed[ctrl.removesuffix('_mpc')]
+            trace=Path(row['trace']); data=control_trace(trace); traces[ctrl]=data
+            if sha(trace)!=row['trace_sha256'] or ctrl in algos and sha(trace.with_name('report.html'))!=row['cpp_report_sha256']:
+                raise ValueError(f'Frozen CarSim replay output changed: {trace}')
+            measured=measure(data,bounds); independently=independent_errors(trace,bounds,full_metrics=True)
+            for field,v in independently.items():
+                expected=measured.get(field,row.get(field))
+                if v is not None and not np.isclose(float(expected),v,rtol=0,atol=1e-10):
+                    raise ValueError(f'Independent metric differs for {key} {ctrl} {field}')
+            p={field:row[field] for field in ('terminated','legal','steering_rate_rms_degps','mpc_solve_mean_ms')}
+            tracking.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,controller=ctrl,**independently,**p,
+                                 policy_inference_mean_ms=row.get('policy_inference_mean_ms','')))
+            for i in (1,2):
+                segments.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,controller=ctrl,segment=i,
+                    start_m=bounds[i-1],end_m=bounds[i],peak_y_m=measured[f'peak{i}'],rmse_y_m=measured[f'rmse{i}'],
+                    samples=measured[f'samples{i}']))
+            if ctrl in algos:
+                score=score_case(data,bounds,{'weak_mpc':fixed['weak'],'neutral_mpc':fixed['neutral']},
+                                 legal=row['legal']=='True',allow_missing_baseline=True)
+                gmin[ctrl].append(score)
+                gains.append(dict(scenario_id=key,speed_kmh=speed,road_mu=mu,algorithm=ctrl,**score))
+            native=Path('cpp_reports')/suffix/ctrl
+            shutil.copytree(trace.parent,output/native)
+            native_links.append(f'<li><a href="{(native/"report.html").as_posix()}">{title} · {DEMO_STYLE[ctrl][0]}</a></li>')
+
+        def series(field,scale=1):
+            return [(name,d['x_m'],d[field]*scale) for name,d in traces.items()]
+
+        paper=f'paper_tracking_{suffix}'; weights=f'weights_{suffix}'
+        draw(paper,[('(a) Trajectory','Y (m)',[('reference',ref[:,0],ref[:,1]),*series('y_m')]),
+             ('(b) Lateral error','ey (m)',series('ey_m')),('(c) Heading error','Heading (°)',series('epsi_rad',180/np.pi)),
+             ('(d) Steering angle','Wheel angle (°)',series('actual_steer_rad',180/np.pi))],title=title,layout=(2,2))
+        draw(weights,[(k,unit,series(k.lower())) for k,unit in (
+             ('Np','Steps'),('q_y','Qy'),('q_psi','Qpsi'),('r_delta','Rdelta'))],title=title,layout=(2,2))
+        cards.append((title,paper,weights))
+    write_rows(output/'scenario_baseline_metrics.csv',fixed_rows)
+    fields=('scenario_id','speed_kmh','road_mu','controller','np','nc','dt_s','q_y','q_psi','r_delta','lateral_gap_percent','target_met')
+    write_rows(output/'scenario_baseline_parameters.csv',[{k:r[k] for k in fields} for r in fixed_rows])
+    write_rows(output/'metrics.csv',tracking)
+    write_rows(output/'segment_metrics.csv',segments)
+    write_rows(output/'segment_gains.csv',gains)
+    minima=[dict(algorithm=k,six_case_gmin=diagnostic_minimum([r['gmin'] for r in gmin[k]]),
+                 passed_cases=sum(r['passed'] for r in gmin[k]),safe_cases=sum(r['legal'] for r in gmin[k])) for k in algos]
+    write_rows(output/'six_case_gmin.csv',minima)
+    for row in exposure:
+        row['case']=labels[row['scenario_id']]
+    draw('reward_by_case',[(labels[key],'Episode return',[(k,np.arange(1,lock['episodes_per_case']+1),
+         [float(r['return_']) for r in training_series[k]['episodes'] if r['scenario_id']==key]) for k in algos])
+         for key in dataset['train_scenarios']],episode_count=lock['episodes_per_case'],layout=(3,2))
+    write_json(output/'model_selection.json',dict(method='final_training_diagnostic',independent_validation=False,
+               independent_test=False,models=models),exclusive=True)
+    write_json(output/'summary.json',dict(dataset_version=dataset['dataset_version'],dataset_hash=dataset['dataset_hash'],
+        study_lock_sha256=sha(lock_path),study_assignments=dataset['study_assignments'],baseline_map_sha256=lock['baseline_map_sha256'],
+        conditioning=lock['action_mapping_version'],reward_scheme=lock['reward_scheme'],train=training,six_case_gmin=minima,
+        separate_independent_validation=False,separate_independent_test=False),exclusive=True)
+    for name,src in (('study_lock.json',lock_path),('baseline_case_map.json',lock['baseline_case_map']),
+                     ('reward_numeric_audit.csv',Path(lock_path).with_name('reward_numeric_audit.csv')),
+                     ('replay_buffer_audit.json',replay/'replay_buffer_audit.json'),
+                     ('replay_lock.json',replay/'replay_lock.json')):
+        shutil.copy2(src,audit/name)
+
+    def table(items,fields):
+        return ('<div class="table"><table><thead><tr>'+''.join(f'<th>{html.escape(k)}</th>' for k in fields)+
+            '</tr></thead><tbody>'+''.join('<tr>'+''.join(f'<td>{html.escape(str(r.get(k,"—")))}</td>' for k in fields)+
+            '</tr>' for r in items)+'</tbody></table></div>')
+
+    def plot(name):
+        return (f'<figure><img src="figures/{name}.png" alt="{name}" loading="lazy">'
+                f'<figcaption><a href="figures/{name}.pdf">矢量 PDF</a></figcaption></figure>')
+
+    links=' · '.join(f'<a href="{file}.csv">{file}</a>' for file in ('metrics','scenario_baseline_parameters',
+        'scenario_baseline_metrics','training_exposure','training_summary','episode_returns','segment_metrics','segment_gains','six_case_gmin'))
+    title='六工况共享四维 DRL-MPC · 训练内诊断'
+    (output/'index.html').write_text(f'''<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>{title}</title>
+<style>body{{font:16px "Times New Roman",SimHei,serif;max-width:1100px;margin:30px auto;padding:0 18px}} .table{{overflow:auto}}table{{border-collapse:collapse}}td,th{{padding:6px 9px;border-bottom:1px solid #ddd;white-space:nowrap}}figure{{margin:24px auto;max-width:890px}}img{{width:100%}}figcaption{{text-align:center}}</style>
+<h1>{title}</h1><p>dataset_v2_all6_train · seed 42 · 每算法 {episodes} 个完整回合。三组各自使用同一冻结工况序列和独立经验池。
+主图策略均为 final。实验数据全部来自六个训练工况。独立验证及测试尚未建立。</p>
+<p>四维策略在各工况的 Weak MPC 权重上调参，奖励以该工况的 Neutral 分段指标归一。固定权重整定的收益独立于策略学习。</p>
+<p>{links} · <a href="model_selection.json">模型及检查点 SHA256</a> · <a href="audit/study_lock.json">冻结研究契约</a></p>
+<h2>训练与经验池</h2>{table(training,('algorithm','completed_episodes','collected_decisions','replay_samples','gradient_updates','qp_failures','safety_abnormal_episodes'))}
+{plot('training')}{plot('reward_by_case')}
+<h2>工况曝光</h2>{table(exposure,('algorithm','case','completed','decisions','replay_samples','mean_episode_return','qp_failures','safety_abnormal_episodes'))}
+<h2>全程与双区段指标</h2>{table(tracking,('speed_kmh','road_mu','controller','rmse_y_m','rmse_heading_deg','rmse_course_deg','peak1','peak2','rmse1','rmse2','peak_measured_ay_mps2','peak_measured_beta_deg','qp_failures','terminated','legal'))}
+{table(minima,('algorithm','six_case_gmin','passed_cases','safe_cases'))}
+<p>Gmin 取六工况各四项横向区段改善率的最小值。每项使用同工况 Weak 与 Neutral 指标的较优值。严格通过仍要求全程 RMSE 不劣于 Neutral，且完赛和稳定性通过。</p>
+{''.join(f'<section><h2>{name}</h2>{plot(paper)}{plot(weights)}</section>' for name,paper,weights in cards)}
+<h2>固定基线整定</h2>{table(fixed_rows,fields)}
+<h2>C++ 详细报告</h2><ul>{''.join(native_links)}</ul></html>''',encoding='utf-8')
+    return output/'index.html'
+
+
 def main():
     parser = argparse.ArgumentParser(description="Rebuild training and comparison charts")
     parser.add_argument("evaluation_dir", type=Path, nargs="?")
@@ -2014,6 +2218,7 @@ def main():
     parser.add_argument('--history-300',type=Path,help='Frozen three-weight 300-episode replay for the four-action report')
     parser.add_argument('--neutral',type=Path,help='Accepted fixed-MPC tuning directory for the five-controller report')
     parser.add_argument('--wave-extension',type=Path,help='Frozen additional CarSim wave diagnostic replays')
+    parser.add_argument('--all6-lock',type=Path,help='Render the completed six-case shared-policy study')
     parser.add_argument('--strong-tuning',type=Path,help='Frozen scenario Strong MPC search and audit; append to the wave report or render alone')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
@@ -2022,6 +2227,11 @@ def main():
     parser.add_argument('--out',type=Path,help='New figure directory for locked validation')
     parser.add_argument('--case',type=int,default=0)
     args = parser.parse_args()
+    if args.all6_lock:
+        if not args.replay or not args.out:
+            parser.error('--all6-lock requires --replay and --out')
+        print(render_all6(args.all6_lock,args.replay,args.out))
+        return
     if args.weak_demo:
         if not (args.replay and args.runs and args.out):
             parser.error('--weak-demo requires --replay, --runs, and --out')

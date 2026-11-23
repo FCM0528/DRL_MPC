@@ -70,6 +70,41 @@ def test_episode_sampler_is_local_uniform_and_closes_old_solver(tmp_path,monkeyp
     finally:env.close()
 
 
+def test_case_quota_repeats_incomplete_and_avoids_unused_solver_reset(tmp_path,monkeypatch):
+    import envs.carsim_mpc_env as module
+    from scenario_sets import EpisodeBlockSchedule
+
+    exe=tmp_path/'bridge'; exe.write_text('test')
+    sources=[]
+    for i in range(3):
+        cfg=tmp_path/f'{i}.ini'; cfg.write_text('[rl]\nobservation_profile=road_preview_joint\n')
+        sim=tmp_path/f'{i}.sim'; sim.write_text('fixture')
+        sources.append((sim,cfg))
+    started=[]
+    class Bridge:
+        def __init__(self,exe,cfg,sim,*out):
+            started.append((sim,cfg))
+            self.failure=len(started)==1
+        def exchange(self,command,*args):
+            if command=='RESET': return [0.]*20
+            return [0.]*20+[0.,1,0,120.,0,0,0,0,0,2,int(self.failure),36]
+        def close(self): pass
+    monkeypatch.setattr(module,'BridgeClient',Bridge)
+    sim,cfg=sources[0]
+    env=CarSimMPCEnv(exe,cfg,sim,tmp_path/'solver')
+    env.bind_case_schedule(sources,2,42)
+    scheduled=EpisodeBlockSchedule(3,2,42).sequence
+    assert all(set(scheduled[i:i+3])=={0,1,2} for i in (0,3))
+    for _ in range(7):
+        env.reset()
+        env.step(np.zeros(4))
+    _,info=env.reset()
+    assert info=={'quota_complete':True}
+    assert started==[sources[scheduled[0]],*(sources[i] for i in scheduled)]
+    assert sorted(v['completed'] for v in env.scenario_exposure.values())==[2,2,2]
+    env.close()
+
+
 def test_preflight_solver_failure_is_retained_without_zero_qp_claim(tmp_path,monkeypatch):
     import scenario_preflight
     def fail(*args,**kwargs):raise RuntimeError('native solver rejected case; inspect fixed_run.log')
