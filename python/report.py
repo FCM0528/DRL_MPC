@@ -1020,7 +1020,126 @@ def wave_report_evidence(replay,replay_lock,lock,old_replay,rows,models,logs,out
     return result,comparisons,histories,[row for row in old_rows if row['kind']=='best'],archive
 
 
-def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, history_300=None, neutral=None):
+def render_strong_appendix(source, output, *, wave_replay=None):
+    """Render the static tuning audit offline from verified result tables."""
+    import shutil
+    from dataset_manager import read_json, sha
+    from paper_style import configure, finish
+    from scenario_strong import OBJECTIVES
+
+    source,output=Path(source).resolve(strict=True),Path(output).resolve()
+    audit=source/'audit'
+    summary=read_json(source/'strong_mpc_tuning_summary.json')
+    lock=read_json(audit/'strong_drl_audit_lock.json')
+    registry=source/'strong_case_map.json'
+    plan=source/'search_plan.json'
+    cases=source/'strong_case_comparison.csv'
+    policies=audit/'strong_case_drl_audit.csv'
+    evidence=((cases,summary['comparison_sha256']),(registry,summary['map_sha256']),
+              (registry,lock['map_sha256']),(plan,read_json(registry)['plan_sha256']),(policies,lock['audit_sha256']))
+    if not lock['unchanged'] or any(sha(p)!=h for p,h in evidence):
+        raise ValueError('Strong MPC appendix evidence hash mismatch')
+    if wave_replay is not None:
+        wave_file=Path(wave_replay).resolve()/'wave_replay_metrics.csv'
+        if lock['source_hashes'].get(str(wave_file)) != sha(wave_file):
+            raise ValueError('Appendix refers to a different frozen DRL wave replay')
+    output.mkdir(parents=True,exist_ok=False)
+    figures=output/'figures'; figures.mkdir()
+    for file in (plan,cases,policies,audit/'strong_drl_audit_lock.json',
+                 *(source/name for name in ('strong_parameters_by_speed.csv','strong_mpc_case_metrics.csv',
+                                             'strong_mpc_tuning_summary.json'))):
+        shutil.copy2(file,output/file.name)
+    ids={}
+    for entry in summary['cases'].values():
+        scenario_dir=source/entry['scenario_id']
+        dest=output/'candidates'/entry['scenario_id']; dest.mkdir(parents=True)
+        for name in ('candidate_metrics.csv','local_plan.json','selection.json'):
+            if (scenario_dir/name).exists():
+                shutil.copy2(scenario_dir/name,dest/name)
+        ids[entry['scenario_id']]=entry
+    rows={(r['scenario_id'],r['mode']):r for r in run_csv(cases)}
+    ordered=sorted(ids,key=lambda key:(float(ids[key]['target_speed_kmh']),key))
+    speeds=[f'{ids[key]["target_speed_kmh"]:g}' for key in ordered]
+    labels=[speed if speeds.count(speed)==1 else f'{speed}\n{key[-6:]}' for speed,key in zip(speeds,ordered)]
+    x=np.arange(len(ordered))
+    configure()
+    names={'np':'Np','q_y':'Qy','q_psi':'Qpsi','r_delta':'Rdelta',
+           'rmse_y_m':'横向 RMSE (m)','rmse_heading_deg':'车身航向 RMSE (°)',
+           'peak1':'第一段横向峰值','peak2':'第二段横向峰值','rmse1':'第一段横向 RMSE','rmse2':'第二段横向 RMSE'}
+    plots=[]
+
+    def bars(filename, keys, *, gains=False):
+        fig,axes=plt.subplots(1 if len(keys)==2 else 2,2,figsize=(8,3.3 if len(keys)==2 else 5.5))
+        for ax,key in zip(axes.flat,keys,strict=True):
+            if gains:
+                ax.bar(x,[float(rows[k,'scenario'][key+'_improvement_percent']) for k in ordered],
+                       color='white',edgecolor='black',hatch='/',width=.44)
+                ax.axhline(0,color='0.55',linewidth=.6)
+                ax.set_ylabel('改善率 (%)')
+            else:
+                for mode,name,offset,hatch in (('uniform','统一 Strong MPC',-.19,''),
+                                               ('scenario','分工况 Strong MPC',.19,'//')):
+                    ax.bar(x+offset,[float(rows[k,mode][key]) for k in ordered],width=.38,color='white',
+                           edgecolor='black',hatch=hatch,label=name)
+            ax.set(title=names[key],xticks=x,xticklabels=labels,xlabel='目标车速 (km/h)')
+        if not gains:
+            axes.flat[0].legend(fontsize=8)
+        finish(fig,figures/filename)
+        plots.append(filename)
+
+    bars('strong_parameters',('np','q_y','q_psi','r_delta'))
+    bars('strong_full_rmse',OBJECTIVES[:2])
+    bars('strong_segment_gains',OBJECTIVES[2:],gains=True)
+    drl={(r['scenario_id'],r['algorithm'],r['kind']):r for r in run_csv(policies)}
+    fig,axes=plt.subplots(2,2,figsize=(8.8,6.1),sharex=True)
+    for index,kind in enumerate(('best','final')):
+        for j,(field,title) in enumerate((('iy','横向'),('iheading','车身航向'))):
+            ax=axes[index,j]
+            for algo,marker in (('ddpg','o'),('td3','s'),('tqc','^')):
+                for prefix,style,width in (('legacy','--',.85),('scenario','-',1.3)):
+                    ax.plot(x,[100*float(drl[k,algo,kind][f'{prefix}_strong_{field}']) for k in ordered],
+                            color='black',lw=width,ls=style,marker=marker,mfc='white',
+                            label=algo.upper()+(' · 统一' if prefix=='legacy' else ' · 分工况'))
+            ax.axhline(0,color='0.55',linewidth=.6)
+            ax.set(title=f'{kind} · {title}',ylabel='改善率 (%)',xticks=x,xticklabels=labels)
+            if index==1: ax.set_xlabel('目标车速 (km/h)')
+    handles,legend=axes[0,0].get_legend_handles_labels()
+    fig.legend(handles,legend,loc='upper center',bbox_to_anchor=(.5,.99),ncol=3,fontsize=8)
+    fig.tight_layout(rect=(0,0,1,.88))
+    finish(fig,figures/'strong_drl_references',layout=False)
+    plots.append('strong_drl_references')
+    cards=''.join(f'<figure><img src="figures/{key}.png" alt="{key}"><figcaption><a href="figures/{key}.pdf">PDF</a></figcaption></figure>'
+                  for key in plots)
+    links=' · '.join(f'<a href="{name}">{label}</a>' for name,label in (
+        ('strong_mpc_case_metrics.csv','固定 MPC 指标'),('strong_parameters_by_speed.csv','参数'),
+        ('strong_case_drl_audit.csv','best／final 审计'),('strong_mpc_tuning_summary.json','搜索摘要'),
+        ('search_plan.json','冻结预算'),('strong_drl_audit_lock.json','模型和历史指标锁')))
+    candidates=' · '.join(f'<a href="candidates/{key}/selection.json">{html.escape(label)} km/h 选择</a>'
+                        +(f' · <a href="candidates/{key}/candidate_metrics.csv">全部候选</a>' if key in read_json(plan)['tune'] else '')
+                        for key,label in zip(ordered,speeds))
+    table=[]
+    for key in ordered:
+        row=rows[key,'scenario']
+        values=[f'{float(row["target_speed_kmh"]):g}',*[row[k] for k in ('np','q_y','q_psi','r_delta')],
+                *[f'{float(row[k]):.6f}' for k in OBJECTIVES],
+                *[f'{float(row[k+"_improvement_percent"]):+.4f}%' for k in OBJECTIVES[:2]]]
+        table.append('<tr>'+''.join(f'<td>{html.escape(v)}</td>' for v in values)+'</tr>')
+    headings=''.join(f'<th>{value}</th>' for value in ('km/h','Np','Qy','Qpsi','Rdelta','横向 (m)','航向 (°)',
+                     'Peak1 (m)','Peak2 (m)','RMSE1 (m)','RMSE2 (m)','Iy','Iheading'))
+    (output/'index.html').write_text(f'''<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>分工况 Strong MPC 审计</title>
+<style>body{{font:16px "Times New Roman",SimHei,serif;max-width:1000px;margin:32px auto;padding:0 20px}}
+figure{{max-width:830px;margin:1.5em auto}}img{{width:100%;height:auto}}figcaption{{text-align:center}}
+.table{{overflow:auto}}table{{border-collapse:collapse;white-space:nowrap}}th,td{{padding:6px;border-bottom:1px solid #ddd;text-align:right}}</style>
+<h1>分工况 Strong MPC 审计</h1><p>统一参数用于跨速度的固定控制器比较。分工况参数来自已知工况的闭环整定。</p>
+<p>DDPG、TD3、TQC 的 best 和 final 均按原模型锁复放。原双区段 Gmin 继续以 Weak／Neutral 的逐项较优值为参考。</p>
+<p>{links}</p><p>{candidates}</p><div class="table"><table><thead><tr>{headings}</tr></thead>
+<tbody>{''.join(table)}</tbody></table></div>{cards}</html>''',encoding='utf-8')
+    return output/'index.html'
+
+
+def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, history_300=None, neutral=None,
+                     strong_tuning=None):
     """Rebuild the four-controller report from locked offline replay and training evidence."""
     import shutil
     from dataset_manager import read_json, sha, write_json
@@ -1682,6 +1801,14 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
     heading_order=' → '.join(key.upper() for key in rankings['heading'])
     weak_heading='弱 MPC 与 DRL 零动作' if neutral else '弱基线与中性起点'
     neutral_metric_note='Neutral 列使用同速度中性 MPC。' if neutral else ''
+    strong_section=''
+    if strong_tuning:
+        if not wave:
+            raise ValueError('Strong MPC appendix requires the matching wave replay')
+        render_strong_appendix(strong_tuning,output/'strong_mpc_audit',wave_replay=replay)
+        strong_section=('<section id="strong-mpc"><h2>分工况 Strong MPC 整定</h2>'
+                        '<p>65、75 km/h 独立搜索，70 km/h 保留统一配置。附录提供固定参数、双区段指标和原锁定 DRL 模型的回顾性改善率。</p>'
+                        '<p><a href="strong_mpc_audit/index.html">查看分工况强 MPC 审计图表</a></p></section>')
     page=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title><link rel="icon" href="data:,">
 <style>body{{font:16px "Times New Roman",SimHei,serif;max-width:1100px;margin:36px auto;padding:0 20px;color:#222;background:#fff}}
@@ -1704,6 +1831,7 @@ Iy 与 Iheading 使用同速度弱 MPC 的 RMSE。{neutral_metric_note}求解和
 <div class="table"><table><thead><tr><th>控制器</th><th>横向均值 (m)</th><th>航向均值 (°)</th><th>最小改善率</th><th>两工况均胜弱 MPC</th><th>梯度更新</th></tr></thead>
 <tbody>{''.join(ranking_rows)}</tbody></table></div></section>
 {''.join(sections)}
+{strong_section}
 <section id="native"><h2>C++ 详细报告</h2><details><summary>展开原始控制与求解记录</summary><ul>{''.join(links)}</ul></details></section>
 </body></html>'''
     (output/'index.html').write_text(page,encoding='utf-8')
@@ -1719,6 +1847,7 @@ def main():
     parser.add_argument('--baseline-replay',type=Path,help='Historical 100-episode weak-demo replay, defaults to the experiment replay')
     parser.add_argument('--history-300',type=Path,help='Frozen three-weight 300-episode replay for the four-action report')
     parser.add_argument('--neutral',type=Path,help='Accepted fixed-MPC tuning directory for the five-controller report')
+    parser.add_argument('--strong-tuning',type=Path,help='Frozen scenario Strong MPC search and audit; append to the wave report or render alone')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
     parser.add_argument('--reference-models',type=Path)
@@ -1730,7 +1859,12 @@ def main():
         if not (args.replay and args.runs and args.out):
             parser.error('--weak-demo requires --replay, --runs, and --out')
         print(render_weak_demo(args.weak_demo,args.replay,args.runs,args.out,
-                               baseline_replay=args.baseline_replay,history_300=args.history_300,neutral=args.neutral))
+                               baseline_replay=args.baseline_replay,history_300=args.history_300,neutral=args.neutral,
+                               strong_tuning=args.strong_tuning))
+        return
+    if args.strong_tuning:
+        if not args.out: parser.error('--strong-tuning requires a new --out directory')
+        print(render_strong_appendix(args.strong_tuning,args.out))
         return
     if args.runs:
         if not args.out: parser.error("--runs requires a new --out directory")

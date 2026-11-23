@@ -5,10 +5,10 @@ import hashlib
 import json
 from pathlib import Path
 from algorithms import ALGORITHMS
-from evaluate import fixed_episode, _tracking_metrics, write_rows
+from evaluate import fixed_episode, _tracking_metrics, require_same_distance, write_rows
 from run_policy import run_policy
 from scenario_sets import freeze_sets, describe_case
-from scenario import controller_policy_signature, snapshot_config
+from scenario import controller_policy_signature, resolve_config_value, snapshot_config
 from report import control_trace, _trace
 import numpy as np
 from itertools import product
@@ -756,6 +756,14 @@ def search_neutral(experiment, replay, output, controller):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--lock',help='JSON list: algorithm, model, sha256, config')
+    p.add_argument('--strong-case-map',type=Path,help='Frozen fixed MPC registry keyed by physical signature')
+    p.add_argument('--strong-tune',action='store_true',help='Tune fixed MPCs on accepted development/train cases')
+    p.add_argument('--strong-config',default='configs/mpc_strong.ini',help='Uniform Strong MPC configuration and search center')
+    p.add_argument('--strong-audit',type=Path,metavar='WAVE_REPLAY',help='Replay prelocked wave best/final policies against the new registry')
+    p.add_argument('--tune-case',action='append',default=[],metavar='SCENARIO_ID')
+    p.add_argument('--retain-case',action='append',default=[],metavar='SCENARIO_ID')
+    p.add_argument('--strong-bounds',type=float,nargs=3,metavar=('START','DIVIDER','END'))
+    p.add_argument('--strong-wave-lock',type=Path,help='Reuse wave experiment geometry and case signatures')
     p.add_argument('--weak-search',action='store_true',help='Run the frozen weak-baseline candidate search')
     p.add_argument('--weak-preflight',type=Path,metavar='SEARCH_DIR')
     p.add_argument('--full4-preflight',type=Path,metavar='SEARCH_DIR',
@@ -777,6 +785,21 @@ def main():
     p.add_argument('--controller',default='out/python-rl-build/Release/MPC_DoubleLaneChange.exe')
     p.add_argument('--bridge',default='out/python-rl-build/Release/MPC_RL_Bridge.exe')
     args=p.parse_args()
+    if args.strong_audit:
+        from scenario_strong import audit
+        if not (args.strong_case_map and args.out):
+            p.error('--strong-audit requires --strong-case-map and a new --out')
+        audit(args.strong_case_map,args.strong_audit,args.bridge,args.out)
+        return
+    if args.strong_tune:
+        from scenario_strong import tune
+        from dataset_manager import read_json
+        if not (args.scenario_set and args.out and (args.strong_bounds or args.strong_wave_lock)):
+            p.error('--strong-tune requires --scenario-set, --out and frozen segment bounds or --strong-wave-lock')
+        bounds=args.strong_bounds or read_json(args.strong_wave_lock)['bounds_m']
+        tune(args.scenario_set,args.out,args.controller,args.tune_case,args.retain_case,bounds,
+             strong=args.strong_config,wave_lock=args.strong_wave_lock)
+        return
     if args.wave_replay:
         if not args.runs or not args.out:
             p.error('--wave-replay requires --runs and --out')
@@ -819,8 +842,16 @@ def main():
     if not args.lock:
         p.error('--lock is required for locked policy evaluation')
     root=Path(args.out).resolve();root.mkdir(parents=True,exist_ok=False)
-    sets=freeze_sets(args.scenario_set,root/'cases')
+    sets=freeze_sets(args.scenario_set,root/'cases',include_test=not args.strong_case_map or args.split=='test')
     if not sets[args.split]: p.error(f'A real {args.split} set is required')
+    case_refs=[]
+    if args.strong_case_map:
+        from dataset_manager import write_json
+        from scenario_strong import StrongCaseMap, reference_fields, require_reproduction
+
+        registry=StrongCaseMap(args.strong_case_map)
+        case_refs=[registry.freeze(case,root/'strong_cases'/str(i)) for i,case in enumerate(sets[args.split])]
+        write_json(root/'strong_case_resolution.json',[item[1] for item in case_refs],exclusive=True)
     locked=json.loads(Path(args.lock).read_text())
     if isinstance(locked,dict):locked=locked['models']
     (root/'locked_models.json').write_text(json.dumps(locked,indent=2))
@@ -847,14 +878,27 @@ def main():
             check_case_contract(manifest,case,args.split)
             prefix=f"{item['algorithm']}_{manifest['seed']}_{i}"
             baselines={}
-            for label,ini in [('original_mpc','configs/default.ini'),('strong_mpc','configs/mpc_strong.ini')]:
+            baseline_configs=[('original_mpc','configs/default.ini'),('strong_mpc',args.strong_config)]
+            source={}
+            if case_refs:
+                specific,provenance,expected=case_refs[i]
+                if float(resolve_config_value(config,'simulation','distance_m')) != provenance['end_m']:
+                    raise ValueError('Policy end station differs from the frozen Strong MPC case')
+                baseline_configs[1:]=[('legacy_strong_mpc',args.strong_config),('strong_mpc',specific)]
+                source={'strong_map_sha256':provenance['map_sha256'],'strong_config_sha256':provenance['config_sha256']}
+            for label,ini in baseline_configs:
                 frozen=snapshot_config(ini,root/f'{prefix}_config_{label}')
                 result=fixed_episode(args.controller,case['frozen_simfile'],root/f'{prefix}_{label}',frozen,require_complete=False)
+                if case_refs and label=='strong_mpc':
+                    require_same_distance(baselines['legacy_strong_mpc']['trace'],result['trace'])
+                    if result['distance_m'] < provenance['end_m']:
+                        raise ValueError('Scenario Strong MPC did not reach the frozen end station')
+                    require_reproduction(result,expected)
                 baselines[label]=result
                 rows.append(dict(model=str(model_path),seed=manifest['seed'],case=i,split=args.split,
                     experiment_signature=case['experiment_signature'],controller=label,legal=stable_legal(result),
                     original_iy='',original_ih='',strong_iy='',strong_ih='',strong_dual='',
-                    policy_inference_mean_ms='',policy_inference_p95_ms='',**result,**replay_diagnostics(result['trace'])))
+                    policy_inference_mean_ms='',policy_inference_p95_ms='',**source,**result,**replay_diagnostics(result['trace'])))
                 write_rows(root/'dual_baseline_metrics.csv',rows)
             if not all(stable_legal(r) for r in baselines.values()):
                 raise ValueError(f'Baseline preflight failed for {args.split} case {i}; policy not run')
@@ -865,12 +909,16 @@ def main():
                 truncated=replay['truncated'],failed=replay['failed'],**_tracking_metrics(replay['trace']))
             iy={k:1-result['rmse_y_m']/r['rmse_y_m'] for k,r in baselines.items()}
             ih={k:1-result['rmse_heading_deg']/r['rmse_heading_deg'] for k,r in baselines.items()}
+            legal=stable_legal(result)
+            if case_refs:
+                legal=legal and result['distance_m'] >= provenance['end_m']
+                source.update(reference_fields(result,baselines['legacy_strong_mpc'],baselines['strong_mpc'],legal))
             rows.append(dict(model=str(model_path),seed=manifest['seed'],case=i,split=args.split,
-                experiment_signature=case['experiment_signature'],controller=item['algorithm'],legal=stable_legal(result),
+                experiment_signature=case['experiment_signature'],controller=item['algorithm'],legal=legal,
                 original_iy=iy['original_mpc'],original_ih=ih['original_mpc'],strong_iy=iy['strong_mpc'],
-                strong_ih=ih['strong_mpc'],strong_dual=stable_legal(result) and min(iy['strong_mpc'],ih['strong_mpc'])>0,
+                strong_ih=ih['strong_mpc'],strong_dual=legal and min(iy['strong_mpc'],ih['strong_mpc'])>0,
                 policy_inference_mean_ms=replay['policy_inference_mean_ms'],policy_inference_p95_ms=replay['policy_inference_p95_ms'],
-                **result,**replay_diagnostics(result['trace'])))
+                **source,**result,**replay_diagnostics(result['trace'])))
             write_rows(root/'dual_baseline_metrics.csv',rows)
     summary=[]
     for label,case in sorted({(r['controller'],r['case']) for r in rows}):

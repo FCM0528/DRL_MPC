@@ -257,3 +257,24 @@ uv run --no-project --with-requirements python/requirements.txt python python/re
 ```
 
 `dual_segment_candidates.csv` 保留最差改善率和未达标项。前瞻训练仍每 1,000 个真实决策验证一次，合法性及两个工况的全程 RMSE 门槛先于四项分区改善。通过时最大化两个工况合计八项中的最小改善率，差值相同再比较全程横向、航向 RMSE。若均未达标，则按相同顺序保留合法候选并标记失守项。`final_model.zip` 保持诊断角色。离线重建可直接使用保存的 replay，最后一条命令无需启动求解器。
+
+## 分工况 Strong MPC 整定与回顾性回放
+
+先冻结工况、控制配置、求解器和候选预算。每个整定工况运行 32 个粗扫点和 28 个局部点。粗扫包含三个整数 Np 与权重端点的交叉组合及八个单参数点。局部阶段取两个合法粗扫锚点，每个补充 14 个不重复候选。选参要求完赛、QP=0、Ay≤0.85g、|Beta|≤5°，并对命令速率 RMS、速率峰值、转向加速度 RMS 施加原统一强 MPC 的 1.25、1.50、1.50 倍筛选门槛。全程两项 RMSE 均须严格改善。其后最大化全程和两段共六项归一化改善率的最小值，再比较均值、转向平顺性和候选序号。无合格解时保留统一强 MPC，完整保留候选和六目标 Pareto 编号。
+
+```powershell
+$wave='runs/dual_segment_balanced_4drl_20261123'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$tune="runs/strong_mpc_scenario_tuning_$stamp"
+uv run --offline --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --strong-tune --scenario-set "$wave/development_set.json" --strong-wave-lock "$wave/wave_lock.json" --tune-case cs_34db60360e2714ac115d --tune-case cs_9f33c9f2d89737f3ae79 --retain-case cs_4b2833a3a0ee9d260693 --out $tune
+if ($LASTEXITCODE -ne 0) { throw 'Strong MPC tuning failed' }
+uv run --offline --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --strong-audit "$wave/replay" --strong-case-map "$tune/strong_case_map.json" --out "$tune/audit"
+if ($LASTEXITCODE -ne 0) { throw 'Locked-policy audit failed' }
+$lock=Get-Content "$wave/replay/replay_lock.json" -Raw | ConvertFrom-Json
+$models=@('ddpg','td3','tqc') | ForEach-Object { $lock.models.$_.run }
+uv run --offline --no-project --with-requirements python/requirements.txt python python/report.py --weak-demo runs/weak_mpc_demo_20261121 --neutral runs/weak_neutral_3drl_500episodes_20261123 --replay "$wave/replay" --runs $models --strong-tuning $tune --out "reports/dual_segment_balanced_4drl_strong_mpc_$stamp"
+```
+
+离线重建时将 `$tune` 指向 `runs/strong_mpc_scenario_tuning_20261123_144205`，仅运行 `report.py`。仅生成强 MPC 审计页时使用 `report.py --strong-tuning $tune --out <新目录>`。回顾性复放在整定发布后读取原始模型锁。档案保留 `legacy_strong_*` 和 `scenario_strong_*` 两套改善率，历史 Gmin 和历史选模文件保持冻结。
+
+后续真实工况用 [数据集流程](DATASET_GUIDE.md) 注册原生文件、取得双基线安全证明并发布新的开发清单。将相应的训练或开发 `scenario_id` 交给 `--tune-case`。`--retain-case` 为已知工况验证并保留统一强 MPC。新参考轨迹可通过 `--strong-bounds START DIVIDER END` 预先给定合法的两段站位，必要时用 `--strong-config` 指定与终点匹配的固定控制配置。预留工况不进入整定。发布后可在新的 `train.py --joint-selection` 或 `evaluate_dual.py --split validation` 调用中加上 `--strong-case-map <已发布映射>`。解析按物理签名匹配并在运行前冻结 INI 链，缺失工况显式报错。省略该参数时沿用单一强基线。历史波段专用 `--dual-segment-lock` 的选模契约继续使用原基线。

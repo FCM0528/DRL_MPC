@@ -9,7 +9,8 @@ from scenario import read_scenario, snapshot_scenario
 SAMPLING_RULE = 'uniform_episode_v1'
 
 
-def training_source(config, simfile=None, *, scenario_set=None, validation_simfile=None, joint_selection=False):
+def training_source(config, simfile=None, *, scenario_set=None, validation_simfile=None, joint_selection=False,
+                    include_test=True):
     """Anchor metadata/parity to the real train collection, never the mutable Browser default."""
     from scenario import resolve_simfile
     if not scenario_set:
@@ -18,7 +19,7 @@ def training_source(config, simfile=None, *, scenario_set=None, validation_simfi
         raise ValueError('Use scenario-set validation entries instead of --validation-simfile')
     if not joint_selection:
         raise ValueError('Scenario-set training requires --joint-selection for all validation cases')
-    sets=load_case_sets(scenario_set)
+    sets=load_case_sets(scenario_set,include_test=include_test)
     if not sets.get('train') or not sets.get('validation'):
         raise ValueError('Scenario-set training requires nonempty real train and validation collections')
     paths=[Path(c['simfile']) for c in sets['train']]
@@ -111,20 +112,23 @@ def describe_case(simfile, *, parsfile_override=None):
     return info
 
 
-def load_case_sets(manifest):
+def load_case_sets(manifest, *, include_test=True):
     """Read legacy path collections or a verified immutable dataset manifest."""
     source=Path(manifest).resolve(strict=True)
     value=json.loads(source.read_text(encoding='utf-8-sig'))
     if 'dataset_version' in value:
         from dataset_manager import load_dataset
-        return load_dataset(source)[1]
+        sets = load_dataset(source,verify_test_payload=include_test)[1]
+        if not include_test:
+            sets['test'] = []
+        return sets
     return {s:[describe_case(Path(p) if Path(p).is_absolute() else source.parent/p)
-               for p in value.get(s,[])] for s in ('train','validation','test')}
+               for p in value.get(s,[]) if s != 'test' or include_test] for s in ('train','validation','test')}
 
 
-def freeze_sets(manifest, output):
+def freeze_sets(manifest, output, *, include_test=True):
     """Input JSON has train/validation/test lists of existing Simfile paths."""
-    sets = load_case_sets(manifest)
+    sets = load_case_sets(manifest,include_test=include_test)
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     result, seen = {}, {}

@@ -258,6 +258,7 @@ def main():
     p.add_argument("--scenario-set", help="Legacy JSON collections or immutable dataset manifest")
     p.add_argument("--total-decisions", type=int, help="Exact interaction budget; overrides episode stopping")
     p.add_argument("--strong-config", default="configs/mpc_strong.ini")
+    p.add_argument("--strong-case-map", type=Path, help="Frozen scenario-specific Strong MPC for --joint-selection")
     p.add_argument("--dual-segment-lock", type=Path, help="Frozen wave-balance reward and development selection contract")
     p.add_argument("--keep-training-traces", action="store_true",
                    help="Preserve every real CarSim training episode and its solver log")
@@ -286,6 +287,10 @@ def main():
     p.add_argument("--tqc-drop", type=int,
                    help="Highest target quantiles removed per critic (paper tests 0..5)")
     args = p.parse_args()
+    if args.strong_case_map:
+        if not args.joint_selection or args.dual_segment_lock:
+            p.error('--strong-case-map requires --joint-selection and cannot alter a frozen wave selection')
+        args.strong_case_map=str(args.strong_case_map.resolve(strict=True))
     segment_lock = None
     if args.dual_segment_lock:
         from dataset_manager import read_json,sha
@@ -336,12 +341,13 @@ def main():
     from scenario_sets import training_source, SAMPLING_RULE, load_case_sets
     try:
         args.simfile = str(training_source(args.config,args.simfile,scenario_set=args.scenario_set,
-            validation_simfile=args.validation_simfile,joint_selection=bool(args.joint_selection or segment_lock)))
+            validation_simfile=args.validation_simfile,joint_selection=bool(args.joint_selection or segment_lock),
+            include_test=not args.strong_case_map))
     except ValueError as exc:
         p.error(str(exc))
     if args.validation_simfile:
         args.validation_simfile = str(Path(args.validation_simfile).resolve(strict=True))
-    source_sets = load_case_sets(args.scenario_set) if args.scenario_set else None
+    source_sets = load_case_sets(args.scenario_set,include_test=not args.strong_case_map) if args.scenario_set else None
     scenario = (next(c for c in source_sets['train'] if Path(c['simfile'])==Path(args.simfile))
                 if source_sets else read_scenario(args.simfile))
     if args.validation_simfile:
@@ -372,7 +378,7 @@ def main():
     sets = None
     if args.scenario_set:
         from scenario_sets import freeze_sets
-        sets = freeze_sets(args.scenario_set, root / "scenario_sets")
+        sets = freeze_sets(args.scenario_set, root / "scenario_sets",include_test=not args.strong_case_map)
     frozen_simfile = snapshot_scenario(scenario, root / "source_case")
     frozen_validation = snapshot_scenario(validation_scenario, root / "validation_case") if validation_scenario else None
     source_config = Path(args.config).resolve(strict=True)
@@ -399,7 +405,7 @@ def main():
     manifest['training_config_sha256'] = hashlib.sha256(Path(args.train_config).read_bytes()).hexdigest()
     if args.scenario_set and 'dataset_version' in json.loads(Path(args.scenario_set).read_text(encoding='utf-8-sig')):
         from dataset_manager import load_dataset
-        dataset, _ = load_dataset(args.scenario_set)
+        dataset, _ = load_dataset(args.scenario_set,verify_test_payload=not args.strong_case_map)
         manifest['dataset'] = {k:dataset[k] for k in ('dataset_name','dataset_version','dataset_hash','task_profile','sampling_strategy')}
         manifest['dataset'].update(random_seed=args.seed,
             scenario_ids={s:[c['scenario_id'] for c in sets[s]] for s in sets},
@@ -522,7 +528,8 @@ def main():
                 joint_validator=DualSegmentValidator(root,args.bridge,args.config,validation_cases,args.seed,segment_lock)
             else:
                 joint_validator = JointValidator(root, args.bridge, args.controller, args.config,
-                    validation_cases, fixed_config, strong_config, args.seed, config_hashes)
+                    validation_cases, fixed_config, strong_config, args.seed, config_hashes,
+                    strong_case_map=args.strong_case_map)
             callbacks.append(JointValidationCallback(joint_validator, args.eval_frequency))
         if not args.training_only and not args.joint_selection:
             validation_args = (args.bridge, args.config, args.simfile, root / "solver_validation")

@@ -7,11 +7,14 @@ from pathlib import Path
 
 import numpy as np
 from stable_baselines3.common.callbacks import BaseCallback
-from evaluate import _episode, fixed_episode
+from evaluate import _episode, fixed_episode, require_same_distance
+from scenario import resolve_config_value
 from scenario_sets import describe_case
 
 
 def aggregate_cases(group, checkpoint, diagnostic):
+    comparisons = ('legacy_strong_iy','legacy_strong_iheading','legacy_strong_dual_pass',
+                   'scenario_strong_iy','scenario_strong_iheading','scenario_strong_dual_pass')
     result = dict(checkpoint=str(checkpoint), diagnostic_only=diagnostic,
         legal=all(r['legal'] for r in group),
         original_dual=all(r['original_dual'] for r in group),
@@ -20,7 +23,8 @@ def aggregate_cases(group, checkpoint, diagnostic):
         rmse_y_m=float(np.mean([r['rmse_y_m'] for r in group])),
         rmse_heading_deg=float(np.mean([r['rmse_heading_deg'] for r in group])),
         legal_case_fraction=float(np.mean([r['legal'] for r in group])),
-        case_improvements=[{k:r[k] for k in ('case','legal','rmse_y_m','rmse_heading_deg','strong_iy','strong_ih') if k in r} for r in group])
+        case_improvements=[{k:r[k] for k in ('case','legal','rmse_y_m','rmse_heading_deg','strong_iy','strong_ih',
+                                            *comparisons) if k in r} for r in group])
     for baseline in ('original','strong'):
         result[baseline+'_dual_case_fraction']=float(np.mean([r[baseline+'_dual'] for r in group]))
         for axis in ('iy','ih'):
@@ -32,18 +36,40 @@ def aggregate_cases(group, checkpoint, diagnostic):
 
 
 class JointValidator:
-    def __init__(self, root, bridge, controller, config, cases, original, strong, seed, hashes):
+    def __init__(self, root, bridge, controller, config, cases, original, strong, seed, hashes, *, strong_case_map=None):
         self.root, self.bridge, self.config = Path(root), bridge, config
         self.seed, self.hashes, self.rows = seed, hashes, []
         self.cases = list(cases)
         self.baselines = []
         self.summary = []
-        for i, case in enumerate(cases):
+        self.strong_sources = []
+        if strong_case_map:
+            from dataset_manager import write_json
+            from evaluate_dual import stable_legal
+            from scenario_strong import StrongCaseMap, require_reproduction
+
+            registry = StrongCaseMap(strong_case_map)
+            self.strong_sources = [registry.freeze(case,self.root/'strong_cases'/str(i))
+                                   for i,case in enumerate(self.cases)]
+            if any(float(resolve_config_value(config,'simulation','distance_m')) != source['end_m']
+                   for _,source,_ in self.strong_sources):
+                raise ValueError('Policy end station differs from the frozen Strong MPC case')
+            write_json(self.root/'strong_case_resolution.json',
+                       [source for _,source,_ in self.strong_sources],exclusive=True)
+        for i, case in enumerate(self.cases):
             base = {}
             for label, ini in [('original', original), ('strong', strong)]:
                 base[label] = fixed_episode(controller, case, self.root / f'baseline_{label}_{i}', ini)
                 if not base[label]['terminated'] or base[label]['qp_failures']:
                     raise ValueError(f'Invalid {label} baseline for case {i}')
+            if self.strong_sources:
+                frozen,source,expected = self.strong_sources[i]
+                specific = fixed_episode(controller,case,self.root/f'baseline_scenario_strong_{i}',frozen)
+                require_same_distance(base['strong']['trace'],specific['trace'])
+                if not stable_legal(specific) or specific['distance_m'] < source['end_m']:
+                    raise ValueError(f'Invalid scenario Strong MPC baseline for case {i}')
+                require_reproduction(specific,expected)
+                base['legacy_strong'],base['strong'] = base['strong'],specific
             self.baselines.append(base)
 
     def evaluate(self, model, checkpoint, diagnostic=False):
@@ -58,6 +84,9 @@ class JointValidator:
                       result['peak_measured_ay_mps2'] <= .85 * 9.80665 and
                       result['peak_measured_beta_deg'] <= 5)
             legal = result['terminated'] and not result['truncated'] and not result['failed'] and result['qp_failures'] == 0 and stable
+            if self.strong_sources:
+                _,source,_ = self.strong_sources[i]
+                legal = legal and result['distance_m'] >= source['end_m']
             row = dict(checkpoint=str(checkpoint), diagnostic_only=diagnostic, case=i,
                        legal=legal, stable=stable,
                        **{k: str(v) if isinstance(v, Path) else v for k,v in result.items()})
@@ -68,6 +97,13 @@ class JointValidator:
                 row.update({f'{label}_iy':iy, f'{label}_ih':ih,
                             f'{label}_dual': bool(legal and iy > 0 and ih > 0),
                             f'{label}_single': bool(legal and ((iy > 0) != (ih > 0)))})
+            if self.strong_sources:
+                from scenario_strong import reference_fields
+
+                b = self.baselines[i]
+                row.update(reference_fields(result,b['legacy_strong'],b['strong'],legal),
+                           strong_map_sha256=source['map_sha256'],strong_config_sha256=source['config_sha256'],
+                           experiment_signature=source['experiment_signature'])
             group.append(row)
         self.rows.extend(group)
         aggregate = aggregate_cases(group, checkpoint, diagnostic)
@@ -95,6 +131,9 @@ class JointValidator:
                     pareto_candidates=[r['checkpoint'] for r in pareto], checkpoints=self.summary,
                     validation_cases=[describe_case(c) for c in self.cases], seed=self.seed,
                     config_sha256=self.hashes, rule='complete, zero QP, peak ay<=0.85g, beta<=5deg; maximize worst strong relative improvement across all cases')
+        if self.strong_sources:
+            result['strong_reference']='scenario_specific'
+            result['strong_case_sources']=[source for _,source,_ in self.strong_sources]
         (self.root/'checkpoint_selection.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
         with (self.root/'checkpoint_aggregate_metrics.csv').open('w',newline='',encoding='utf-8') as f:
             fields=[k for k in self.summary[0] if k!='case_improvements']
