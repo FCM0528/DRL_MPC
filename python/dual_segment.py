@@ -9,6 +9,72 @@ METRICS=('peak1','peak2','rmse1','rmse2')
 MODE='joint_tracking_wave_balance'
 
 
+def case_bounds(case, reference, end_m):
+    from diagnostics import wave_windows
+    windows=wave_windows(case['reference_table'])
+    bounds=[windows[0]['start_m'], windows[1]['start_m'], windows[1]['end_m']]
+    if (not 0 <= bounds[0] < bounds[1] < bounds[2] <= end_m or
+        case['reference_station_bounds_m'][1] < end_m):
+        raise ValueError('Native wave geometry does not cover the required end station')
+    if case['reference_numeric_sha256']==reference['reference_numeric_sha256'] and bounds!=reference['bounds_m']:
+        raise ValueError('Identical native reference produced different wave boundaries')
+    return bounds
+
+
+def report_cohort(manifest, case_ids, wave, development, end_m):
+    """Resolve explicitly declared cases from the immutable catalog and verify native metadata."""
+    from dataset_manager import dataset_root, load_dataset, physical_fields, read_json
+
+    catalog,sets=load_dataset(manifest,verify_test_payload=False)
+    registry_path=dataset_root(manifest,catalog)/'registry.json'
+    registry=read_json(registry_path)['scenarios']
+    native={c['scenario_id']:c for split in ('train','validation') for c in sets[split]}
+    base={c['scenario_id']:(c,split) for split in ('train','validation') for c in development[split]}
+    anchor,=development['train']
+    reference=dict(anchor,bounds_m=wave['bounds_m'])
+    if len(case_ids)!=len(set(case_ids)) or not set(base)<=set(case_ids)<=native.keys():
+        raise ValueError('The report must explicitly include locked development/train cases and exclude reserved test')
+    wanted=('target_speed_kmh','road_friction','start_station_m','end_station_m')
+    verify=('split','files','simfile_sha256','parsfile_sha256','physical_signature','vehicle_hash','io_hash','reference_hash',*wanted)
+    cases={}
+    for key in case_ids:
+        record=catalog['scenarios'][key]; registered=registry[key]; case=native[key]
+        fields=physical_fields(case)
+        expected=dict(physical_signature=case['experiment_signature'],vehicle_hash=case['vehicle_sha256'],
+                      io_hash=case['io_sha256'],reference_hash=case['reference_numeric_sha256'])
+        if (any(record[k]!=registered[k] for k in verify) or any(record[k]!=v for k,v in expected.items()) or
+            any(record[k]!=fields[k] for k in wanted) or not fields['reference_valid'] or
+            any(case[k]!=anchor[k] for k in ('vehicle_sha256','io_sha256'))):
+            raise ValueError(f'Registry and native case contract differ: {key}')
+        speed=fields['target_speed_kmh']
+        if speed is None or speed<=0 or not float(speed).is_integer() or int(speed) in cases:
+            raise ValueError('Use one explicitly labeled case per integer target speed')
+        role='extension_diagnostic'
+        if key in base:
+            original,split=base[key]
+            if (record['split']!=split or any(case[k]!=original[k] for k in
+                  ('experiment_signature','simfile_sha256','parsfile_sha256')) or
+                case['experiment_signature']!=wave['case_signatures'][str(int(speed))]):
+                raise ValueError('Development/training report case differs from the original wave lock')
+            role={'train':'training_diagnostic','validation':'development_validation'}[split]
+        cases[int(speed)]=dict(case,split=record['split'],role=role,road_friction=fields['road_friction'],
+                               bounds_m=case_bounds(case,reference,end_m))
+    return dict(sorted(cases.items())),catalog,registry_path
+
+
+def diagnostic_minimum(scores):
+    """An incomplete cohort has no numeric worst-case gain."""
+    return min(scores) if scores and all(v is not None for v in scores) else None
+
+
+def qualified_model(model):
+    from dataset_manager import sha
+    path=Path(model['run'])/'best_segment_model.zip'
+    if (not model['selection']['qualified'] or sha(path)!=model['model_sha256']['best']):
+        raise ValueError(f'Qualified wave model does not match its selected checkpoint: {path}')
+    return path
+
+
 def measure(data, bounds):
     x=data['x_m']
     y=data['ey_m']
@@ -23,9 +89,15 @@ def measure(data, bounds):
     return result
 
 
-def score_case(data, bounds, baselines, *, legal):
+def score_case(data, bounds, baselines, *, legal, allow_missing_baseline=False):
     result=measure(data,bounds)
+    unavailable=[]
     for key in METRICS:
+        if allow_missing_baseline and any(b[key] is None or not np.isfinite(b[key]) or b[key]<=0
+                                          for b in baselines.values()):
+            result.update({key+'_ref':None,key+'_ref_controller':None,key+'_gain_percent':None})
+            unavailable.append(key)
+            continue
         name=min(baselines,key=lambda base:baselines[base][key])
         ref=baselines[name][key]
         if not np.isfinite(ref) or ref<=0:
@@ -33,7 +105,7 @@ def score_case(data, bounds, baselines, *, legal):
         result[key+'_ref']=ref
         result[key+'_ref_controller']=name
         result[key+'_gain_percent']=None if result[key] is None else 100*(1-result[key]/ref)
-    missing=[key for key in METRICS if result[key] is None]
+    missing=[key for key in METRICS if result[key] is None or key in unavailable]
     misses=[key for key in METRICS if key not in missing and result[key+'_gain_percent']<=0]
     full_misses=[key for key in ('rmse_y_m','rmse_heading_deg')
                  if result[key]>baselines['neutral_mpc'][key]]

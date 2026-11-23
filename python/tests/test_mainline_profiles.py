@@ -226,3 +226,17 @@ def test_wave_loss_is_local_length_balanced_and_grows_before_old_threshold():
     assert (tracking[[0,-1]]==0).all() and (peak[[0,-1]]==0).all()
     assert 0<peak[2]<peak[3]
     assert tracking[3]/tracking[2]==pytest.approx(40/24)
+
+
+def test_incomplete_diagnostic_is_retained_without_an_invented_gmin():
+    from dual_segment import diagnostic_minimum,score_case
+
+    data=dict(x_m=np.array([21.,48.]),ey_m=np.array([.1,-.15]),epsi_rad=np.full(2,.01))
+    base=dict(peak1=.20,peak2=None,rmse1=.17,rmse2=None,rmse_y_m=.20,rmse_heading_deg=1.)
+    score=score_case(data,(20.,60.,84.),{'weak_mpc':base,'neutral_mpc':base},
+                     legal=False,allow_missing_baseline=True)
+    assert score['peak1_gain_percent']>0 and score['samples2']==0
+    assert score['peak2_gain_percent'] is None and score['gmin'] is None
+    assert not score['passed'] and 'safety_or_completion' in score['unmet']
+    assert diagnostic_minimum([2.,score['gmin'],5.]) is None
+    assert diagnostic_minimum([2.,-3.,5.])==-3.

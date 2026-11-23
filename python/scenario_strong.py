@@ -312,7 +312,7 @@ def tune(dataset_path, output, controller, tune_ids, retain_ids, bounds, *,
         scope='known_case_static_tuning'),exclusive=True)
 
 
-def independent_errors(trace, bounds):
+def independent_errors(trace, bounds, *, full_metrics=False):
     """Recompute from native CSV rows with scalar arithmetic and no trace adapter."""
     with Path(trace).open(newline='',encoding='utf-8') as file:
         data = list(csv.DictReader(file))
@@ -327,8 +327,26 @@ def independent_errors(trace, bounds):
 
     wave1 = [ey for station,ey in zip(x,y) if bounds[0] <= station < bounds[1]]
     wave2 = [ey for station,ey in zip(x,y) if bounds[1] <= station <= bounds[2]]
-    return dict(rmse_y_m=rms(y),rmse_heading_deg=rms(heading),
-                peak1=max(map(abs,wave1)),peak2=max(map(abs,wave2)),rmse1=rms(wave1),rmse2=rms(wave2))
+    result=dict(rmse_y_m=rms(y),rmse_heading_deg=rms(heading),
+                peak1=max(map(abs,wave1),default=None),peak2=max(map(abs,wave2),default=None),
+                rmse1=rms(wave1) if wave1 else None,rmse2=rms(wave2) if wave2 else None)
+    if full_metrics:
+        states=data if bridge else data[1:]
+        beta=[float(r['sideslip_rad']) if bridge else
+              math.atan2(float(r['vy_carsim_kmh']),float(r['vx_carsim_kmh'])) for r in states]
+        command=data if bridge else data[:-1]
+
+        def finite_peak(key, scale=1):
+            values=(float(r[key]) for r in states)
+            return max((scale*abs(v) for v in values if math.isfinite(v)),default=None)
+
+        result.update(peak_y_m=max(map(abs,y)),peak_heading_deg=max(map(abs,heading)),distance_m=x[-1],
+            rmse_course_deg=rms([math.degrees(math.remainder(math.radians(h)+b,math.tau))
+                                 for h,b in zip(heading,beta,strict=True)]),
+            peak_measured_ay_mps2=finite_peak('body_ay_mps2'),
+            peak_measured_beta_deg=finite_peak('measured_beta_rad',180/math.pi),
+            qp_failures=sum(int(r['qp_failed']) if bridge else 1-int(r['qp_converged']) for r in command))
+    return result
 
 
 def audit(map_path, wave_replay, bridge, output):

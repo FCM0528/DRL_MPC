@@ -278,3 +278,24 @@ uv run --offline --no-project --with-requirements python/requirements.txt python
 离线重建时将 `$tune` 指向 `runs/strong_mpc_scenario_tuning_20261123_144205`，仅运行 `report.py`。仅生成强 MPC 审计页时使用 `report.py --strong-tuning $tune --out <新目录>`。回顾性复放在整定发布后读取原始模型锁。档案保留 `legacy_strong_*` 和 `scenario_strong_*` 两套改善率，历史 Gmin 和历史选模文件保持冻结。
 
 后续真实工况用 [数据集流程](DATASET_GUIDE.md) 注册原生文件、取得双基线安全证明并发布新的开发清单。将相应的训练或开发 `scenario_id` 交给 `--tune-case`。`--retain-case` 为已知工况验证并保留统一强 MPC。新参考轨迹可通过 `--strong-bounds START DIVIDER END` 预先给定合法的两段站位，必要时用 `--strong-config` 指定与终点匹配的固定控制配置。预留工况不进入整定。发布后可在新的 `train.py --joint-selection` 或 `evaluate_dual.py --split validation` 调用中加上 `--strong-case-map <已发布映射>`。解析按物理签名匹配并在运行前冻结 INI 链，缺失工况显式报错。省略该参数时沿用单一强基线。历史波段专用 `--dual-segment-lock` 的选模契约继续使用原基线。
+
+## 冻结双区段模型的五工况报告
+
+候选工况由 `--report-case` 显式给出。流程核验冻结 manifest、registry、原生 SHA256、车辆、I/O 与 LTARG。锁定的训练和选模工况必须保留。扩展工况根据真实参考几何确定区段，预留测试只读目录元数据。求解器仅为新工况运行 Weak、Neutral 和合格的 `best_segment_model.zip`。65／70／75 km/h 复用原轨迹。终点、安全、分段和模型哈希由离线报告再次核验。
+
+```powershell
+$wave='runs/dual_segment_balanced_4drl_20261123'
+$neutral='runs/weak_neutral_3drl_500episodes_20261123'
+$strong='runs/strong_mpc_scenario_tuning_20261123_144205'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$ext="runs/dual_segment_wave_extension_$stamp"
+$ids=@('cs_c3795eb276ef9ab53a0f','cs_34db60360e2714ac115d','cs_4b2833a3a0ee9d260693','cs_9f33c9f2d89737f3ae79','cs_3666b760495501987d4d')
+$cases=@($ids | ForEach-Object { '--report-case'; $_ })
+uv run --offline --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --wave-extension "$wave/replay" --dataset-manifest datasets/carsim/manifests/dataset_v1.json --neutral-run $neutral @cases --out $ext
+if ($LASTEXITCODE -ne 0) { throw 'Wave extension replay failed' }
+$lock=Get-Content "$wave/replay/replay_lock.json" -Raw | ConvertFrom-Json
+$models=@('ddpg','td3','tqc') | ForEach-Object { $lock.models.$_.run }
+uv run --offline --no-project --with-requirements python/requirements.txt python python/report.py --weak-demo runs/weak_mpc_demo_20261121 --neutral $neutral --strong-tuning $strong --replay "$wave/replay" --wave-extension $ext --runs $models --out "reports/dual_segment_wave_balance_five_cases_$stamp"
+```
+
+离线重建使用已有 `$ext='runs/dual_segment_wave_extension_20261123_161643'`，只读取模型锁并执行最后一个 `report.py` 命令。`five_case_gmin.csv` 分列历史开发选模 Gmin 和五工况诊断 Gmin。`scenario_coverage.json` 记录每个工况的实际研究用途、原始划分、完整性及冻结签名。凡缺少有效分段分母，诊断 Gmin 留空。历史 final 只供指标附录查看。分工况 Strong MPC 作为独立附录，60／80 km/h 标记 `not_tuned`。

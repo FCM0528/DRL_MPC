@@ -665,6 +665,86 @@ def replay_wave(lock_path, runs, output, bridge):
         wave_replay_metrics_sha256=sha(output/'wave_replay_metrics.csv')),exclusive=True)
 
 
+def replay_wave_extension(replay, manifest, case_ids, neutral, output, controller, bridge):
+    """Run only cases outside the wave model's frozen training and selection splits."""
+    from dataset_manager import read_json,sha,write_json
+    from dual_segment import qualified_model,report_cohort,wave_sources
+    from report import read_neutral_extension
+    from scenario import read_scenario,resolve_config_value,snapshot_scenario
+    from train import controller_config_hashes
+
+    replay,output=Path(replay).resolve(strict=True),Path(output).resolve()
+    lock_file=replay/'replay_lock.json'; replay_lock=read_json(lock_file)
+    if (sha(replay_lock['wave_lock'])!=replay_lock['wave_lock_sha256'] or
+        sha(replay_lock['experiment_lock'])!=replay_lock['experiment_lock_sha256'] or
+        sha(replay/'replay_metrics.csv')!=replay_lock['replay_metrics_sha256'] or
+        sha(replay/'wave_replay_metrics.csv')!=replay_lock['wave_replay_metrics_sha256']):
+        raise ValueError('Parent wave replay evidence differs from its lock')
+    wave,dataset,development,models=wave_sources(replay_lock['wave_lock'],[m['run'] for m in replay_lock['models'].values()])
+    if models!=replay_lock['models'] or dataset['dataset_hash']!=replay_lock['dataset_hash']:
+        raise ValueError('Frozen wave model identity differs from replay')
+    model_paths={key:qualified_model(item) for key,item in models.items()}
+    experiment=read_json(replay_lock['experiment_lock'])
+    archive=Path(wave['source_replay_lock']).parent
+    _,_,neutral_selection,neutral_lock=read_neutral_extension(neutral,archive,wave['source_dataset_hash'])
+    configs={'weak_mpc':Path('configs/mpc_weak_demo.ini'),'neutral_mpc':Path('configs/mpc_neutral_demo.ini')}
+    config_hashes={k:controller_config_hashes(path) for k,path in configs.items()}
+    if (config_hashes!={'weak_mpc':experiment['weak_config_sha256'],'neutral_mpc':neutral_selection['config_sha256']}):
+        raise ValueError('Weak/Neutral MPC configuration differs from its original lock')
+    end=float(resolve_config_value(wave['policy_config'],'simulation','distance_m'))
+    if any(float(resolve_config_value(p,'simulation','distance_m'))!=end for p in configs.values()):
+        raise ValueError('Episode end station differs between fixed and learned controllers')
+    cases,catalog,registry=report_cohort(manifest,case_ids,wave,development,end)
+    extra=[(s,c) for s,c in cases.items() if c['role']=='extension_diagnostic']
+    if not extra:
+        raise ValueError('Supply at least one new diagnostic case')
+    output.mkdir(parents=True,exist_ok=False)
+    plan=dict(dataset_manifest=str(Path(manifest).resolve()),dataset_hash=catalog['dataset_hash'],
+              dataset_manifest_sha256=sha(manifest),registry_sha256=sha(registry),case_ids=case_ids,end_m=end,
+              replay_lock_sha256=sha(lock_file),neutral_selection_sha256=neutral_lock['selection_sha256'],
+              model_sha256={k:sha(v) for k,v in model_paths.items()},fixed_config_sha256=config_hashes,
+              controller_sha256=sha(controller),bridge_sha256=sha(bridge),
+              solver_sha256=sha(resolve_config_value(wave['policy_config'],'carsim','solver_dll')))
+    write_json(output/'plan.json',plan,exclusive=True)
+    fixed={k:snapshot_config(p,output/'configs'/k) for k,p in configs.items()}
+    rows=[]
+    for speed,case in extra:
+        work=output/case['scenario_id']
+        sim=snapshot_scenario(case,work/'source')
+        source=describe_case(sim)
+        if (source['experiment_signature']!=case['experiment_signature'] or
+            source['parsfile_sha256']!=case['parsfile_sha256']):
+            raise ValueError('Run-private CarSim source differs from native case')
+        for key in (*fixed,*models):
+            if key in fixed:
+                result=fixed_episode(controller,sim,work/key,fixed[key],require_complete=False)
+                timing={}
+            else:
+                run=run_policy(key,model_paths[key],bridge,models[key]['config'],sim,work/key,seed=42,export_report=True)
+                result=dict(terminated=run['terminated'],truncated=run['truncated'],failed=run['failed'],
+                            return_=run['return'],decisions=run['decisions'],**_tracking_metrics(run['trace']))
+                timing={k:run[k] for k in ('policy_inference_mean_ms','policy_inference_p95_ms')}
+            trace=Path(result['trace']); data=control_trace(trace)
+            legal=stable_legal(result) and result['distance_m']>=end
+            row=dict(speed_kmh=speed,scenario_id=case['scenario_id'],split=case['split'],
+                     experiment_signature=case['experiment_signature'],parsfile_sha256=case['parsfile_sha256'],
+                     replay_simfile=str(sim),replay_simfile_sha256=source['simfile_sha256'],controller=key,
+                     kind='fixed' if key in fixed else 'best',model_sha256=plan['model_sha256'].get(key,''),
+                     legal=legal,**result,**replay_diagnostics(trace),**timing,
+                     **full4_horizon(data,experiment['policy_contract'],fixed=key in fixed),
+                     trace_sha256=sha(trace),simulation_sha256=sha(trace.with_name('simulation.csv')),
+                     cpp_report_sha256=sha(trace.with_name('report.html')))
+            if key=='weak_mpc':
+                weak=row
+            for gain,metric in (('iy_percent','rmse_y_m'),('iheading_percent','rmse_heading_deg')):
+                row[gain]=100*(1-row[metric]/weak[metric]) if weak[metric]>0 else ''
+            rows.append(row)
+            write_rows(output/'replay_metrics.csv',rows)
+            print(f'{speed} km/h {key}: end={result["distance_m"]:.3f} m, QP={result["qp_failures"]}, legal={legal}',flush=True)
+    write_json(output/'extension_lock.json',dict(plan_sha256=sha(output/'plan.json'),
+        replay_metrics_sha256=sha(output/'replay_metrics.csv')),exclusive=True)
+
+
 def search_neutral(experiment, replay, output, controller):
     """Tune only on the archived 70 km/h training case before testing the choice."""
     from dataset_manager import read_json,sha,write_json
@@ -773,6 +853,9 @@ def main():
     p.add_argument('--wave-prepare',type=Path,metavar='SEARCH_DIR',help='Audit archived checkpoints and freeze wave reward')
     p.add_argument('--wave-preflight',type=Path,metavar='WAVE_LOCK',help='Verify old rewards and new full-duration parity')
     p.add_argument('--wave-replay',type=Path,metavar='WAVE_LOCK',help='Replay the fresh wave-balanced best/final policies')
+    p.add_argument('--wave-extension',type=Path,metavar='BASE_REPLAY',help='Run qualified wave bests on additional catalog cases')
+    p.add_argument('--dataset-manifest',type=Path,default=Path('datasets/carsim/manifests/dataset_v1.json'))
+    p.add_argument('--report-case',action='append',default=[],metavar='SCENARIO_ID')
     p.add_argument('--neutral-run',type=Path,help='Frozen neutral MPC tuning and replay evidence')
     p.add_argument('--replay',type=Path,help='Existing full4 replay to reuse with --neutral-search')
     p.add_argument('--weak-demo',type=Path,metavar='SEARCH_DIR',help='Replay best and final demo models on 70/65/75')
@@ -785,6 +868,12 @@ def main():
     p.add_argument('--controller',default='out/python-rl-build/Release/MPC_DoubleLaneChange.exe')
     p.add_argument('--bridge',default='out/python-rl-build/Release/MPC_RL_Bridge.exe')
     args=p.parse_args()
+    if args.wave_extension:
+        if not args.neutral_run or not args.report_case or not args.out:
+            p.error('--wave-extension requires --neutral-run, --report-case and a new --out')
+        replay_wave_extension(args.wave_extension,args.dataset_manifest,args.report_case,args.neutral_run,args.out,
+                              args.controller,args.bridge)
+        return
     if args.strong_audit:
         from scenario_strong import audit
         if not (args.strong_case_map and args.out):

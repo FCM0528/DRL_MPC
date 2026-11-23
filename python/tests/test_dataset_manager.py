@@ -12,7 +12,7 @@ from scenario_sets import describe_case, freeze_sets, load_case_sets, training_s
 from scenario import read_scenario
 
 
-def native(tmp_path, speed=70, reference=True, law=''):
+def native(tmp_path, speed=70, reference=True, law='', points=None):
     folder=tmp_path/f'native_{speed}_{len(list(tmp_path.iterdir()))}'
     folder.mkdir()
     lines=['ENTER_PARSFILE Vehicles\\Assembly\\fixture.par', 'M_SU 1000',
@@ -20,7 +20,7 @@ def native(tmp_path, speed=70, reference=True, law=''):
            'MU_ROAD_CONSTANT 0.8',law]
     lines += ['IMPORT IMP_STEER_L1 Replace 0.0', 'IMPORT IMP_STEER_R1 Replace 0.0']
     lines += ['EXPORT '+s for s in dm.EXPORTS]
-    if reference: lines += ['LTARG_TABLE SPLINE_FLAT', '0,0', '70,2', '150,0', 'ENDTABLE']
+    if reference: lines += ['LTARG_TABLE SPLINE_FLAT', *(points or ['0,0','70,2','150,0']), 'ENDTABLE']
     (folder/'Run_all.par').write_text('\n'.join(lines)+'\n')
     sim=folder/'simfile.sim';sim.write_text('SIMFILE\nINPUT '+str(folder/'Run_all.par')+'\n')
     return sim
@@ -71,6 +71,42 @@ def test_development_review_uses_heldout_metadata_without_reading_payload(tmp_pa
     assert 'simfile' not in sets['test'][0]
     with pytest.raises(AssertionError,match='Held-out'):
         dm.load_dataset(manifest)
+
+
+def test_wave_report_cohort_keeps_extension_diagnostic_and_rejects_test(tmp_path):
+    from diagnostics import wave_windows
+    from dual_segment import report_cohort
+
+    root=tmp_path/'dataset'
+    lateral=[0,0,0,0,1,3,4,4,4,4,3,1,0,0,0,0]
+    speeds={70:'train',65:'validation',80:'train',68:'test'}
+    ids={}
+    for speed,split in speeds.items():
+        spacing=7 if speed==80 else 8
+        geometry=[f'{spacing*i},{y}' for i,y in enumerate(lateral)]+['144,0']
+        sim=native(tmp_path,speed,points=geometry)
+        info=describe_case(sim)
+        ids[speed]=dm.register(root,sim,split,'double_lane_change',baseline_proof=proof(tmp_path,info))['scenario_id']
+    manifest=dm.release(root,'dataset_v1')
+    _,sets=dm.load_dataset(manifest,verify_test_payload=False)
+    anchor=next(c for c in sets['train'] if c['scenario_id']==ids[70])
+    first,second=wave_windows(anchor['reference_table'])
+    bounds=[first['start_m'],second['start_m'],second['end_m']]
+    dev=dict(train=[anchor],validation=sets['validation'])
+    wave=dict(bounds_m=bounds,case_signatures={str(int(c['target_speed_kmh'])):c['experiment_signature']
+                                               for c in dev['train']+dev['validation']})
+    test=dm.registry(root)['scenarios'][ids[68]]
+    (root/test['files']['simfile']).unlink()
+    selected=[ids[s] for s in (80,65,70)]
+    cases,_,_=report_cohort(manifest,selected,wave,dev,120)
+    assert list(cases)==[65,70,80]
+    assert cases[65]['role']=='development_validation' and cases[65]['bounds_m']==bounds
+    assert cases[70]['role']=='training_diagnostic'
+    assert cases[80]['role']=='extension_diagnostic' and cases[80]['bounds_m']!=bounds
+    with pytest.raises(ValueError,match='exclude reserved test'):
+        report_cohort(manifest,[*selected,ids[68]],wave,dev,120)
+    with pytest.raises(ValueError,match='locked development'):
+        report_cohort(manifest,[ids[80]],wave,dev,120)
 
 
 def test_pending_acceptance_blocked_storage_and_invalid_source_rollback(tmp_path):

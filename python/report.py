@@ -952,72 +952,133 @@ def read_neutral_extension(neutral, replay, dataset_hash):
     return source,rows,selected,lock
 
 
-def wave_report_evidence(replay,replay_lock,lock,old_replay,rows,models,logs,output):
+def load_wave_extension(extension, replay, wave, development, models, neutral_lock):
+    from dataset_manager import read_json,sha
+    from dual_segment import qualified_model,report_cohort
+
+    extension=Path(extension).resolve(strict=True)
+    plan=read_json(extension/'plan.json'); seal=read_json(extension/'extension_lock.json')
+    if (sha(extension/'plan.json')!=seal['plan_sha256'] or
+        sha(extension/'replay_metrics.csv')!=seal['replay_metrics_sha256'] or
+        sha(replay/'replay_lock.json')!=plan['replay_lock_sha256'] or
+        sha(plan['dataset_manifest'])!=plan['dataset_manifest_sha256'] or
+        neutral_lock['selection_sha256']!=plan['neutral_selection_sha256'] or
+        any(sha(qualified_model(item))!=plan['model_sha256'][k] for k,item in models.items())):
+        raise ValueError('Wave extension case, models or replay evidence does not match its lock')
+    cases,catalog,registry=report_cohort(plan['dataset_manifest'],plan['case_ids'],wave,development,plan['end_m'])
+    if sha(registry)!=plan['registry_sha256'] or catalog['dataset_hash']!=plan['dataset_hash']:
+        raise ValueError('Frozen catalog or registry differs from extension plan')
+    rows=run_csv(extension/'replay_metrics.csv')
+    if any(cases[int(r['speed_kmh'])]['role']!='extension_diagnostic' or
+           cases[int(r['speed_kmh'])]['scenario_id']!=r['scenario_id'] or r['kind']=='final' for r in rows):
+        raise ValueError('New report replays must belong exclusively to extension cases and use qualified best policies')
+    return cases,catalog,rows,plan,seal
+
+
+def wave_report_evidence(replay,replay_lock,lock,rows,models,logs,output,cases,end_m):
     import shutil
     from dataset_manager import read_json,sha,write_json
-    from dual_segment import METRICS,score_case
+    from dual_segment import METRICS,aggregate,diagnostic_minimum,measure,score_case
     from evaluate import write_rows
+    from scenario_strong import independent_errors
 
-    archive=read_json(old_replay/'replay_lock.json')
-    if (sha(old_replay/'replay_metrics.csv')!=archive['replay_metrics_sha256'] or
-        sha(replay/'wave_replay_metrics.csv')!=replay_lock['wave_replay_metrics_sha256']):
-        raise ValueError('Wave comparison replay hashes changed')
-    old_rows=[row for row in run_csv(old_replay/'replay_metrics.csv') if row['kind'] in ('best','final')]
+    if sha(replay/'wave_replay_metrics.csv')!=replay_lock['wave_replay_metrics_sha256']:
+        raise ValueError('Frozen wave replay metrics changed')
     raw_new=run_csv(replay/'wave_replay_metrics.csv')
     recorded={(r['controller'],r['speed_kmh'],r['kind']):r for r in raw_new}
-    if len(recorded)!=18 or len(raw_new)!=18:
+    old_ids={(key,str(s),kind) for s,c in cases.items() if c['role']!='extension_diagnostic'
+             for key in models for kind in ('best','final')}
+    if set(recorded)!=old_ids or len(raw_new)!=len(old_ids):
         raise ValueError('Incomplete wave comparison replays')
-    comparisons=[]
-    for phase,group in (('original',old_rows),('wave_balance',[r for r in rows if r['kind'] in ('best','final')])):
+    comparisons, segments, audit=[],[],[]
+    maximum=0.
+    for speed,case in cases.items():
+        group=[r for r in rows if int(r['speed_kmh'])==speed]
+        bounds=case['bounds_m']
+        data={r['trace']:control_trace(r['trace']) for r in group}
+        fixed={r['controller']:measure(data[r['trace']],bounds) for r in group if r['kind']=='fixed'}
+        if str(speed) in lock['baselines']:
+            for key,metrics in fixed.items():
+                frozen=lock['baselines'][str(speed)][key]
+                trace=next(r['trace'] for r in group if r['controller']==key)
+                if sha(trace)!=frozen['trace_sha256'] or any(metrics[k]!=frozen[k] for k in metrics):
+                    raise ValueError('Original Weak/Neutral segment evidence changed')
         for row in group:
-            speed=row['speed_kmh']
-            trace=row['trace']
-            if sha(trace)!=row['trace_sha256']:
-                raise ValueError(f'Comparative source trace changed: {trace}')
-            if phase=='original' and row['model_sha256']!=archive['models'][row['controller']]['model_sha256'][row['kind']]:
-                raise ValueError('Historical model identity differs from original lock')
-            score=score_case(control_trace(trace),lock['bounds_m'],lock['baselines'][speed],legal=row['legal']=='True')
-            if phase=='wave_balance':
-                match=recorded[row['controller'],speed,row['kind']]
+            trace=row['trace']; kind=row['kind']; controller=row['controller']
+            m=measure(data[trace],bounds)
+            independent=independent_errors(trace,bounds,full_metrics=True)
+            for k,v in independent.items():
+                value=m.get(k,row.get(k))
+                if v is None and value in (None,''):
+                    continue
+                if v is None or value in (None,'') or abs(v-float(value))>1e-10:
+                    raise ValueError(f'Independent segment metric differs: {k} in {trace}')
+                maximum=max(maximum,abs(v-float(value)))
+            audit.append(dict(scenario_id=case['scenario_id'],controller=controller,kind=kind,
+                              trace_sha256=row['trace_sha256'],**independent))
+            if kind!='final':
+                for i in (1,2):
+                    segments.append(dict(scenario_id=case['scenario_id'],speed_kmh=speed,role=case['role'],
+                        controller=controller,segment=i,start_m=bounds[i-1],end_m=bounds[i],
+                        end_inclusive=i==2,samples=m[f'samples{i}'],peak_y_m=m[f'peak{i}'],rmse_y_m=m[f'rmse{i}'],
+                        peak_heading_deg=m[f'heading_peak{i}'],rmse_heading_deg=m[f'heading_rmse{i}']))
+                row.update({k:'' if m[k] is None else str(m[k]) for k in METRICS})
+            if kind=='fixed':
+                continue
+            score=score_case(data[trace],bounds,fixed,legal=row['legal']=='True',allow_missing_baseline=True)
+            # No segment gate can pass if either fixed comparator fails the run.
+            if any(r['legal']!='True' for r in group if r['kind']=='fixed'):
+                score.update(passed=False,margin_2pct=False,unmet=[*score['unmet'],'fixed_reference_not_legal'])
+            if case['role']!='extension_diagnostic':
+                match=recorded[controller,str(speed),kind]
                 for k in (*METRICS,'rmse_y_m','rmse_heading_deg','gmin'):
                     if not np.isclose(float(match[k]),score[k],rtol=0,atol=1e-10):
-                        raise ValueError(f'Segment replay metric mismatch: {k} in {trace}')
-            comparisons.append(dict(reward_version=phase,speed_kmh=int(speed),controller=row['controller'],
-                kind=row['kind'],trace=trace,peak_ay_mps2=float(row['peak_measured_ay_mps2']),
-                peak_beta_deg=float(row['peak_measured_beta_deg']),qp_failures=int(row['qp_failures']),**score))
+                        raise ValueError(f'Frozen wave metric changed: {k} in {trace}')
+                if (sha(trace)!=match['trace_sha256'] or str(score['passed'])!=match['passed']):
+                    raise ValueError('Original wave replay acceptance or trace changed')
+            comparisons.append(dict(scenario_id=case['scenario_id'],role=case['role'],speed_kmh=speed,
+                controller=controller,kind=kind,trace=trace,trace_sha256=row['trace_sha256'],
+                completed=row['terminated']=='True' and float(row['distance_m'])>=end_m,
+                peak_ay_mps2=independent['peak_measured_ay_mps2'],
+                peak_beta_deg=independent['peak_measured_beta_deg'],qp_failures=int(row['qp_failures']),**score))
     write_rows(output/'peak_comparison.csv',comparisons)
+    write_rows(output/'segment_metrics.csv',segments)
+    write_rows(output/'audit/independent_wave_metrics.csv',audit)
+    write_json(output/'audit/independent_wave_metrics.json',dict(rows=len(audit),
+        metrics_per_row=len(independent),max_absolute_error=maximum),exclusive=True)
     root=Path(replay_lock['wave_lock']).parent
-    old_candidates=run_csv(root/'dual_segment_candidates.csv')
-    old_checkpoints=run_csv(root/'all_checkpoint_segment_metrics.csv')
-    new_checkpoints=[]
-    histories=[]
+    new_checkpoints,histories,diagnostics=[],[],[]
     for algo,model in models.items():
-        old_monitor=run_csv(Path(archive['models'][algo]['run'])/'train_monitor.csv',True)
-        cohort=[r for r in old_candidates if r['algorithm']==algo]
-        for version,monitor,candidates in (
-            ('original',old_monitor,cohort),('wave_balance',logs[algo][0],model['selection']['candidates'])):
-            ends=np.cumsum([int(r['l']) for r in monitor])
-            for item in candidates:
-                step=int(item['decisions'])
-                histories.append(dict(reward_version=version,algorithm=algo,actual_decisions=step,
-                    episode=int(np.searchsorted(ends,step,side='right')),checkpoint=Path(item['checkpoint']).name,
-                    diagnostic_only=item['diagnostic_only'],gmin=item['gmin'],legal=item['legal'],
-                    passed=item['passed'],margin_2pct=item['margin_2pct']))
+        ends=np.cumsum([int(r['l']) for r in logs[algo][0]])
+        for item in model['selection']['candidates']:
+            step=int(item['decisions'])
+            histories.append(dict(algorithm=algo,actual_decisions=step,
+                episode=int(np.searchsorted(ends,step,side='right')),checkpoint=Path(item['checkpoint']).name,
+                diagnostic_only=item['diagnostic_only'],gmin=item['gmin'],legal=item['legal'],
+                passed=item['passed'],margin_2pct=item['margin_2pct']))
         new_checkpoints.extend(dict(algorithm=algo,**r) for r in logs[algo][2])
-    write_rows(output/'checkpoint_segment_metrics.csv',
-        [dict(reward_version='original',**r) for r in old_checkpoints]+
-        [dict(reward_version='wave_balance',**r) for r in new_checkpoints])
+        best=[r for r in comparisons if r['controller']==algo and r['kind']=='best']
+        dev=aggregate([r for r in best if r['role']=='development_validation'])
+        selected=model['selection']['best']
+        if any(dev[k]!=selected[k] for k in ('gmin','passed','margin_2pct','unmet')):
+            raise ValueError('Historical checkpoint selection changed')
+        worst=diagnostic_minimum([r['gmin'] for r in best])
+        diagnostics.append(dict(algorithm=algo,historical_development_gmin=dev['gmin'],
+            five_case_diagnostic_gmin=worst,report_cases=len(best),safe_cases=sum(r['legal'] for r in best),
+            passed_cases=sum(r['passed'] for r in best),all_report_cases_passed=all(r['passed'] for r in best),
+            worst_speeds=';'.join(str(r['speed_kmh']) for r in best if worst is not None and r['gmin']==worst)))
+    write_rows(output/'checkpoint_segment_metrics.csv',new_checkpoints)
     write_rows(output/'checkpoint_gmin_history.csv',histories)
+    write_rows(output/'five_case_gmin.csv',diagnostics)
     for name in ('wave_lock.json','wave_preflight.json','reward_numeric_audit.csv','reward_numeric_audit.json',
                  'all_checkpoint_segment_metrics.csv','dual_segment_candidates.csv'):
         shutil.copy2(root/name,output/'audit'/name)
     result=dict(kind='dual_segment_prospective_selection',bounds_m=lock['bounds_m'],
-        old_retrospective=read_json(root/'dual_segment_selection.json'),
         new={key:item['selection'] for key,item in models.items()},
-        source_replay_metrics_sha256=archive['replay_metrics_sha256'],
+        diagnostics=diagnostics,source_replay_metrics_sha256=replay_lock['wave_replay_metrics_sha256'],
         criteria='Strict positive improvements in all four metrics at both speeds; legal; full error no worse than Neutral; maximize Gmin')
     write_json(output/'dual_segment_selection.json',result,exclusive=True)
-    return result,comparisons,histories,[row for row in old_rows if row['kind']=='best'],archive
+    return result,comparisons,histories
 
 
 def render_strong_appendix(source, output, *, wave_replay=None):
@@ -1138,18 +1199,44 @@ figure{{max-width:830px;margin:1.5em auto}}img{{width:100%;height:auto}}figcapti
     return output/'index.html'
 
 
+def wave_coverage(cases, catalog, rows, end_m):
+    found={c['scenario_id'] for c in cases.values()}
+    coverage=[]
+    for speed,case in cases.items():
+        active=[r for r in rows if int(r['speed_kmh'])==speed and r['kind']!='final']
+        coverage.append(dict(scenario_id=case['scenario_id'],speed_kmh=speed,road_friction=case['road_friction'],
+            dataset_split=case['split'],role=case['role'],used_for_training=case['role']=='training_diagnostic',
+            used_for_selection=case['role']=='development_validation',replayed=True,
+            replay_complete=all(r['terminated']=='True' and r['truncated']=='False' and r['failed']=='False'
+                                and float(r['distance_m'])>=end_m for r in active),
+            used_for_report_metrics=True,exclusion_reason=None,
+            **{k:case[k] for k in ('experiment_signature','simfile_sha256','parsfile_sha256','vehicle_sha256',
+                                   'io_sha256','reference_numeric_sha256','grip_sha256','bounds_m')}))
+    for key,record in catalog['scenarios'].items():
+        if key not in found:
+            reserved=record['split']=='test'
+            coverage.append(dict(scenario_id=key,speed_kmh=record['target_speed_kmh'],road_friction=record['road_friction'],
+                dataset_split=record['split'],role='reserved_test' if reserved else 'not_requested',
+                used_for_training=False,used_for_selection=False,replayed=False,replay_complete=False,
+                used_for_report_metrics=False,exclusion_reason='reserved_test' if reserved else 'not_in_explicit_cohort'))
+    return coverage
+
+
 def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, history_300=None, neutral=None,
-                     strong_tuning=None):
+                     strong_tuning=None,wave_extension=None):
     """Rebuild the four-controller report from locked offline replay and training evidence."""
     import shutil
     from dataset_manager import read_json, sha, write_json
     from evaluate import _tracking_metrics, write_rows
-    from evaluate_dual import weak_demo_sources, weak_gap_review, weak_lock
+    from evaluate_dual import stable_legal,weak_demo_sources, weak_gap_review, weak_lock
+    from scenario import resolve_config_value
     from paper_style import configure, demo_bars, demo_line, DEMO_STYLE, finish
 
     experiment,replay,output=(Path(p).resolve() for p in (experiment,replay,output))
     replay_lock=read_json(replay/'replay_lock.json')
     wave='wave_lock' in replay_lock
+    if wave_extension and not wave:
+        raise ValueError('A diagnostic extension requires the frozen wave experiment')
     episodes=replay_lock.get('episodes')
     frequency=replay_lock.get('eval_frequency')
     lock_source=Path(replay_lock.get('experiment_lock',experiment/'preflight/experiment_lock.json'))
@@ -1181,14 +1268,30 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         rows.extend(neutral_rows)
         fixed_controls+=('neutral_mpc',)
     controls=fixed_controls+('ddpg','td3','tqc')
-    speeds=(70,65,75)
+    cases={int(case['target_speed_kmh']):dict(case,split=split)
+           for split in ('train','validation') for case in sets[split]}
+    if wave:
+        from dual_segment import qualified_model
+        qualified={key:str(qualified_model(item)) for key,item in models.items()}
+        end_m=float(resolve_config_value(wave_lock['policy_config'],'simulation','distance_m'))
+        if wave_extension:
+            cases,catalog,additional,extension_plan,extension_seal=load_wave_extension(
+                wave_extension,replay,wave_lock,sets,models,neutral_lock)
+            if extension_plan['end_m']!=end_m:
+                raise ValueError('Extension end station differs from the frozen wave experiment')
+            rows.extend(additional)
+        else:
+            catalog=dataset
+            cases={s:dict(c,role='training_diagnostic' if c['split']=='train' else 'development_validation',
+                          road_friction=catalog['scenarios'][c['scenario_id']]['road_friction'],
+                          bounds_m=wave_lock['bounds_m']) for s,c in sorted(cases.items())}
+    speeds=tuple(cases) if wave else (70,65,75)
     if neutral:
         rows.sort(key=lambda row:(speeds.index(int(row['speed_kmh'])),controls.index(row['controller']),
                                   row['kind']=='final'))
-    cases={int(case['target_speed_kmh']):dict(case,split=split)
-           for split in ('train','validation') for case in sets[split]}
     wanted={(str(speed),controller,kind) for speed in speeds for controller in controls
-            for kind in (('fixed',) if controller in fixed_controls else ('best','final'))}
+            for kind in (('fixed',) if controller in fixed_controls else ('best',) if wave and
+                         cases[speed]['role']=='extension_diagnostic' else ('best','final'))}
     rows_by_key={(r['speed_kmh'],r['controller'],r['kind']):r for r in rows}
     if set(rows_by_key)!=wanted or len(rows)!=len(wanted):
         raise ValueError('Missing or duplicated fixed or policy replays')
@@ -1204,6 +1307,8 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
     if full4:
         columns.update(np_min='Min executed Np',np_max='Max executed Np',
                        np_max_change_per_decision='Max Np change',np_slew_limited_fraction='Np slew fraction')
+    if wave:
+        columns.update(peak1='Peak 1 (m)',peak2='Peak 2 (m)',rmse1='RMSE 1 (m)',rmse2='RMSE 2 (m)')
     from evaluate_dual import replay_diagnostics,full4_horizon
     from scenario_sets import describe_case
     source_cache={}
@@ -1227,14 +1332,28 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
             if sha(source)!=row[key]:
                 raise ValueError(f'Replay source changed: {source}')
         calculated=_tracking_metrics(trace)|replay_diagnostics(trace)
+        if wave:
+            facts={k:row[k]=='True' for k in ('terminated','truncated','failed')}
+            legal=stable_legal(facts | calculated) and calculated['distance_m']>=end_m
+            if (str(legal)!=row['legal'] or float(row['distance_m'])!=calculated['distance_m']):
+                raise ValueError(f'Unexpected completion or safety metrics: {trace}')
+            row.update(role=case['role'],scenario_id=case['scenario_id'],road_friction=str(case['road_friction']),
+                       completed=str(facts['terminated'] and not facts['truncated'] and not facts['failed']
+                                     and calculated['distance_m']>=end_m))
         if full4:
             calculated.update(full4_horizon(control_trace(trace),lock['policy_contract'],fixed=row['kind']=='fixed'))
         for key in columns.keys() & calculated.keys():
-            if not np.isclose(float(row[key]),calculated[key],rtol=0,atol=1e-10):
+            actual=calculated[key]
+            if (actual=='' and row[key]==''):
+                continue
+            if not np.isclose(float(row[key]),actual,rtol=0,atol=1e-10):
                 raise ValueError(f'Metric mismatch or unexpected units: {key} in {trace}')
         weak=rows_by_key[(str(speed),'weak_mpc','fixed')]
         for key,metric in [('iy_percent','rmse_y_m'),('iheading_percent','rmse_heading_deg')]:
-            expected=100*(1-float(row[metric])/float(weak[metric]))
+            reference=float(weak[metric])
+            if wave and reference==0 and not row[key]:
+                continue
+            expected=100*(1-float(row[metric])/reference)
             if not np.isclose(float(row[key]),expected,rtol=0,atol=1e-10):
                 raise ValueError(f'Relative improvement does not use the same-case weak baseline: {trace}')
     gap=weak_gap_review(experiment)
@@ -1242,7 +1361,8 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         raise ValueError('Internal audit differs from the revised gap review')
     for algorithm,item in models.items():
         source=run_csv(Path(item['run'])/('checkpoint_segment_metrics.csv' if wave else 'joint_validation.csv'))
-        for i,speed in enumerate((65,75)):
+        for i,speed in enumerate(s for s,c in cases.items() if c['split']=='validation' and
+                                 (not wave or c['role']=='development_validation')):
             for kind in ('best','final'):
                 checkpoint=item['best_checkpoint'] if kind=='best' else 'final_model.zip'
                 index='speed_kmh' if wave else 'case'
@@ -1270,7 +1390,8 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         for row in rows:
             baseline=rows_by_key[row['speed_kmh'],'neutral_mpc','fixed']
             for metric,key in (('rmse_y_m','neutral_iy_percent'),('rmse_heading_deg','neutral_iheading_percent')):
-                row[key]=str(100*(1-float(row[metric])/float(baseline[metric])))
+                denominator=float(baseline[metric])
+                row[key]=str(100*(1-float(row[metric])/denominator)) if denominator else ''
     comparison,old_models=(weak_budget_comparison(experiment,replay,replay_lock,rows_by_key,models,output,baseline_replay)
                            if episodes is not None and not full4 else ([],{}))
     logs={}
@@ -1281,27 +1402,41 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
             for row in validation:
                 row['case']=str((65,75).index(int(row['speed_kmh'])))
         logs[key]=(run_csv(run/'train_monitor.csv',True),run_csv(run/'training_logs/progress.csv'),validation)
-    axis=full4_training_tables(logs,models,rows,output,wave_balance=wave) if full4 else None
+    axis=full4_training_tables(logs,models,[r for r in rows if r.get('role')!='extension_diagnostic'],
+                              output,wave_balance=wave) if full4 else None
     if full4 and not wave:
         full4_history(experiment,[r for r in rows if r['controller']!='neutral_mpc'],output,
                       baseline_replay,history_300,verify_test_payload=neutral is None)
-    if neutral:
+    if neutral and not wave:
         from diagnostics import training_reward_diagnostics,wave_diagnostics
         main_rows=[r for r in rows if r['kind']!='final']
         windows,segments,wave_comparison=wave_diagnostics(main_rows,cases,models,output)
         reward_rows,reward_diffs,rewards,reward_pairs=training_reward_diagnostics(
             models,{key:value[0] for key,value in logs.items()},main_rows,output)
     if wave:
-        wave_results,wave_gains,wave_history,wave_old_rows,wave_archive=wave_report_evidence(
-            replay,replay_lock,wave_lock,old_replay,rows,models,logs,output)
+        wave_results,wave_gains,wave_history=wave_report_evidence(
+            replay,replay_lock,wave_lock,rows,models,logs,output,cases,end_m)
+        if wave_extension:
+            for name in ('plan.json','extension_lock.json'):
+                shutil.copy2(Path(wave_extension)/name,audit/('wave_extension_'+name))
+        coverage=wave_coverage(cases,catalog,rows,end_m)
+        write_json(output/'scenario_coverage.json',dict(dataset_hash=catalog['dataset_hash'],cases=coverage,
+                   extension=extension_seal if wave_extension else None),exclusive=True)
+        lookup={(str(r['speed_kmh']),r['controller']):r for r in wave_gains if r['kind']=='best'}
+        write_rows(output/'five_case_summary.csv',[{k:v for k,v in row.items() if k!='trace'} |
+            {k:score.get(k) for k in ('gmin','passed','margin_2pct','unmet',*(f'{m}_gain_percent' for m in
+             ('peak1','peak2','rmse1','rmse2')))} for row in rows if row['kind']!='final'
+             for score in (lookup.get((row['speed_kmh'],row['controller']),{}),)])
     write_rows(output/'metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']!='final'])
     write_rows(output/'final_metrics.csv',[{k:v for k,v in row.items() if k!='trace'} for row in rows if row['kind']=='final'])
-    rankings=validation_rankings(rows)
+    rankings=validation_rankings([r for r in rows if not wave or r['role']=='development_validation'])
     model_summary=({key:{k:v for k,v in item.items() if k!='best_joint'}|
-                         {'dual_segment_passed':item['best_joint']} for key,item in models.items()}
+                         {'dual_segment_passed':item['best_joint'],'models':item['models'] | {'best':qualified[key]}}
+                         for key,item in models.items()}
                    if wave else models)
     write_json(output/'summary.json',dict(dataset_hash=dataset['dataset_hash'],parent_dataset_hash=dataset['parent_dataset_hash'],
-        scope='Train-case demonstration at 70 km/h; development validation at 65 and 75 km/h',
+        scope='Historical development validation plus explicitly labeled diagnostics' if wave else
+              'Train-case demonstration at 70 km/h; development validation at 65 and 75 km/h',
         seed=42,decision_budget=7900 if episodes is None else None,episode_budget=episodes,
         validation_frequency=frequency or 790,models=model_summary,revised_gap_review=gap,unit_labels=columns,
         controller_config_sha256=(wave_lock if wave else lock)['policy_config_sha256'],
@@ -1311,12 +1446,14 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         policy_action_names=lock.get('policy_action_names',['q_y','q_psi','r_delta']),
         training_axis='completed_episode' if full4 else 'decisions',
         experiment_lock_sha256=sha(lock_source),
-        **({'wave_balance':wave_results} if wave else {}),
+        **({'wave_balance':wave_results,'report_dataset_hash':catalog['dataset_hash'],
+            'scenario_coverage_sha256':sha(output/'scenario_coverage.json')} if wave else {}),
         **({'neutral':neutral_selection,'neutral_checks':neutral_lock} if neutral else {})),exclusive=True)
     configure()
     section_figures={}
 
-    def draw(name, panels, section, xlabel, labels=None, *, sharex=True, step=False, y_ticks=None, zero_line=False):
+    def draw(name, panels, section, xlabel, labels=None, *, sharex=True, step=False, y_ticks=None,
+             zero_line=False, subtitle=None):
         fig,axes=plt.subplots(len(panels),1,figsize=(7.15,1.88*len(panels)+.7),squeeze=False,sharex=sharex)
         handles={}
         for ax,(ylabel,series) in zip(axes[:,0],panels):
@@ -1336,14 +1473,17 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                 ax.set_xlim(1,episodes)
         for ax in axes[-1:,0] if sharex else axes[:,0]:
             ax.set_xlabel(xlabel)
-        fig.tight_layout(rect=(0,0,1,1-.4/fig.get_figheight()))
+        if subtitle:
+            fig.suptitle(subtitle,fontsize=12,y=.99)
+        legend_top=1-(.27 if subtitle else 0)/fig.get_figheight()
+        fig.tight_layout(rect=(0,0,1,legend_top-(.34 if subtitle else .4)/fig.get_figheight()))
         fig.legend(handles.values(),[DEMO_STYLE[key][0] for key in handles],loc='upper center',
-                   ncol=min(5,len(handles)),frameon=False,fontsize=9)
+                   bbox_to_anchor=(.5,legend_top),ncol=min(5,len(handles)),frameon=False,fontsize=9)
         # Save with the layout above so the legend occupies its own band.
         finish(fig,figures/name,dpi=300,layout=False)
         section_figures.setdefault(section,[]).append(name)
 
-    def paper_figure(name,panels,section):
+    def paper_figure(name,panels,section,subtitle=None):
         fig,axes=plt.subplots(2,2,figsize=(7.2,5.25),sharex=True)
         for ax,(label,series),title in zip(axes.flat,panels,(
             '(a) Trajectory Comparison','(b) Lateral Tracking Error',
@@ -1354,8 +1494,11 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
             ax.grid(alpha=.2)
         for ax in axes[-1]:
             ax.set_xlabel('X (m)')
-        fig.legend(*axes[0,0].get_legend_handles_labels(),loc='upper center',ncol=3,frameon=False,fontsize=8)
-        fig.tight_layout(rect=(0,0,1,.90))
+        if subtitle:
+            fig.suptitle(subtitle,fontsize=12,y=.99)
+        fig.legend(*axes[0,0].get_legend_handles_labels(),loc='upper center',bbox_to_anchor=(.5,.95 if subtitle else 1),
+                   ncol=3,frameon=False,fontsize=8)
+        fig.tight_layout(rect=(0,0,1,.86 if subtitle else .90))
         finish(fig,figures/name,dpi=300,layout=False)
         section_figures.setdefault(section,[]).append(name)
 
@@ -1367,6 +1510,23 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         section=f'{speed} km/h · '+('同工况诊断' if speed==70 else '开发验证')
         reference=data['weak_mpc']
         track=panel('Y (m)','y_m')
+        if wave:
+            case=cases[speed]
+            ref=np.asarray([[float(v) for v in r.split(',')[:2]] for r in case['reference_table'][1:-1]])
+            track[1].insert(0,('reference',ref[:,0],ref[:,1]))
+            subtitle=f'{speed} km/h · μ={case["road_friction"]:g}'
+            course=('Course error (°)',[(k,d['x_m'],np.rad2deg(np.angle(np.exp(1j*(d['epsi_rad']+d['sideslip_rad'])))))
+                                        for k,d in data.items()])
+            rate=('Command rate (°/s)',[(k,d['x_m'][1:],np.rad2deg(np.diff(d['steer_rad'])/np.diff(d['time_s'])))
+                                      for k,d in data.items()])
+            paper_figure(f'paper_tracking_{speed}',(track,panel('Lateral error (m)','ey_m'),
+                panel('Heading error (°)','epsi_rad',180/np.pi),
+                panel('Front wheel angle (°)','actual_steer_rad',180/np.pi)),'五工况轨迹',subtitle)
+            draw(f'weights_{speed}',[panel('Executed Np','np'),panel('Qy','q_y'),panel('Qpsi','q_psi'),
+                panel('Rdelta','r_delta')],'四维参数调整','X (m)',step=True,subtitle=subtitle)
+            draw(f'vehicle_{speed}',[course,rate,panel('Lateral acceleration (m/s²)','body_ay_mps2'),
+                panel('Sideslip angle (°)','measured_beta_rad',180/np.pi)],'安全性与计算性能','X (m)',subtitle=subtitle)
+            continue
         track[1].insert(0,('reference',reference['x_m'],reference['y_m']-reference['ey_m']))
         station=reference['x_m']
         delta_series=[]
@@ -1396,17 +1556,6 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         front=panel('Front wheel angle (°)','actual_steer_rad',180/np.pi)
         if neutral:
             paper_figure(f'paper_tracking_{speed}',(track,lateral,heading,front),section)
-            if wave:
-                historical={key:data[key] for key in fixed_controls}
-                historical.update({r['controller']:control_trace(r['trace'])
-                    for r in wave_old_rows if int(r['speed_kmh'])==speed})
-                old_panels=[]
-                for label,key,scale in (('Y (m)','y_m',1),('Lateral error (m)','ey_m',1),
-                                          ('Heading error (°)','epsi_rad',180/np.pi),
-                                          ('Front wheel angle (°)','actual_steer_rad',180/np.pi)):
-                    old_panels.append((label,[(k,historical[k]['x_m'],historical[k][key]*scale) for k in controls]))
-                old_panels[0][1].insert(0,track[1][0])
-                paper_figure(f'old_paper_tracking_{speed}',old_panels,'旧奖励 500 回合原选检查点')
             zoom_panels=[]
             for wave_index,window in enumerate(windows[speed],1):
                 series=[]
@@ -1447,41 +1596,21 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
     draw('episode_return',[('Raw episode return',raw),('Episode return (10-episode mean)',smooth)],
          '训练过程',training_xlabel)
     if wave:
-        original_returns=[]
-        for key,data in wave_archive['models'].items():
-            values=[float(r['r']) for r in run_csv(Path(data['run'])/'train_monitor.csv',True)]
-            original_returns.append((key,np.arange(1,len(values)+1),values))
-        draw('original_episode_return',[('Original reward return',original_returns)],
-             '旧奖励 500 回合原选检查点','Episode')
-        shapes=[]
-        for version,label in (('original','Original reward Gmin (%)'),('wave_balance','Wave balance Gmin (%)')):
-            series=[]
-            for key in models:
-                group=[r for r in wave_history if r['reward_version']==version and r['algorithm']==key
-                       and str(r['diagnostic_only'])=='False' and r['gmin'] not in (None,'')]
-                series.append((key,[r['episode'] for r in group],[float(r['gmin']) for r in group]))
-            shapes.append((label,series))
-        draw('checkpoint_gmin',shapes,'双区段达标与新旧对照','Episode',zero_line=True)
+        series=[]
+        for key in models:
+            group=[r for r in wave_history if r['algorithm']==key and not r['diagnostic_only'] and r['gmin'] is not None]
+            series.append((key,[r['episode'] for r in group],[r['gmin'] for r in group]))
+        draw('checkpoint_gmin',[('Development Gmin (%)',series)],'训练过程','Episode',zero_line=True)
         from dual_segment import METRICS
-        best=[r for r in wave_gains if r['reward_version']=='wave_balance' and r['kind']=='best']
+        best=[r for r in wave_gains if r['kind']=='best']
         panels=[]
         for metric in METRICS:
             label=metric.replace('peak','Peak ').replace('rmse','RMSE ')+' improvement (%)'
-            series=[(key,list(range(3)),[next(r[metric+'_gain_percent'] for r in best
+            series=[(key,list(range(len(speeds))),[next(r[metric+'_gain_percent'] for r in best
                 if r['speed_kmh']==s and r['controller']==key) for s in sorted(speeds)]) for key in models]
             panels.append((label,series))
-        draw('segment_gain',panels,'双区段达标与新旧对照','Scenario speed (km/h)',
-             [str(s) for s in sorted(speeds)],zero_line=True)
-        statuses=np.asarray([[int(next(r['passed'] for r in best if r['controller']==key and r['speed_kmh']==s))
-                             for s in sorted(speeds)] for key in models])
-        fig,ax=plt.subplots(figsize=(6.8,2.45))
-        ax.imshow(statuses, vmin=0,vmax=1,cmap='Greys',alpha=.23,aspect='auto')
-        for i,j in np.ndindex(statuses.shape):
-            ax.text(j,i,'Pass' if statuses[i,j] else 'Below gate',ha='center',va='center')
-        ax.set_xticks(range(3),[f'{s} km/h' for s in sorted(speeds)])
-        ax.set_yticks(range(len(models)),[DEMO_STYLE[key][0] for key in models])
-        finish(fig,figures/'segment_acceptance',dpi=300)
-        section_figures['双区段达标与新旧对照'].append('segment_acceptance')
+        draw('segment_gain',panels,'双区段误差分析','Scenario speed (km/h)',
+             [f'{s}\nμ={cases[s]["road_friction"]:g}' for s in speeds],zero_line=True)
     if old_models:
         old_smooth=[]
         for key,item in old_models.items():
@@ -1509,7 +1638,7 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
     draw('optimizer_loss',[(f'{label} loss',[progress_series(k,label.lower()+'_loss') for k in logs])
                            for label in ('Actor','Critic')],'训练过程',training_xlabel)
     draw('entropy',[('Entropy coefficient',[progress_series('tqc','ent_coef')])],'训练过程',training_xlabel)
-    if neutral:
+    if neutral and not wave:
         from diagnostics import LOSS_TERMS
         pair_panels=[]
         for pair in reward_pairs:
@@ -1557,7 +1686,7 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                     ax.grid(axis='y',alpha=.2)
             finish(fig,figures/name,dpi=300)
             section_figures['误差波峰诊断'].append(name)
-    for i,speed in enumerate((65,75)):
+    for i,speed in enumerate(() if wave else (65,75)):
         panels=[]
         for metric in ('rmse_y_m','rmse_heading_deg'):
             series=[]
@@ -1574,10 +1703,10 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
     main_rows=[r for r in rows if r['kind']!='final']
     summary_panels=[]
     ordered_speeds=sorted(speeds)
-    for metric in ('rmse_y_m','rmse_heading_deg','iy_percent','iheading_percent'):
-        summary_panels.append((columns[metric],[(k,list(range(3)),[float(next(r[metric] for r in main_rows
+    for metric in (() if wave else ('rmse_y_m','rmse_heading_deg','iy_percent','iheading_percent')):
+        summary_panels.append((columns[metric],[(k,list(range(len(ordered_speeds))),[float(next(r[metric] for r in main_rows
             if r['controller']==k and int(r['speed_kmh'])==s)) for s in ordered_speeds]) for k in controls]))
-    if full4:
+    if full4 and not wave:
         fig,axes=plt.subplots(len(speeds),2,figsize=(9,7.2),squeeze=False)
         for speed,pair in zip(ordered_speeds,axes):
             for ax,metric in zip(pair,('rmse_y_m','rmse_heading_deg')):
@@ -1589,9 +1718,9 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                 ax.grid(axis='y',alpha=.2)
         finish(fig,figures/'cross_speed',dpi=300)
         section_figures['跨速度指标']=['cross_speed']
-    else:
+    elif not wave:
         draw('cross_speed',summary_panels,'跨速度指标','Scenario speed (km/h)',list(map(str,ordered_speeds)))
-    for speed in speeds:
+    for speed in (() if wave else speeds):
         if full4:
             panels=[]
             for metric in ('rmse_y_m','rmse_heading_deg'):
@@ -1616,20 +1745,20 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         draw(f'best_final_{speed}',panels,'最终模型补充诊断','Checkpoint',labels)
 
     esc=html.escape
-    def table(items):
-        headings=('Speed (km/h)','Controller',*columns.values())
+    def table(items,fields=columns):
+        headings=('Speed (km/h)','Controller',*fields.values())
         body=[]
         for row in items:
             cells=[row['speed_kmh'],DEMO_STYLE[row['controller']][0]]
-            for key in columns:
+            for key in fields:
                 v=row.get(key,'')
-                cells.append(v if key in ('legal','terminated','qp_failures') else f'{float(v):.6g}' if v else '—')
+                cells.append(v if key in ('legal','terminated','completed','qp_failures') else f'{float(v):.6g}' if v else '—')
             body.append('<tr>'+''.join(f'<td>{esc(v)}</td>' for v in cells)+'</tr>')
         header=''.join(f'<th>{esc(h)}</th>' for h in headings)
         return f'<div class="table"><table><thead><tr>{header}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
 
     links=[]
-    for row in rows:
+    for row in (main_rows if wave else rows):
         folder=Path('cpp_reports')/row['speed_kmh']/(row['controller']+'_'+row['kind'])
         shutil.copytree(Path(row['trace']).parent,output/folder)
         label=f"{row['speed_kmh']} km/h · {DEMO_STYLE[row['controller']][0]} · {row['kind']}"
@@ -1649,57 +1778,54 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         'wave_rmse_first':'第一变道区段 RMSE','wave_rmse_second':'第二变道区段 RMSE',
         'reward_difference':'最后 50 轮逐轮回报差','reward_rmse':'真实训练轨迹逐轮横向与航向 RMSE',
         'reward_components':'最后 50 轮环境回报损失构成',
-        'old_paper_tracking':'旧奖励 500 回合原选模型的五控制器结果',
-        'original_episode_return':'旧奖励版本训练回报',
-        'checkpoint_gmin':'新旧奖励候选的开发验证最差区段改善率',
-        'segment_gain':'新奖励 best 的四项改善率（对每项较优固定基线）',
-        'segment_acceptance':'各速度安全、全程和四项局部门槛的联合达标情况'}
-    for title in (*(['旧奖励 500 回合原选检查点'] if wave else []),
-                  '训练过程',*(['奖励诊断'] if neutral else []),
-                  *(f'{s} km/h · '+('同工况诊断' if s==70 else '开发验证') for s in speeds),
-                  *(['误差波峰诊断'] if neutral else []),
-                  *(['双区段达标与新旧对照'] if wave else []),
-                  '跨速度指标','最终模型补充诊断'):
+        'checkpoint_gmin':'冻结开发验证检查点的最差区段改善率',
+        'segment_gain':'Best 的四项区段改善率（相对各项较优固定基线）'}
+    if wave:
+        figure_titles.update(vehicle='航迹角误差、转向速率、Ay 与侧偏角',weights='实际执行的 Np、Qy、Qpsi 和 Rdelta')
+        ordered_sections=('训练过程','五工况轨迹','双区段误差分析','四维参数调整','安全性与计算性能','最终模型补充诊断')
+    else:
+        ordered_sections=('训练过程',*(['奖励诊断'] if neutral else []),
+            *(f'{s} km/h · '+('同工况诊断' if s==70 else '开发验证') for s in speeds),
+            *(['误差波峰诊断'] if neutral else []),'跨速度指标','最终模型补充诊断')
+    for title in ordered_sections:
         cards=[]
-        for name in section_figures[title]:
+        for name in section_figures.get(title,()):
             stem,_,speed=name.rpartition('_')
             caption=figure_titles[stem]+f' · {speed} km/h' if speed.isdecimal() else figure_titles[name]
             cards.append(f'<figure><img src="figures/{name}.png" alt="{esc(caption)}" loading="lazy">'
                          f'<figcaption>{esc(caption)} · <a href="figures/{name}.pdf">矢量 PDF</a></figcaption></figure>')
         cards=''.join(cards)
-        if title=='旧奖励 500 回合原选检查点':
-            archived=[r for r in rows if r['kind']=='fixed']+wave_old_rows
-            archived.sort(key=lambda row:(speeds.index(int(row['speed_kmh'])),controls.index(row['controller'])))
-            cards=('<p>原试验按当时的既有验证规则选出的模型。回溯双区段候选在独立表中呈现。'
-                   '新旧奖励使用不同尺度，环境回报分图展示。</p>'+table(archived)+cards)
-        if title=='双区段达标与新旧对照':
+        if title=='双区段误差分析':
+            def pct(value):
+                return '—' if value is None else f'{value:+.2f}%'
+
             gain_rows=[]
             for row in wave_gains:
                 if row['kind']=='final':
                     continue
-                phase='旧原选' if row['reward_version']=='original' else '新 best'
-                values=(phase,row['controller'].upper(),row['speed_kmh'],
-                        *(f'{row[k+"_gain_percent"]:+.2f}%' for k in ('peak1','peak2','rmse1','rmse2')),
-                        f'{row["gmin"]:+.2f}%', '通过' if row['passed'] else '未通过',
+                values=(row['speed_kmh'],row['controller'].upper(),
+                        *(pct(row[k+'_gain_percent']) for k in ('peak1','peak2','rmse1','rmse2')),
+                        pct(row['gmin']), '通过' if row['passed'] else '未通过',
                         '达到' if row['margin_2pct'] else '未到',
                         ', '.join(row['unmet']) or '—')
                 gain_rows.append('<tr>'+''.join(f'<td>{esc(str(value))}</td>' for value in values)+'</tr>')
-            candidates=[]
-            for key,item in models.items():
-                old=wave_results['old_retrospective']['algorithms'][key]
-                new=item['selection']['best']
-                outcome='通过' if new['passed'] else '保留最接近的合法候选'
-                candidates.append(f'<li>{key.upper()} · 旧回溯 {old["passed_count"]} 个严格达标，'
-                                  f'{old["margin_count"]} 个达 2% · 新 {outcome}，跨速度 Gmin {new["gmin"]:+.2f}% · '
-                                  f'{esc(", ".join(new["unmet"]) or "全部要求通过")}</li>')
+            summary_rows=[]
+            for r in wave_results['diagnostics']:
+                values=(r['algorithm'].upper(),pct(r['historical_development_gmin']),pct(r['five_case_diagnostic_gmin']),
+                        f'{r["passed_cases"]}/{r["report_cases"]}',r['worst_speeds'] or '—')
+                summary_rows.append('<tr>'+''.join(f'<td>{esc(str(value))}</td>' for value in values)+'</tr>')
             cards=('<p>Peak1、Peak2、RMSE1、RMSE2 分别以同速度弱与中性 MPC 两者中的较小值为分母。'
                    '一个工况的四项均须正改善，且横向和航向全程 RMSE 均不劣于中性 MPC。'
-                   '安全完赛是前置条件，65 与 75 km/h 都通过才达标，70 km/h 仅作诊断。</p>'
-                   '<ul>'+''.join(candidates)+'</ul><div class="table"><table><thead>'
-                   '<tr><th>阶段</th><th>算法</th><th>km/h</th><th>Peak1</th><th>Peak2</th><th>RMSE1</th>'
+                   '各控制器还须通过安全完赛门槛。历史选模 Gmin 只来自 65 与 75 km/h，扩展诊断 Gmin 取本页全部速度的最小值。</p>'
+                   '<div class="table"><table><thead><tr><th>算法</th><th>原开发 Gmin</th><th>报告工况诊断 Gmin</th>'
+                   '<th>严格达标工况</th><th>最差速度 (km/h)</th></tr></thead><tbody>'+''.join(summary_rows)+
+                   '</tbody></table></div><div class="table"><table><thead>'
+                   '<tr><th>km/h</th><th>算法</th><th>Peak1</th><th>Peak2</th><th>RMSE1</th>'
                    '<th>RMSE2</th><th>Gmin</th><th>状态</th><th>2% 裕量</th><th>未达标项</th></tr>'
                    '</thead><tbody>'+''.join(gain_rows)+'</tbody></table></div>'
-                   '<p><a href="peak_comparison.csv">新旧完整比较及 final</a> · '
+                   '<p><a href="peak_comparison.csv">四项增益及 final 诊断</a> · '
+                   '<a href="segment_metrics.csv">固定边界与实测分段指标</a> · '
+                   '<a href="five_case_gmin.csv">Gmin 汇总</a> · '
                    '<a href="checkpoint_segment_metrics.csv">所有候选与稳定性</a> · '
                    '<a href="dual_segment_selection.json">严格选模与未达标原因</a></p>')+cards
         if title=='训练过程':
@@ -1708,9 +1834,16 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                        '横轴为完整回合结束时的累计决策数。')
             cards=f'<p>Episode Return 为一个完整回合内决策奖励之和。{axis_note}损失来自各算法各自的优化目标。</p>'+cards
         if title=='最终模型补充诊断':
-            if full4:
+            if wave:
+                cards='<p>归档 final 诊断覆盖原三个工况。</p>'
+            elif full4:
                 cards='<p>每条线连接选中检查点与第 500 轮的 final，端点表示两个单独回放。</p>'+cards
             cards=f'<details><summary>查看 final 指标与 best/final 对照</summary>{table([r for r in rows if r["kind"]=="final"])}{cards}</details>'
+        if title=='安全性与计算性能':
+            safety={'completed':'Completed','legal':'Safety passed','qp_failures':'QP failures','distance_m':'End X (m)'}
+            safety.update({k:columns[k] for k in ('peak_measured_ay_mps2','peak_measured_beta_deg',
+                           'steering_rate_rms_degps','mpc_solve_mean_ms','policy_inference_mean_ms')})
+            cards='<p>门槛为完成设定终点、QP 失败为零、Ay ≤ 0.85g 与 |β| ≤ 5°。耗时为本机实测。</p>'+table(main_rows,safety)+cards
         if title=='奖励诊断':
             details=' / '.join(f'{k.upper()} {v["last50_mean"]:.3f} ± {v["last50_sd"]:.3f}'
                               for k,v in rewards.items())
@@ -1777,18 +1910,15 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
                       'DRL 零动作对应原弱 MPC。</p><p><a href="audit/neutral/neutral_selection.json">选参及配置 SHA256</a>'
                       ' · <a href="audit/neutral/candidate_metrics.csv">全部候选</a></p></section>')
     if wave:
-        title='四维 DRL-MPC 双区段均衡控制'
+        title='四维 DRL-MPC 双区段均衡控制 · '+str(len(speeds))+' 工况'
         budget_links=(' <a href="training_episode_axis.csv">训练轮次映射</a>'
                       ' <a href="training_summary.csv">训练摘要</a>'
                       ' <a href="audit/wave_lock.json">双区段冻结锁</a>')
-        profile_note=('<p>新旧策略动作均为 [Np, Qy, Qpsi, Rdelta]，弱 MPC 零动作起点一致。'
-                      '新奖励 joint_tracking_wave_balance 在旧奖励上增加按区段长度和 70 km/h 中性 MPC 参考归一的'
-                      'Huber 横向损失及 0.7 倍局部峰值起罚项。原航向、安全和动作惩罚保留。'
-                      '固定控制器使用同一批锁定的真实回放。</p>'
-                      '<p><a href="audit/reward_numeric_audit.csv">训练前旧轨迹离线奖励对照</a> · '
-                      '<a href="audit/wave_preflight.json">零动作三速度及旧奖励数值回归</a></p>')
+        profile_note=('<p>本页主结果使用 joint_tracking_wave_balance_v1 的合格 best。动作依次为 [Np, Qy, Qpsi, Rdelta]。'
+                      '奖励包含按区段长度与 70 km/h Neutral MPC 参考归一的 Huber 横向损失和局部峰值项。'
+                      '四维零动作基线为 Weak MPC。</p>')
         model_list=''.join(f'<li>{DEMO_STYLE[k][0]} · {esc(v["best_checkpoint"])} · '
-                           f'{esc(v["model_sha256"]["best"][:12])} · '
+                           f'<code>{esc(v["model_sha256"]["best"])}</code> · '
                            f'双区段门槛{"通过" if v["best_joint"] else "未通过"}</li>' for k,v in models.items())
     ranking_rows=[]
     for key,stats in rankings['policies'].items():
@@ -1806,9 +1936,43 @@ def render_weak_demo(experiment, replay, runs, output, *, baseline_replay=None, 
         if not wave:
             raise ValueError('Strong MPC appendix requires the matching wave replay')
         render_strong_appendix(strong_tuning,output/'strong_mpc_audit',wave_replay=replay)
-        strong_section=('<section id="strong-mpc"><h2>分工况 Strong MPC 整定</h2>'
-                        '<p>65、75 km/h 独立搜索，70 km/h 保留统一配置。附录提供固定参数、双区段指标和原锁定 DRL 模型的回顾性改善率。</p>'
-                        '<p><a href="strong_mpc_audit/index.html">查看分工况强 MPC 审计图表</a></p></section>')
+        registered=read_json(Path(strong_tuning)/'strong_case_map.json')['cases']
+        strong_status=[dict(scenario_id=c['scenario_id'],speed_kmh=s,road_friction=c['road_friction'],
+                            experiment_signature=c['experiment_signature'],
+                            status='published' if c['experiment_signature'] in registered else 'not_tuned')
+                       for s,c in cases.items()]
+        write_rows(audit/'strong_case_coverage.csv',strong_status)
+        absent=', '.join(str(r['speed_kmh']) for r in strong_status if r['status']=='not_tuned')
+        strong_section=('<section id="strong-mpc"><h2>分工况 Strong MPC 整定</h2>'+
+                        (f'<p>{esc(absent)} km/h 的专属配置为 not_tuned。</p>' if absent else '')+
+                        '<p><a href="strong_mpc_audit/index.html">查看已发布的独立审计</a> · '
+                        '<a href="audit/strong_case_coverage.csv">工况整定状态</a></p></section>')
+    scope='CarSim 120 m 双移线，μ=0.8。70 km/h 用于训练与同工况诊断。65、75 km/h 用于开发验证和检查点选择。'
+    model_caption='主表统一使用开发验证选出的 best_legal。'
+    wave_conclusion=''
+    headline_table=table(main_rows)
+    if wave:
+        roles={'development_validation':'开发验证及选模','training_diagnostic':'训练工况诊断',
+               'extension_diagnostic':'锁定策略扩展诊断','reserved_test':'预留测试（未使用）','not_requested':'未列入报告'}
+        matrix=''.join('<tr>'+''.join(f'<td>{esc(str(value))}</td>' for value in
+            (r['scenario_id'],f'{r["speed_kmh"]:g}',f'{r["road_friction"]:g}',r['dataset_split'],roles[r['role']],
+             ' / '.join(f'{x:.2f}' for x in r['bounds_m']) if 'bounds_m' in r else '—',
+             ('完赛' if r['replay_complete'] else '有未完赛') if r['replayed'] else '—'))+'</tr>' for r in coverage)
+        scope=('<p>工况来自冻结的 CarSim 工况库。区段边界为首段起点／分界／末段终点（m）。分界样本归入第二段。</p>'
+               '<div class="table"><table><thead><tr><th>工况 ID</th><th>km/h</th><th>μ</th><th>数据集划分</th>'
+               '<th>实际用途</th><th>区段边界</th><th>五控制器完赛</th></tr></thead><tbody>'+matrix+
+               '</tbody></table></div><p><a href="scenario_coverage.json">工况覆盖、物理契约与原生 SHA256</a> · '
+               '<a href="five_case_summary.csv">全部逐控制器指标</a></p>')
+        model_caption='主表使用 best_segment_model.zip 中的冻结策略。'
+        failures=[f'{r["speed_kmh"]} km/h {r["controller"].upper()}（{", ".join(r["unmet"])}）'
+                  for r in wave_gains if r['kind']=='best' and not r['passed']]
+        phrase='未通过严格区段门槛的回放包括 '+esc('、'.join(failures))+'。' if failures else '本页全部 best 回放均通过严格区段门槛。'
+        wave_conclusion=(f'<section><h2>结论</h2><p>{phrase}历史选模使用 65 与 75 km/h 开发验证。'
+                         '新增工况仅用于冻结策略诊断。本页证据为同一路径、单种子的速度变化对照。</p></section>')
+        track_keys=('rmse_y_m','rmse_heading_deg','rmse_course_deg','peak_y_m','peak_heading_deg',
+                    'peak1','peak2','rmse1','rmse2')
+        headline_table=table(main_rows,{k:columns[k] for k in track_keys})
+    training_section=sections.pop(0) if wave else ''
     page=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title><link rel="icon" href="data:,">
 <style>body{{font:16px "Times New Roman",SimHei,serif;max-width:1100px;margin:36px auto;padding:0 20px;color:#222;background:#fff}}
@@ -1816,21 +1980,23 @@ h1,h2,summary{{font-family:"Times New Roman",SimHei,serif}} section{{border-top:
 figure{{margin:1.4em auto;max-width:840px}} img{{width:100%;height:auto}} figcaption{{text-align:center}}
 .table{{overflow:auto}} table{{border-collapse:collapse;white-space:nowrap}} td,th{{padding:8px 10px;border-bottom:1px solid #ddd;text-align:right}} td:nth-child(2),th:nth-child(2){{text-align:left}}</style></head>
 <body><h1>{title}</h1>
-<p>CarSim 120 m 双移线，μ=0.8。70 km/h 用于训练与同工况诊断。65、75 km/h 用于开发验证和检查点选择。</p>
-<p>Seed 42，{budget_text}，550 决策预热。观测 20 维，决策周期 0.08 s，MPC 周期 0.04 s。主表统一使用开发验证选出的 best_legal。结论限于本次单种子、同参考轨迹的速度对比。</p>
+{scope if wave else f'<p>{scope}</p>'}
+<p>Seed 42，{budget_text}，550 决策预热。观测 20 维，决策周期 0.08 s，MPC 周期 0.04 s。{model_caption}结论限于本次单种子、同参考轨迹的速度对比。</p>
 <nav><a href="#metrics">{controller_count}控制器指标</a><a href="#native">C++ 详细报告</a><a href="metrics.csv">指标 CSV</a><a href="summary.json">模型与数据来源</a>{budget_links}</nav>
 {profile_note}
 {neutral_note}
 <section><h2>{weak_heading}</h2><p>Np=36，Nc=13，Qy={selected['q_y']}，Qpsi={selected['q_psi']}，Rdelta={selected['r_delta']}。
 三种速度均通过全程零动作一致性。内部参考的横向差距为 {gap['lateral_gap_percent']:.2f}%（目标 25%–40%），航向差距为 {gap['heading_gap_percent']:.2f}%（目标约 10%–25%）。
 候选搜索预算 {gap['evaluated']}，安全及转向筛选通过 {gap['eligible']} 组。横向目标{'达成' if gap['lateral_target_met'] else '未达成'}，航向目标{'达成' if gap['heading_target_met'] else '未达成'}。</p><ul>{model_list}</ul></section>
-<section id="metrics"><h2>{controller_count}控制器指标</h2><p>横向误差为 Y−Yref(X)。航向为车身角差，航迹角加入侧偏。转向速率取命令相邻采样差，前轮角图使用实测平均前轮角。
-Iy 与 Iheading 使用同速度弱 MPC 的 RMSE。{neutral_metric_note}求解和推理耗时为本机实测。</p>{table(main_rows)}</section>
+{training_section}
+<section id="metrics"><h2>{'五工况控制指标' if wave and len(speeds)==5 else controller_count+'控制器指标'}</h2><p>横向误差为 Y−Yref(X)。航向为车身角差，航迹角加入侧偏。转向速率取命令相邻采样差，前轮角图使用实测平均前轮角。
+Iy 与 Iheading 使用同速度弱 MPC 的 RMSE。{neutral_metric_note}求解和推理耗时为本机实测。</p>{headline_table}</section>
 <section><h2>65 与 75 km/h 开发验证汇总</h2>
 <p>两种速度等权平均。按误差从小到大，横向为 {lateral_order}，航向为 {heading_order}。最小改善率取两种速度、两项误差中的最小值。</p>
 <div class="table"><table><thead><tr><th>控制器</th><th>横向均值 (m)</th><th>航向均值 (°)</th><th>最小改善率</th><th>两工况均胜弱 MPC</th><th>梯度更新</th></tr></thead>
 <tbody>{''.join(ranking_rows)}</tbody></table></div></section>
 {''.join(sections)}
+{wave_conclusion}
 {strong_section}
 <section id="native"><h2>C++ 详细报告</h2><details><summary>展开原始控制与求解记录</summary><ul>{''.join(links)}</ul></details></section>
 </body></html>'''
@@ -1847,6 +2013,7 @@ def main():
     parser.add_argument('--baseline-replay',type=Path,help='Historical 100-episode weak-demo replay, defaults to the experiment replay')
     parser.add_argument('--history-300',type=Path,help='Frozen three-weight 300-episode replay for the four-action report')
     parser.add_argument('--neutral',type=Path,help='Accepted fixed-MPC tuning directory for the five-controller report')
+    parser.add_argument('--wave-extension',type=Path,help='Frozen additional CarSim wave diagnostic replays')
     parser.add_argument('--strong-tuning',type=Path,help='Frozen scenario Strong MPC search and audit; append to the wave report or render alone')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
@@ -1860,7 +2027,7 @@ def main():
             parser.error('--weak-demo requires --replay, --runs, and --out')
         print(render_weak_demo(args.weak_demo,args.replay,args.runs,args.out,
                                baseline_replay=args.baseline_replay,history_300=args.history_300,neutral=args.neutral,
-                               strong_tuning=args.strong_tuning))
+                               strong_tuning=args.strong_tuning,wave_extension=args.wave_extension))
         return
     if args.strong_tuning:
         if not args.out: parser.error('--strong-tuning requires a new --out directory')
