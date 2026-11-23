@@ -25,8 +25,9 @@ def finish(fig, path, *, dpi=200, layout=True):
 
 
 DEMO_STYLE = {
-    'reference': ('Reference', '#888888', '-', None, 1.0),
+    'reference': ('Reference', '#888888', '-', None, 1.1),
     'weak_mpc': ('Weak MPC', '#000000', '-', None, 1.5),
+    'neutral_mpc': ('Neutral MPC', '#166534', '-.', None, 1.3),
     'ddpg': ('DDPG-MPC', '#2563EB', '--', 'o', 1.2),
     'td3': ('TD3-MPC', '#EA580C', '-.', 's', 1.2),
     'tqc': ('TQC-MPC', '#9333EA', (0, (2, 2)), '^', 1.2),
@@ -46,5 +47,5 @@ def demo_bars(ax, controllers, values):
     for controller,bar in zip(controllers,bars):
         _,color,linestyle,_,width=DEMO_STYLE[controller]
         bar.set(edgecolor=color,linestyle=linestyle,linewidth=width,
-                hatch={'weak_mpc':'','ddpg':'//','td3':'\\\\','tqc':'..'}[controller])
+                hatch={'weak_mpc':'','neutral_mpc':'xx','ddpg':'//','td3':'\\\\','tqc':'..'}[controller])
     ax.set_xticks(range(len(controllers)),[DEMO_STYLE[k][0] for k in controllers])

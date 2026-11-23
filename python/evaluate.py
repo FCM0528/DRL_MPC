@@ -257,13 +257,13 @@ def write_rows(path, rows):
         fields=list(dict.fromkeys(key for row in rows for key in row))
         writer=csv.DictWriter(f,fieldnames=fields);writer.writeheader();writer.writerows(rows)
 
-def reward_terms(data, config, max_steer):
+def reward_terms(data, config, max_steer, *, lookup=resolve_config_value):
     """Reconstruct joint loss at logged post-step states; compare against C++ logs."""
-    def r(key): return float(resolve_config_value(config,'rl_reward',key))
+    def r(key): return float(lookup(config,'rl_reward',key))
     for key in ('w_yaw_error','w_weight_deviation','w_horizon','w_vy'):
         if r(key) != 0:
             raise ValueError(f'This audit is scoped to the current strong configuration: {key} must be zero')
-    dt=float(resolve_config_value(config,'mpc','dt_s'))
+    dt=float(lookup(config,'mpc','dt_s'))
     ey=data['ey_m']; heading=np.arctan2(np.sin(data['epsi_rad']),np.cos(data['epsi_rad']))
     beta=data.get('measured_beta_rad',data['sideslip_rad'])
     beta=np.where(np.isfinite(beta),beta,data['sideslip_rad'])
@@ -280,11 +280,11 @@ def reward_terms(data, config, max_steer):
         growth=r('w_lateral_growth')*(np.maximum(0,np.abs(ey+r('lateral_growth_preview_s')*eydot)-np.abs(ey))/r('ey_scale_m'))**2,
         steering=r('w_steer')*np.clip(steer/max_steer,-1,1)**2 + r('w_steer_rate')*np.clip((steer-prior)/(np.deg2rad(r('steer_rate_scale_deg_s'))*dt),-5,5)**2,
         safety=r('w_sideslip')*np.maximum(0,np.abs(beta)/np.deg2rad(r('sideslip_threshold_deg'))-1)**2)
-    span=float(resolve_config_value(config,'rl','max_np'))-float(resolve_config_value(config,'rl','min_np'))
-    neutral_np=float(resolve_config_value(config,'mpc','np'))
+    span=float(lookup(config,'rl','max_np'))-float(lookup(config,'rl','min_np'))
+    neutral_np=float(lookup(config,'mpc','np'))
     switch=r('w_np_change')*(np.abs(data['np']-np.r_[neutral_np,data['np'][:-1]])/span)**2
     for key in ('q_y','q_psi','r_delta'):
-        choices=np.array([float(v) for v in resolve_config_value(config,'rl',key+'_values').split(',')])
+        choices=np.array([float(v) for v in lookup(config,'rl',key+'_values').split(',')])
         logspan=.5*np.log(choices[-1]/choices[0]);v=data[key]
         change=np.clip(np.log(v/np.r_[choices[len(choices)//2],v[:-1]])/logspan,-2,2)
         switch+=r('w_weight_change')*change**2/3

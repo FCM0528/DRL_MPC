@@ -322,7 +322,7 @@ def dataset_root(manifest, value):
     return Path(override).resolve() if override else (Path(manifest).resolve().parent/value['dataset_root']).resolve()
 
 
-def load_dataset(manifest):
+def load_dataset(manifest, *, verify_test_payload=True):
     path = Path(manifest).resolve(strict=True)
     value = read_json(path)
     if digest({k:v for k,v in value.items() if k not in ('dataset_hash', 'dataset_root')}) != value['dataset_hash']:
@@ -342,7 +342,13 @@ def load_dataset(manifest):
             if not record['enabled'] or record['validation_status'] != 'accepted' or not record['checks']['task_compatible'] or not record.get('solver_acceptance'):
                 raise ValueError('Manifest includes unaccepted or not trainable case')
             # Frozen manifests do not read the mutable registry or metadata.json.
-            info = _record_info(root, record)
+            if split=='test' and not verify_test_payload:
+                info=dict(experiment_signature=record['physical_signature'],vehicle_sha256=record['vehicle_hash'],
+                    io_sha256=record['io_hash'],reference_numeric_sha256=record['reference_hash'],
+                    target_speed_kmh=record['target_speed_kmh'],simfile_sha256=record['simfile_sha256'],
+                    parsfile_sha256=record['parsfile_sha256'])
+            else:
+                info = _record_info(root, record)
             if info['experiment_signature'] in seen:
                 raise ValueError('Physical duplicate across dataset scenarios/splits')
             seen.add(info['experiment_signature'])

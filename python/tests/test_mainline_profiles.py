@@ -168,3 +168,26 @@ def test_episode_axis_uses_irregular_physical_episode_end_boundaries(tmp_path):
     assert [(r['actual_decisions'],r['completed_episode'],r['decisions_into_next_episode'])
             for r in rows if r['metric']=='rmse_y_m']==[(6,1,1),(16,3,0)]
     assert rows[-1]['source_line']==3
+
+
+def test_neutral_rank_honors_target_window_before_heading():
+    from evaluate_dual import neutral_rank
+
+    base=dict(candidate=1,gap_y_percent=20.,rmse_heading_deg=1.,
+              steering_rate_rms_degps=5.,stability_margin=.2)
+    lower_heading=dict(base,candidate=2,rmse_heading_deg=.9)
+    outside=dict(base,candidate=3,gap_y_percent=25.1,rmse_heading_deg=.1)
+    assert sorted((base,outside,lower_heading),key=neutral_rank)==[lower_heading,base,outside]
+
+
+def test_wave_windows_and_reversals_come_from_geometry_not_tracking_errors():
+    from diagnostics import wave_windows,reversal_station
+
+    values=[0,0,0,0,1,3,4,4,4,4,3,1,0,0,0,0]
+    rows=['LTARG_TABLE SPLINE_FLAT',*[f'{x},{y}' for x,y in enumerate(values)],'ENDTABLE']
+    first,second=wave_windows(rows)
+    assert first['start_m']<first['reference_heading_peak_x_m']<first['end_m']
+    assert first['end_m']==second['start_m']
+    assert not first['end_inclusive'] and second['end_inclusive']
+    assert (first['sign'],second['sign'])==(1,-1)
+    assert reversal_station(np.array([1.,2.]),np.array([2.,-2.]),1,1.8)==1.5

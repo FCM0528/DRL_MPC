@@ -208,7 +208,7 @@ def full4_case_records(dataset, sets):
     expected={'train':[(70,.8)],'validation':[(65,.8),(75,.8)],'test':[(70,.6)]}
     fields=('experiment_signature','physical_sha256','simfile','simfile_sha256','parsfile',
             'parsfile_sha256','vehicle_sha256','io_sha256','reference_numeric_sha256','target_speed_kmh')
-    cases={split:[{key:case[key] for key in fields}|
+    cases={split:[{key:case[key] for key in fields if key in case}|
         {'road_friction':dataset['scenarios'][case['scenario_id']]['road_friction']}
         for case in rows] for split,rows in sets.items()}
     if {split:[(r['target_speed_kmh'],r['road_friction']) for r in rows]
@@ -335,7 +335,7 @@ def verify_episode_budget(path, manifest, episodes, *, verify_scenarios=False):
     return decisions
 
 
-def weak_lock(root, experiment_lock=None):
+def weak_lock(root, experiment_lock=None, *, verify_test_payload=True):
     """Verify the immutable experiment files and infer the legacy three-weight contract."""
     from action_mapping import action_contract
     from dataset_manager import load_dataset, read_json, sha
@@ -361,7 +361,7 @@ def weak_lock(root, experiment_lock=None):
         lock.get('policy_action_dims',len(names))!=len(names) or
         lock.get('action_mapping_version',mapping)!=mapping):
         raise ValueError('Frozen action profile, order, dimension or mapping mismatch')
-    dataset,sets=load_dataset(root/'scenario_set.json')
+    dataset,sets=load_dataset(root/'scenario_set.json',verify_test_payload=verify_test_payload)
     if profile=='full4':
         parent=read_json(source)
         inherited={k:v for k,v in lock['policy_config_sha256'].items() if k!='run_delta.ini'}
@@ -373,7 +373,12 @@ def weak_lock(root, experiment_lock=None):
             lock['training_config_sha256']!=parent['training_config_sha256'] or
             [r['speed_kmh'] for r in lock['parity'] if r['passed']]!=[70,65,75]):
             raise ValueError('Four-action experiment lock differs from its frozen contracts')
-        if full4_case_records(dataset,sets)!=lock['frozen_cases']:
+        records=full4_case_records(dataset,sets)
+        expected=lock['frozen_cases']
+        if not verify_test_payload:
+            expected=dict(expected,test=[{k:v for k,v in row.items()
+                if k not in ('simfile','parsfile','physical_sha256')} for row in expected['test']])
+        if records!=expected:
             raise ValueError('Four-action CarSim source differs from its locked records')
         if (sum(file.endswith('/parity.json') for file in lock['parity_sha256'])!=3 or
             any(sha(lock_path.parent/file)!=digest for file,digest in lock['parity_sha256'].items()) or
@@ -384,12 +389,13 @@ def weak_lock(root, experiment_lock=None):
     return lock,dataset,sets,names,mapping
 
 
-def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None, experiment_lock=None):
+def weak_demo_sources(root, runs, *, episodes=None, eval_frequency=None, experiment_lock=None,
+                      verify_test_payload=True):
     """Validate provenance independently of any new replay or report."""
     from dataset_manager import read_json, sha
     from train import controller_config_hashes
     root=Path(root).resolve()
-    locked,dataset,sets,names,mapping=weak_lock(root,experiment_lock)
+    locked,dataset,sets,names,mapping=weak_lock(root,experiment_lock,verify_test_payload=verify_test_payload)
     full4=locked.get('action_profile')=='full4'
     if full4 and (episodes!=locked['training_budget']['episodes'] or eval_frequency!=locked['training_budget']['eval_frequency']):
         raise ValueError('Four-action replay requires the locked episode budget and validation interval')
@@ -585,6 +591,100 @@ def replay_weak_demo(root, runs, output, controller, bridge, *, episodes=None, e
         replay_lock['tqc_observation_sha256']={p.relative_to(output).as_posix():sha(p) for p in paths}
     write_json(output/'replay_lock.json',replay_lock,exclusive=True)
 
+def neutral_rank(row):
+    gap=row['gap_y_percent']
+    return (max(15-gap,gap-25,0),row['rmse_heading_deg'],row['steering_rate_rms_degps'],
+            -row['stability_margin'],row['candidate'])
+
+
+def search_neutral(experiment, replay, output, controller):
+    """Tune only on the archived 70 km/h training case before testing the choice."""
+    from dataset_manager import read_json,sha,write_json
+    from train import controller_config_hashes
+    from scenario import resolve_config_value
+
+    replay,output=Path(replay).resolve(strict=True),Path(output).resolve()
+    source_lock=replay/'replay_lock.json'
+    replay_lock=read_json(source_lock)
+    if (replay_lock['episodes']!=500 or sha(replay_lock['experiment_lock'])!=replay_lock['experiment_lock_sha256'] or
+        sha(replay/'replay_metrics.csv')!=replay_lock['replay_metrics_sha256']):
+        raise ValueError('Expected the locked four-action 500-episode replay')
+    lock,dataset,sets,_,_=weak_lock(experiment,replay_lock['experiment_lock'],verify_test_payload=False)
+    cases=sets['train']+sets['validation']
+    from report import run_csv
+    fixed=[r for r in run_csv(replay/'replay_metrics.csv') if r['controller']=='weak_mpc']
+    strong=[r for r in run_csv(replay/'audit/relative_to_strong.csv') if r['controller']=='weak_mpc']
+    from evaluate import require_same_distance
+    for row,ref,case in zip(fixed,strong,cases,strict=True):
+        require_same_distance(row['trace'],ref['strong_trace'])
+        if (case['experiment_signature']!=row['experiment_signature'] or
+            case['experiment_signature']!=ref['experiment_signature'] or
+            sha(row['trace'])!=row['trace_sha256'] or sha(ref['strong_trace'])!=ref['strong_trace_sha256']):
+            raise ValueError('Fixed baseline replay differs from frozen case')
+    def value(config,key):
+        return float(resolve_config_value(lock[config],'weights',key))
+    fractions={'q_y':(.20,.35,.50),'q_psi':(.25,.50),'r_delta':(.25,.50,.75)}
+    grid={k:[int(round(value('weak_config',k)*(value('strong_config',k)/value('weak_config',k))**f))
+             for f in ff] for k,ff in fractions.items()}
+    candidates=[dict(zip(grid,v)) for v in product(*grid.values())]
+    output.mkdir(parents=True,exist_ok=False)
+    plan=dict(candidates=candidates,candidate_budget=len(candidates),np=36,nc=13,dt_s=.04,
+        dataset_hash=dataset['dataset_hash'],selection_signature=cases[0]['experiment_signature'],
+        source_replay_lock_sha256=sha(source_lock),target_gap_y_percent=[15,25],
+        max_command_rate_rms_degps=100,max_command_rate_peak_degps=180,
+        selection='minimize distance to target interval, then heading RMSE, steering rate RMS, stability margin, index')
+    write_json(output/'search_plan.json',plan,exclusive=True)
+    def collect(base,sim,directory,config,overrides=None):
+        result=fixed_episode(controller,sim,directory,config,overrides=overrides,require_complete=False)
+        trace=Path(result['trace'])
+        result.update(replay_diagnostics(trace),trace_sha256=sha(trace),simulation_sha256=sha(trace),
+                      cpp_report_sha256=sha(trace.with_name('report.html')),trace=str(trace))
+        from report import control_trace
+        d=control_trace(trace)
+        result['steering_acceleration_rms_degps2']=float(np.sqrt(np.mean(
+            (np.rad2deg(np.diff(d['steer_rad'],n=2))/.04**2)**2)))
+        result['stability_margin']=1-max(result['peak_measured_ay_mps2']/(.85*9.80665),
+                                        result['peak_measured_beta_deg']/5)
+        result['legal']=bool(stable_legal(result) and result['distance_m']>=120 and
+            result['steering_rate_rms_degps']<=plan['max_command_rate_rms_degps'] and
+            result['steering_rate_peak_degps']<=plan['max_command_rate_peak_degps'])
+        result['gap_y_percent']=100*(1-base/float(result['rmse_y_m']))
+        return result
+
+    train=fixed[0]['replay_simfile']
+    baseline=_tracking_metrics(strong[0]['strong_trace'])['rmse_y_m']
+    rows=[]
+    for i,params in enumerate(candidates,1):
+        result=collect(baseline,train,output/f'candidate_{i:02d}',lock['strong_config'],
+                       {f'weights.{k}':v for k,v in params.items()})
+        rows.append(dict(candidate=i,**params,**result))
+        write_rows(output/'candidate_metrics.csv',rows)
+    selected=min((r for r in rows if r['legal']),key=neutral_rank)
+    base=snapshot_config(lock['strong_config'],output/'config')
+    config=base.with_name('mpc_neutral_demo.ini')
+    config.write_text('[inherit]\nbase = mpc_strong.ini\n\n[weights]\n'+
+        ''.join(f'{k} = {selected[k]}\n' for k in grid),encoding='utf-8')
+    write_json(output/'neutral_selection.json',dict(selected=selected,config=str(config),
+        config_sha256=controller_config_hashes(config),plan_sha256=sha(output/'search_plan.json'),
+        candidate_metrics_sha256=sha(output/'candidate_metrics.csv'),
+        target_met=15<=selected['gap_y_percent']<=25),exclusive=True)
+    accepted=[]
+    for row,ref,case in zip(fixed,strong,cases,strict=True):
+        speed=row['speed_kmh']
+        result=collect(float(ref['strong_rmse_y_m']),row['replay_simfile'],output/f'case_{speed}',config)
+        if (speed=='70' and abs(result['rmse_y_m']-selected['rmse_y_m'])>1e-12):
+            raise ValueError('Frozen neutral MPC did not reproduce the selected candidate')
+        fields=('speed_kmh','split','experiment_signature','parsfile_sha256','replay_simfile','replay_simfile_sha256')
+        accepted.append(dict(**{k:row[k] for k in fields},controller='neutral_mpc',kind='fixed',
+            model_sha256='',np_min=36,np_max=36,**result,
+            iy_percent=100*(1-result['rmse_y_m']/float(row['rmse_y_m'])),
+            iheading_percent=100*(1-result['rmse_heading_deg']/float(row['rmse_heading_deg']))))
+        write_rows(output/'neutral_metrics.csv',accepted)
+    write_json(output/'neutral_lock.json',dict(selection_sha256=sha(output/'neutral_selection.json'),
+        neutral_metrics_sha256=sha(output/'neutral_metrics.csv'),source_replay_lock_sha256=sha(source_lock),
+        safe_all_speeds=all(r['legal'] for r in accepted)),exclusive=True)
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--lock',help='JSON list: algorithm, model, sha256, config')
@@ -593,6 +693,8 @@ def main():
     p.add_argument('--full4-preflight',type=Path,metavar='SEARCH_DIR',
                    help='Freeze a run-private four-action weak configuration and verify all three parity cases')
     p.add_argument('--experiment-lock',type=Path,help='Independent lock from --full4-preflight')
+    p.add_argument('--neutral-search',type=Path,metavar='SEARCH_DIR',help='Tune a fixed MPC on the locked 70 km/h case')
+    p.add_argument('--replay',type=Path,help='Existing full4 replay to reuse with --neutral-search')
     p.add_argument('--weak-demo',type=Path,metavar='SEARCH_DIR',help='Replay best and final demo models on 70/65/75')
     p.add_argument('--runs',nargs='+',type=Path)
     p.add_argument('--episodes',type=int,help='Require exactly this many complete physical episodes for each weak demo run')
@@ -603,6 +705,11 @@ def main():
     p.add_argument('--controller',default='out/python-rl-build/Release/MPC_DoubleLaneChange.exe')
     p.add_argument('--bridge',default='out/python-rl-build/Release/MPC_RL_Bridge.exe')
     args=p.parse_args()
+    if args.neutral_search:
+        if not args.replay or not args.out:
+            p.error('--neutral-search requires --replay and a new --out directory')
+        search_neutral(args.neutral_search,args.replay,args.out,args.controller)
+        return
     if args.full4_preflight:
         if not args.out:
             p.error('--full4-preflight requires a new --out directory')

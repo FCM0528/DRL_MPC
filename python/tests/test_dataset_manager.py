@@ -55,6 +55,24 @@ def test_native_bytes_hashes_duplicate_and_protected_test(tmp_path):
     assert record['end_station_m']==150  # Never assume 120 m.
 
 
+def test_development_review_uses_heldout_metadata_without_reading_payload(tmp_path,monkeypatch):
+    root=tmp_path/'dataset'
+    add_accepted(tmp_path,root,70,'train')
+    test_id,_=add_accepted(tmp_path,root,65,'test')
+    manifest=dm.release(root,'dataset_v1')
+    original=dm._record_info
+    def guard(root,record):
+        if record['scenario_id']==test_id:
+            raise AssertionError('Held-out native source was accessed')
+        return original(root,record)
+    monkeypatch.setattr(dm,'_record_info',guard)
+    _,sets=dm.load_dataset(manifest,verify_test_payload=False)
+    assert sets['test'][0]['scenario_id']==test_id
+    assert 'simfile' not in sets['test'][0]
+    with pytest.raises(AssertionError,match='Held-out'):
+        dm.load_dataset(manifest)
+
+
 def test_pending_acceptance_blocked_storage_and_invalid_source_rollback(tmp_path):
     root=tmp_path/'dataset';sim=native(tmp_path)
     key=dm.register(root,sim,'train')['scenario_id']

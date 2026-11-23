@@ -208,3 +208,21 @@ uv run --no-project --with-requirements python/requirements.txt python python/re
 离线重建只运行最后一条命令，指向现有模型和回放目录以及新的报告目录。回放先对账 Monitor、CarSim 完赛及重置记录、训练 manifest 和模型内的 SB3 计数。回合停止回调可能在最后一条终止转移写入经验池前退出，保留真实交互和经验池各自的计数。
 
 `training_episode_axis.csv` 逐行保留原始决策、已完成轮次、当前轮内决策数、源日志行、指标值、检查点及工况。映射按 Monitor 累计回合长度取不大于当前决策的最后一个完整边界。损失与熵图在同一轮次有多条日志时取均值，CSV 保留原值与样本数。权重和整数 Np 图使用实际距离 X，分开绘制预限速的目标 Np 与执行 Np。历史对照同时改变了轮次数和动作维度，须用同为 500 回合的三维组才可隔离动作维度效应。
+
+## 固定中性 MPC 与五控制器报告
+
+已有四维 500 回合模型及回放可直接用于五控制器报告。新搜索只在 70 km/h 执行 18 组固定 MPC 候选，在落入目标区间后依次比较航向 RMSE、转向速率 RMS 和稳定裕量。锁定参数后验证 70、65、75 km/h。报告重用 21 份旧回放和 C++ 报告，并纳入三个新增的固定中性 MPC 回放。
+
+```powershell
+$r='runs/weak_mpc_full4_500episodes_20261121_225029'
+$weak='runs/weak_mpc_demo_20261121'
+$prior='runs/weak_mpc_300episodes_20261121/replay'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$neutral="runs/weak_neutral_3drl_500episodes_$stamp"
+uv run --no-project --with-requirements python/requirements.txt python python/evaluate_dual.py --neutral-search $weak --replay "$r/replay" --out $neutral
+if ($LASTEXITCODE -ne 0) { throw 'Neutral tuning or replay failed' }
+$models=@('ddpg','td3','tqc') | ForEach-Object { (Get-ChildItem "$r/$_" -Directory | Select-Object -First 1).FullName }
+uv run --no-project --with-requirements python/requirements.txt python python/report.py --weak-demo $weak --replay "$r/replay" --neutral $neutral --history-300 $prior --runs $models --out "reports/weak_neutral_3drl_500episodes_$stamp"
+```
+
+离线重建时，将 `$neutral` 指向已有的中性调参及回放目录，再运行最后一条命令并使用新的输出路径。正式目录为 `runs/weak_neutral_3drl_500episodes_20261123/`。训练与开发源重新核验原生 SHA，预留测试源仅校验冻结清单元数据。报告从各自的训练 Monitor、逐步桥接数据和决策日志重建环境回报。两波段外端点取 LTARG 两个有符号斜率波瓣的 10% 交点，分界取两斜率极值之间的最大反向几何曲率点。分界样本只计入第二段。
