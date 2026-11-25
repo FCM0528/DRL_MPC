@@ -71,8 +71,10 @@ def tqc_target_probe(model_path, transitions, *, seed=42, draws=16):
         not all(np.isfinite(values).all() for values in (obs,following,rewards))):
         raise ValueError('Target probe requires finite recorded CarSim transitions')
     model=ALGORITHMS['tqc'].load(model_path,device='cpu')
-    if model.action_space.shape!=(3,):
-        raise ValueError('Target probe requires the three-weight policy')
+    sizes={(3,):('q_y','q_psi','r_delta'),(4,):('np','q_y','q_psi','r_delta')}
+    if model.action_space.shape not in sizes:
+        raise ValueError('Target probe requires a three-weight or four-parameter policy')
+    names=sizes[model.action_space.shape]
     model.policy.set_training_mode(False)
     drop=model.top_quantiles_to_drop_per_net
     with th.no_grad(), th.random.fork_rng(devices=[]):
@@ -92,5 +94,5 @@ def tqc_target_probe(model_path, transitions, *, seed=42, draws=16):
         alpha=alpha,drop_per_critic=drop,next_quantiles=quantile_summary(quantiles.numpy(),drop),
         bellman_target={name:float(value) for name,value in zip(('p05','median','p95'),np.percentile(target.numpy(),[5,50,95]))}
             | {'mean':float(target.mean())},
-        action_std={key:float(value) for key,value in zip(('q_y','q_psi','r_delta'),probes.std(axis=0))},
-        action_sat_fraction={key:float(value) for key,value in zip(('q_y','q_psi','r_delta'),(np.abs(probes)>=.98).mean(axis=0))})
+        action_std={key:float(value) for key,value in zip(names,probes.std(axis=0))},
+        action_sat_fraction={key:float(value) for key,value in zip(names,(np.abs(probes)>=.98).mean(axis=0))})

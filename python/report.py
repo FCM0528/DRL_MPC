@@ -2284,6 +2284,299 @@ def render_all6(lock_path, replay, output):
     return output/'index.html'
 
 
+def render_fast_adaptation(source, output):
+    """Rebuild the rate and optimizer diagnostics from sealed native results."""
+    import shutil
+    from dataset_manager import read_json,sha,write_json
+    from evaluate import write_rows
+    from algorithms import ALGORITHMS as model_loaders
+    from fast_adaptation import ALGORITHMS, BRIDGE_NAMES, ERRORS, read_rows, read_stage, tracking_error
+    from paper_style import DEMO_STYLE,configure,demo_line,finish
+    from train import load_training_settings
+
+    root,output=Path(source).resolve(strict=True),Path(output).resolve()
+    history=root/'history'
+    study=root/'pilots'
+    selection=read_json(study/'summary.json') if (study/'summary.json').is_file() else {'status':'native_preflight_only'}
+    validation=read_json(root/'validation'/'summary.json')
+    primary=selection.get('horizon') or selection.get('weight')
+    core_metrics=[]
+    core_summary=None
+    primary_traces={}
+    if primary:
+        trial=Path(primary['trial'])
+        if sha(trial)!=primary['trial_sha256']:
+            raise ValueError('Selected pilot provenance changed')
+        render_all6(trial,trial.parent/'replay',output)
+        core_summary=read_json(output/'summary.json')
+        core_metrics=read_rows(output/'metrics.csv')
+        primary_traces={(r['scenario_id'],r['controller']):r['trace'] for r in
+                        read_rows(trial.parent/'replay'/'policy_replay_metrics.csv')}
+        index=(output/'index.html').read_text(encoding='utf-8')
+    else:
+        output.mkdir(parents=True,exist_ok=False)
+        (output/'audit').mkdir()
+        (output/'figures').mkdir()
+        (output/'cpp_reports').mkdir()
+        index='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>六工况实车模型动作执行诊断</title></html>'
+
+    audit=output/'audit'
+    figures=output/'figures'
+    for name,expected in read_json(history/'history_lock.json')['evidence_sha256'].items():
+        if sha(history/name)!=expected:
+            raise ValueError(f'Historical action audit changed: {name}')
+        shutil.copy2(history/name,output/name)
+    for folder,names in ((history,('history_lock.json',)),(root/'validation',('summary.json','native_inventory.csv')),
+                         (root/'mechanism',('mask_metrics.csv','mask_peak_events.csv','td3_late_checkpoint_metrics.csv','critic_actor_probe.json'))):
+        for name in names:
+            path=folder/name
+            if path.is_file():
+                shutil.copy2(path,audit/(folder.name+'_'+name))
+
+    rates,responses,scores,training,optimizer,hyper_cases=[],[],[],[],[],[]
+    stages=[('weight',root/'weight_stage'),('np',study/'np_native')]
+    seen=set()
+    for phase,native in stages:
+        if not native.exists():
+            continue
+        read_stage(native)
+        rows=[dict(r,phase=phase) for r in read_rows(native/'rate_ablation.csv')]
+        for row in rows:
+            trace=Path(row['trace'])
+            if sha(trace)!=row['trace_sha256'] or sha(trace.with_name('report.html'))!=row['cpp_report_sha256']:
+                raise ValueError('Native rate diagnostic trace or C++ report changed')
+        rates.extend(rows)
+        responses.extend(dict(r,phase=phase) for r in read_rows(native/'parameter_response_metrics.csv'))
+        folder=study/phase
+        if (folder/'selection.json').is_file():
+            for name in ('protocol.json','selection.json'):
+                shutil.copy2(folder/name,audit/(phase+'_pilot_'+name))
+            for arm,arm_spec in read_json(folder/'selection.json')['arms'].items():
+                scores.append(dict(phase=phase,arm=arm,**arm_spec))
+                lock=Path(arm_spec['trial'])
+                if lock not in seen:
+                    seen.add(lock)
+                    for algo in ALGORITHMS:
+                        training.append((phase,arm,algo,lock))
+        for name in ('plan.json','stage.json'):
+            shutil.copy2(native/name,audit/(phase+'_'+name))
+    hyper=study/'hyper'/'hyperparameter_ablation.csv'
+    if hyper.is_file():
+        for name in ('protocol.json','diagnostic_selection.json'):
+            shutil.copy2(hyper.parent/name,audit/('hyper_'+name))
+        optimizer=read_rows(hyper)
+        for setting in optimizer:
+            lock=Path(setting['study'])
+            algo=setting['algorithm']
+            if lock not in seen:
+                training.append(('hyper',setting['setting'],algo,lock))
+                seen.add(lock)
+            evidence=lock.parent/'replay'/'policy_replay_metrics.csv'
+            if sha(evidence)!=read_json(evidence.with_name('replay_lock.json'))['policy_replay_metrics_sha256']:
+                raise ValueError('Hyperparameter replay evidence changed')
+            hyper_cases.extend(dict(r,setting=setting['setting']) for r in read_rows(evidence) if r['controller']==algo)
+    training_rows=[]
+    behavior=[]
+    safety=[]
+    schedule_hashes=set()
+    for phase,arm,algo,lock in training:
+        m=read_json(lock.parent/algo/'manifest.json')
+        if m['study_lock_sha256']!=sha(lock) or m['final_model_sha256']!=sha(lock.parent/algo/'final_model.zip'):
+            raise ValueError('Training summary provenance changed')
+        exp=read_json(lock)
+        expected=load_training_settings(exp['training_config'],exp.get('training_overrides',{}).get(algo,()))
+        expected['buffer_size']=exp['replay_buffer_size']
+        if expected!=m['training_settings'] or exp['seed']!=m['seed']:
+            raise ValueError('Pilot settings differ from the preregistered override')
+        case_schedule=sha(lock.parent/algo/'completion_schedule.json')
+        schedule_hashes.add(case_schedule)
+        stats=m['training_data']
+        exposure=stats['exposure_by_scenario']
+        model=model_loaders[algo].load(lock.parent/algo/'final_model.zip',device='cpu')
+        optimizer_steps=sorted({int(v['step'].item()) for v in model.actor.optimizer.state.values() if 'step' in v})
+        progress=read_rows(lock.parent/algo/'training_logs'/'progress.csv')
+        logged={}
+        for metric in ('train/actor_loss','train/critic_loss','train/ent_coef','train/ent_coef_loss'):
+            values=[float(r[metric]) for r in progress if r.get(metric)]
+            if values:
+                label=metric.removeprefix('train/')
+                logged.update({label+'_first':values[0],label+'_final':values[-1]})
+        training_rows.append(dict(phase=phase,arm=arm,algorithm=algo,
+            completed_episodes=m['completed_episodes'],decisions=stats['collected_decisions'],
+            replay_samples=stats['final_replay_decisions'],gradient_updates=stats['gradient_updates'],
+            training_qp_failures=sum(v['qp_failures'] for v in exposure.values()),
+            unsafe_training_episodes=sum(v['safety_abnormal_episodes'] for v in exposure.values()),
+            case_schedule_sha256=case_schedule,actor_lr=m['algorithm_design']['actor_learning_rate'],
+            actor_optimizer_steps=optimizer_steps,
+            final_model_sha256=m['final_model_sha256'],**logged))
+        replay=lock.parent/'replay'/'policy_replay_metrics.csv'
+        replay_lock=read_json(replay.with_name('replay_lock.json'))
+        if replay_lock['policy_replay_metrics_sha256']!=sha(replay):
+            raise ValueError('Rate pilot replay evidence changed')
+        for r in read_rows(replay):
+            if r['controller']!=algo:
+                continue
+            if sha(r['trace'])!=r['trace_sha256']:
+                raise ValueError('Pilot trace differs from replay evidence')
+            safety.append(dict(r,phase=phase,arm=arm,kind='trained_final'))
+            for record in tracking_error(control_trace(r['trace']),exp['cases'][r['physical_signature']]['action_envelope']):
+                behavior.append(dict(phase=phase,arm=arm,algorithm=algo,scenario_id=r['scenario_id'],
+                                     speed_kmh=r['speed_kmh'],road_mu=r['road_mu'],**record))
+    if len(schedule_hashes)>1:
+        raise ValueError('Rate and optimizer pilots did not share the actual case schedule')
+    safety.extend(rates)
+    if (audit/'mechanism_mask_metrics.csv').is_file():
+        safety.extend(dict(r,phase='mechanism',kind='masked_frozen_policy',arm=r['masked_parameter']+'_'+r['reference'])
+                      for r in read_rows(audit/'mechanism_mask_metrics.csv'))
+    safety_fields=('phase','arm','kind','scenario_id','speed_kmh','road_mu','controller','legal',
+                   'terminated','qp_failures','peak_measured_ay_mps2','peak_measured_beta_deg',
+                   'peak_actual_steer_deg','steering_rate_rms_degps','steering_rate_peak_degps')
+    for name,rows in (('parameter_response_metrics.csv',responses),('rate_ablation.csv',rates),
+                      ('rate_pilot_selection.csv',scores),('training_summary.csv',training_rows),
+                      ('hyperparameter_ablation.csv',optimizer),('hyperparameter_cases.csv',hyper_cases),
+                      ('pilot_policy_action_diagnostics.csv',behavior),
+                      ('safety_metrics.csv',[{k:r.get(k) for k in safety_fields} for r in safety])):
+        if rows:
+            write_rows(output/name,rows)
+
+    old_path=read_json(root/'weight_stage'/'plan.json')['prior']
+    old_root=Path(old_path).parent/'replay'
+    old_csv=old_root/'policy_replay_metrics.csv'
+    if sha(old_csv)!=read_json(old_root/'replay_lock.json')['policy_replay_metrics_sha256']:
+        raise ValueError('Changed historical replay source')
+    old_metrics={}
+    from scenario_strong import independent_errors
+
+    original=read_json(old_path)
+    original_cases={case['scenario_id']:case for case in original['cases'].values()}
+    for row in read_rows(old_csv):
+        if sha(row['trace'])!=row['trace_sha256']:
+            raise ValueError('Changed historical trace')
+        bounds=original['cases'][row['physical_signature']]['bounds_m']
+        old_metrics[row['scenario_id'],row['controller']]=independent_errors(row['trace'],bounds,
+                                                            full_metrics=True,include_mae=True)
+    pairs=[]
+    for side,rows in (('common_rate_pilot',core_metrics),('single_factor_pilot',hyper_cases)):
+        for row in rows:
+            old=old_metrics.get((row['scenario_id'],row['controller']))
+            if old:
+                for key in ERRORS:
+                    if row.get(key):
+                        pairs.append(dict(scope=side,setting=row.get('setting','common_default'),scenario_id=row['scenario_id'],
+                           speed_kmh=row['speed_kmh'],road_mu=row['road_mu'],controller=row['controller'],metric=key,
+                           historical_3000_episodes=old[key],pilot_600_episodes=float(row[key]),
+                           pilot_minus_historical=float(row[key])-old[key]))
+    if pairs:
+        write_rows(output/'historical_pilot_comparison.csv',pairs)
+
+    configure()
+    assets=[]
+    labels=('Np (steps)','Qy','Qpsi','Rdelta')
+    low=[r for r in rates if r['phase']=='weight' and float(r['road_mu'])==.6 and
+         r['kind']=='step' and r['controller']=='strong']
+    if low:
+        fig,axes=plt.subplots(2,2,figsize=(8.4,5.3))
+        for (ax,key,label) in zip(axes.flat,BRIDGE_NAMES,labels,strict=True):
+            for row,color,style in zip(low,('#000000','#EA580C','#9333EA'),('-', '-.', '--'),strict=True):
+                data=control_trace(row['trace'])
+                ends=np.minimum(np.arange(2,len(data[key])+2,2),len(data[key]))-1
+                center=original_cases[row['scenario_id']]['action_envelope'][key]['weak_center']
+                ax.step(np.r_[0.,data['time_s'][ends]],np.r_[center,data[key][ends]],where='post',
+                        color=color,ls=style,label=f'{float(row["weight_ratio"]):.2f}')
+            ax.axhline(data['target_'+key][0],color='#444444',ls=':',label='Strong target')
+            ax.set(xlabel='Decision time (s)',ylabel=label,xlim=(0,3.4))
+            ax.grid(alpha=.2)
+        handles,legends=axes[0,0].get_legend_handles_labels()
+        fig.legend(handles,legends,loc='upper center',ncol=4,frameon=False)
+        fig.tight_layout(rect=(0,0,1,.91))
+        finish(fig,figures/'strong_parameter_step_70_mu06',dpi=220,layout=False)
+        assets.append('strong_parameter_step_70_mu06')
+    low_tqc=[r for r in rates if r['phase']=='weight' and float(r['road_mu'])==.6 and
+             r['kind']=='frozen_policy' and r['controller']=='tqc']
+    if low_tqc:
+        fig,axes=plt.subplots(1,2,figsize=(8.4,3.3))
+        bounds=original_cases[low_tqc[0]['scenario_id']]['bounds_m']
+        for i,ax in enumerate(axes):
+            for row,color,style in zip(low_tqc,('#000000','#EA580C','#9333EA'),('-', '-.', '--'),strict=True):
+                data=control_trace(row['trace'])
+                ax.plot(data['x_m'],data['ey_m'],color=color,ls=style,label=f'{float(row["weight_ratio"]):.2f}')
+            ax.set(xlabel='X (m)',ylabel='Lateral error (m)',title=f'Wave {i+1}',xlim=bounds[i:i+2])
+            ax.grid(alpha=.2)
+        handles,legends=axes[0].get_legend_handles_labels()
+        fig.legend(handles,legends,loc='upper center',ncol=3,frameon=False)
+        fig.tight_layout(rect=(0,0,1,.88))
+        finish(fig,figures/'frozen_tqc_wave_rate_70_mu06',dpi=220,layout=False)
+        assets.append('frozen_tqc_wave_rate_70_mu06')
+    by_case={}
+    for row in core_metrics:
+        if row['controller'] in ALGORITHMS:
+            by_case.setdefault((row['speed_kmh'],row['road_mu']),[]).append(row)
+    for (speed,mu),rows in by_case.items():
+        fig,axes=plt.subplots(2,2,figsize=(8.4,5.3))
+        for ax,key,label in zip(axes.flat,BRIDGE_NAMES,labels,strict=True):
+            for row in rows:
+                ctrl=row['controller']
+                data=control_trace(primary_traces[row['scenario_id'],ctrl])
+                demo_line(ax,ctrl,data['x_m'],data[key],suffix=' executed',step=True)
+                ax.step(data['x_m'],data['target_'+key],where='post',color=DEMO_STYLE[ctrl][1],
+                        ls=DEMO_STYLE[ctrl][2],lw=.8,alpha=.6,label=ctrl.upper()+' target')
+            ax.set(xlabel='X (m)',ylabel=label)
+            ax.grid(alpha=.2)
+        handles,legends=axes[0,0].get_legend_handles_labels()
+        fig.legend(handles,legends,loc='upper center',ncol=3,frameon=False,fontsize=8)
+        fig.tight_layout(rect=(0,0,1,.87))
+        name=f'target_vs_executed_{float(speed):g}_mu{round(float(mu)*10):02d}'
+        finish(fig,figures/name,dpi=220,layout=False)
+        assets.append(name)
+
+    def table(rows,fields):
+        def cell(value):
+            try:
+                return format(float(value),'.6g')
+            except (TypeError,ValueError):
+                return html.escape(str(value))
+
+        head=''.join(f'<th>{html.escape(key)}</th>' for key in fields)
+        body=''.join('<tr>'+''.join(f'<td>{cell(r.get(key,""))}</td>' for key in fields)+'</tr>' for r in rows)
+        return f'<div class="table"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+
+    names=('action_envelope_audit','action_slew_audit','action_tracking_error','peak_parameter_response',
+           'parameter_response_metrics','rate_ablation','rate_pilot_selection','hyperparameter_ablation',
+           'hyperparameter_cases','training_summary','segment_metrics','algorithm_ranking_by_case',
+           'safety_metrics','historical_pilot_comparison','pilot_policy_action_diagnostics')
+    links=' · '.join(f'<a href="{name}.csv">{name}</a>' for name in names if (output/f'{name}.csv').is_file())
+    figures_html=''.join(f'<figure><img src="figures/{a}.png" alt="{a}" loading="lazy">'
+                         f'<figcaption><a href="figures/{a}.pdf">PDF</a></figcaption></figure>' for a in assets)
+    selected_rates=f'共同诊断配置采用权重倍率 {primary["weight_ratio"]:.2f}，Np 每决策 {primary["np_steps"]} 步。' if primary else ''
+    selected_hyper='，'.join(f'{algo.upper()} {item["setting"]}' for algo,item in
+                            selection.get('hyperparameters',{}).items() if item)
+    section=f'''<section id="fast-adaptation"><h1>六工况动作响应与单因素预实验</h1>
+<p>固定基线 v3。阶跃与冻结策略回放均为诊断。原始闭环模型与新训练策略来自对应的配置锁。</p>
+<p>训练预实验每算法每工况 100 回合。当前独立开发验证合格数为 {validation['accepted_independent_validation']}。正式训练与独立检查点选择待真实开发验证。</p>
+<p>{selected_rates}</p>
+<p>{links}</p>
+<h2>限速与先验阶跃</h2>{table([r for r in responses if r['parameter']=='q_y' and r['target_controller']=='strong'],
+('phase','arm','speed_kmh','road_mu','legal','exact_time_s','exact_station_m','p90_time_s','p90_before_wave1'))}
+<p>选参使用同一工况 Neutral 的对应指标作为分母。误差比越小越好。</p>
+<h2>同预算闭环选参</h2>{table(scores,('phase','arm','legal','worst_ratio','mean_ratio','mean_strong_step_time_s'))}
+<h2>超参数单因素预实验</h2>{table(optimizer,('algorithm','setting','legal','worst_ratio','mean_ratio','decisions','updates'))}
+<p>{html.escape(selected_hyper)}</p>
+{figures_html}</section>'''
+    if '<h1>' in index:
+        # Place the experiment overview ahead of the standard five-controller appendix.
+        start=index.index('<h1>')
+        index=index[:start]+section+index[start:]
+    else:
+        index=index.replace('</html>',section+'</html>')
+    (output/'index.html').write_text(index,encoding='utf-8')
+    write_json(output/'summary.json',dict(pilot=selection,validation=validation,formal_training=False,
+        native_replay_count=len(rates),parameter_response_rows=len(responses),completed_training_trials=len(training_rows),
+        common_main_plot_phase='training_diagnostic' if primary else None,
+        common_controller_replay=core_summary,
+        historical_comparison_budget='3000 historical episodes vs 600 current episodes',source=str(root)))
+    return output/'index.html'
+
+
 def main():
     parser = argparse.ArgumentParser(description="Rebuild training and comparison charts")
     parser.add_argument("evaluation_dir", type=Path, nargs="?")
@@ -2296,6 +2589,7 @@ def main():
     parser.add_argument('--wave-extension',type=Path,help='Frozen additional CarSim wave diagnostic replays')
     parser.add_argument('--all6-lock',type=Path,help='Render the completed six-case shared-policy study')
     parser.add_argument('--all6-calibration',type=Path,help='Render the independent fixed-baseline stage audit')
+    parser.add_argument('--fast-adaptation',type=Path,help='Render the frozen rate and single-factor pilot artifacts')
     parser.add_argument('--strong-tuning',type=Path,help='Frozen scenario Strong MPC search and audit; append to the wave report or render alone')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
@@ -2304,6 +2598,11 @@ def main():
     parser.add_argument('--out',type=Path,help='New figure directory for locked validation')
     parser.add_argument('--case',type=int,default=0)
     args = parser.parse_args()
+    if args.fast_adaptation:
+        if not args.out:
+            parser.error('--fast-adaptation requires --out')
+        print(render_fast_adaptation(args.fast_adaptation,args.out))
+        return
     if args.all6_calibration:
         from baseline_calibration import render_calibration
 

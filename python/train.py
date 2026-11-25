@@ -278,7 +278,7 @@ def train_all6(path, algorithm, bridge, destination):
     path=Path(path).resolve(strict=True)
     lock,dataset,_=load_study(path,bridge=bridge)
     root=Path(destination).resolve(); root.mkdir(parents=True,exist_ok=False)
-    settings=load_training_settings(lock['training_config'])
+    settings=load_training_settings(lock['training_config'],lock.get('training_overrides',{}).get(algorithm,()))
     settings['buffer_size']=lock['replay_buffer_size']
     ordered=[(dataset['scenarios'][key]['physical_signature'],key) for key in dataset['train_scenarios']]
     cases={}
@@ -310,7 +310,7 @@ def train_all6(path, algorithm, bridge, destination):
         independent_validation=False,independent_test=False,training_data=dict(source='online_carsim_closed_loop',
             scenario_sampling_rule=BALANCED_SAMPLING_RULE,weights_initialization='random',initial_replay_decisions=0,
             replay_prefilled=False,synthetic_rollouts=False,fixed_mpc_labels=False,validation_used_for_updates=False))
-    manifest.update({k:lock[k] for k in ('baseline_version','reward_contract_version') if k in lock})
+    manifest.update({k:lock[k] for k in ('baseline_version','reward_contract_version','action_execution','study_phase') if k in lock})
     write_json(root/'manifest.json',manifest,exclusive=True)
     shutil.copy2(lock['training_config'],root/'source_training.ini')
     write_json(root/'completion_schedule.json',dict(case_ids=dataset['train_scenarios'],

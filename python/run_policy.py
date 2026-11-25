@@ -14,15 +14,27 @@ from scenario import resolve_simfile, read_scenario
 
 
 def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, *, export_report=False,
-               record_observations=False):
+               record_observations=False, diagnostic_source_config=None, action_override=None):
+    from action_mapping import check_model_contract
+    from scenario import controller_policy_signature
+
+    check_model_contract(model_path, diagnostic_source_config or config, simfile=simfile)
+    if diagnostic_source_config is not None:
+        original=controller_policy_signature(diagnostic_source_config)
+        changed=controller_policy_signature(config)
+        allowed={'rl.max_weight_ratio_per_decision','rl.max_np_change_per_decision'}
+        if any(original.get(key)!=changed.get(key) for key in original.keys()|changed.keys() if key not in allowed):
+            raise ValueError('Frozen-policy diagnostic may only change the execution rate')
+    elif action_override is not None:
+        raise ValueError('Action intervention requires explicit frozen-policy diagnostic provenance')
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
-    from action_mapping import check_model_contract
-    check_model_contract(model_path, config,simfile=simfile)
     model = ALGORITHMS[algorithm].load(model_path, device="cpu")
     inputs = {"algorithm": algorithm, "model": str(Path(model_path).resolve()),
               "bridge": str(Path(bridge).resolve()), "config": str(Path(config).resolve()),
               "simfile": str(Path(simfile).resolve()), "scenario": read_scenario(simfile), "seed": seed}
+    if diagnostic_source_config is not None:
+        inputs['diagnostic_source_config']=str(Path(diagnostic_source_config).resolve())
     (output / "inputs.json").write_text(json.dumps(inputs, indent=2), encoding="utf-8")
     env = CarSimMPCEnv(bridge, config, simfile, output / "solver")
     if model.observation_space.shape != env.observation_space.shape or model.action_space.shape != env.action_space.shape:
@@ -38,7 +50,8 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, 
             writer = csv.writer(file)
             writer.writerow(["decision", *['a_'+name for name in env.policy_action_names],
                              "executed_np", "x_m", "ey_m", "reward", "terminated", "truncated", "failed",
-                             *(['policy_inference_ms'] if export_report else [])])
+                             *(['policy_inference_ms'] if export_report else []),
+                             *(['actor_'+name for name in env.policy_action_names] if action_override else [])])
             while True:
                 prediction_start=time.perf_counter()
                 action, _ = model.predict(obs, deterministic=True)
@@ -46,6 +59,9 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, 
                 action = np.asarray(action, dtype=np.float64)
                 if action.shape != env.action_space.shape or not np.all(np.isfinite(action)):
                     raise ValueError("Policy returned an invalid tuning action")
+                actor_request=action.copy() if action_override else None
+                if action_override:
+                    action=action_override(action)
                 previous_obs=obs.copy()
                 obs, reward, terminated, truncated, info = env.step(action)
                 if observations is not None:
@@ -55,7 +71,8 @@ def run_policy(algorithm, model_path, bridge, config, simfile, output, seed=42, 
                 total_reward += reward
                 writer.writerow([decisions, *action.tolist(), info["np"], info["x_m"],
                                  info["ey_m"], reward, int(terminated), int(truncated), int(info["failed"]),
-                                 *([inference_ms[-1]] if export_report else [])])
+                                 *([inference_ms[-1]] if export_report else []),
+                                 *(actor_request.tolist() if action_override else [])])
                 if terminated or truncated:
                     break
         if export_report:env.export_report(algorithm)

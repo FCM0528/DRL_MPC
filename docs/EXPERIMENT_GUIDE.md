@@ -367,3 +367,36 @@ uv @py python/report.py --all6-lock "$all/study_lock.json" --replay "$all/replay
 ```
 
 单独执行两条报告命令即可从各自冻结的证据离线重建。可将 `$all` 指向有足够空间的新绝对目录。零动作锚定各工况 Weak。每项权重沿用历史相对范围，必要时扩展端点以覆盖同工况 Strong 和 Neutral。锁中记录从 Weak 到各固定参数至少需要的决策数，并保存正负端点的真实执行探针。六工况共享排程以种子 42 冻结，每算法从空经验池开始，每个工况完成 500 次。奖励保留 v2 公式和系数，由 v3 契约绑定各工况 Neutral 的四项实测归一化常数。研究集缺少独立验证，报告只回放训练结束的模型，并按工况和指标分别列出排序、差值及 2% 的相邻实用阈值。
+
+## 六工况动作限速与超参数预实验
+
+`fixed_log_slew_v2` 沿用原连续对数映射与已发布的 v3 基线。每个候选使用独立 study lock，只允许覆盖每决策权重倍率和 Np 步数。冻结模型的反事实回放仍需核对原配置和模型 SHA。探针从 Weak 启动，分别保持 Neutral、Strong 和两组内边界请求到终点。正负端点、Np 整数、参数保持和限速均从真实桥接日志核验。每条诊断轨迹将桥接执行参数与 MPC 求解记录逐行对齐，再分别复算误差和奖励。
+
+```powershell
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$env:OPENBLAS_NUM_THREADS='1'
+$env:PYTHONDONTWRITEBYTECODE='1'
+$py=@('run','--offline','--no-project','--with-requirements','python/requirements.txt','python')
+$prior='D:/DRL_MPC_runs/all6_baseline_first_drl_20261123_205951'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$r="D:/DRL_MPC_runs/all6_fast_adaptation_drl_$stamp"
+$report="reports/all6_fast_adaptation_drl_$stamp"
+$base=@('--study',"$prior/study_lock.json",'--runs',$prior)
+
+uv @py python/fast_adaptation.py @base --out "$r/weight_stage"
+if ($LASTEXITCODE -ne 0) { throw 'Native weight stage failed' }
+uv @py python/fast_adaptation.py @base --history-only --out "$r/history"
+if ($LASTEXITCODE -ne 0) { throw 'Historical action audit failed' }
+uv @py python/fast_adaptation.py @base --mechanism "$r/weight_stage" --out "$r/mechanism"
+if ($LASTEXITCODE -ne 0) { throw 'Frozen policy diagnostics failed' }
+uv @py python/fast_adaptation.py @base --inventory-native 'D:/Program Files (x86)/CarSim2024_Date' --out "$r/validation"
+if ($LASTEXITCODE -ne 0) { throw 'Native inventory failed' }
+uv @py python/fast_adaptation.py @base --pilot-protocol "$r/weight_stage" --out "$r/pilots"
+if ($LASTEXITCODE -ne 0) { throw 'Training diagnostics failed' }
+uv @py python/report.py --fast-adaptation $r --out $report
+```
+
+第一阶段固定 Np 步差 2，比较权重倍率 1.08、1.20、1.30。各候选只有在六工况的阶跃及冻结策略安全回放均通过后才参加预实验。训练每算法每工况完赛 100 回合，使用相同 seed 42 排程。选参数先比较合法性，再比较跨工况、算法和指标的最差 Neutral 归一化误差及均值，最后比较 Strong 阶跃响应时间及较小的速率。第二阶段冻结权重倍率并比较 Np 步差 2、4。复用同契约的已完成对照。
+
+在选出的共同限速配置上，三算法各比较标准设置和两个单因素变体。DDPG 比较探索噪声，TD3 比较目标策略平滑噪声，TQC 比较 Actor 学习率。TD3 的 `policy_delay=1` 在选定噪声后单独对照，报告标为延迟更新机制消融。原始六工况均参与训练。只有验收新增原生开发工况和固定参考后，才启动正式训练与独立选模。现有训练产物可仅用最后一条命令在新目录离线重建。
