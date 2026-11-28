@@ -101,6 +101,20 @@ def replay_row(result, case, config):
     terms,_ = reward_terms(data,config,steer_max)
     residual = float(np.max(np.abs(data['reward_total_loss']-terms['total'])))
     np.testing.assert_allclose(data['reward_total_loss'],terms['total'],atol=1e-8,rtol=0)
+    if 'previous_x_m' in data:
+        decisions=read_rows(trace.with_name('decision_reward.csv'))
+        offset=0
+        reconstructed=[]
+        for sample in decisions:
+            size=int(sample['steps'])-int(sample['failed'])
+            cost=terms['total'][offset:offset+size]
+            offset+=size
+            reconstructed.append(-cost.sum()/max(1,size)-float(sample['qp_penalty'])-
+                                 float(sample['terminal_penalty']))
+        if offset!=len(terms['total']):
+            raise ValueError('Causal reward did not account for the terminal decision')
+        np.testing.assert_allclose(reconstructed,[float(r['decision_reward']) for r in decisions],rtol=5e-6,atol=1e-8)
+        np.testing.assert_allclose(sum(reconstructed),result['return'],rtol=0,atol=1e-7)
     row = metrics | replay_diagnostics(trace) | execution | {k:result[k] for k in ('terminated','truncated','failed','decisions')}
     row.update(legal=stable_legal(row) and row['distance_m']>=120,
                reward_residual_max=residual,episode_return=result['return'],trace=str(trace),
@@ -109,13 +123,19 @@ def replay_row(result, case, config):
     return row,data
 
 
-def step_replay(bridge, case, output, action):
+def step_replay(bridge, case, output, action, *, observations=None):
     env = CarSimMPCEnv(bridge,case['config'],case['simfile'],output)
     total = 0.
     try:
-        env.reset(seed=42)
+        obs,_=env.reset(seed=42)
+        if observations is not None:
+            observations.append(obs)
+        x=0.
         for decisions in range(1,201):
-            _,reward,done,truncated,info = env.step(action)
+            obs,reward,done,truncated,info = env.step(action(x) if callable(action) else action)
+            if observations is not None:
+                observations.append(obs)
+            x=info['x_m']
             total += reward
             if done or truncated:
                 break
@@ -337,12 +357,12 @@ def read_stage(folder):
     return value
 
 
-def training_lock(template, folder, protocol, *, phase, overrides=None):
+def training_lock(template, folder, protocol, *, phase, overrides=None, seed=42, episodes_per_case=100):
     template=Path(template)
     lock,_,_=load_study(template)
     folder.mkdir(parents=True,exist_ok=False)
     shutil.copy2(template.with_name('reward_numeric_audit.csv'),folder/'reward_numeric_audit.csv')
-    lock.update(episodes_per_case=100,replay_buffer_size=100000,study_phase=phase,
+    lock.update(seed=seed,episodes_per_case=episodes_per_case,replay_buffer_size=1000*episodes_per_case,study_phase=phase,
                 parent_preflight=str(template),parent_preflight_sha256=sha(template),
                 pilot_protocol=str(protocol),pilot_protocol_sha256=sha(protocol),
                 training_overrides=overrides or {})

@@ -92,6 +92,8 @@ void overrideConfig(AppConfig& c, const std::string& qualified_key,
     if (key == "rl_reward.wave_rmse_2_m") { c.rl.reward.wave_rmse_refs[1] = readDouble(value, key); return; }
     if (key == "rl_reward.wave_peak_1_m") { c.rl.reward.wave_peak_refs[0] = readDouble(value, key); return; }
     if (key == "rl_reward.wave_peak_2_m") { c.rl.reward.wave_peak_refs[1] = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_mae_1_m") { c.rl.reward.wave_mae_refs[0] = readDouble(value, key); return; }
+    if (key == "rl_reward.wave_mae_2_m") { c.rl.reward.wave_mae_refs[1] = readDouble(value, key); return; }
     if (key == "rl_reward.w_wave_tracking") { c.rl.reward.w_wave_tracking = readDouble(value, key); return; }
     if (key == "rl_reward.w_wave_peak") { c.rl.reward.w_wave_peak = readDouble(value, key); return; }
     // Read archived INIs without restoring retired options.
@@ -430,8 +432,11 @@ void validateConfig(const AppConfig& c) {
     }
     if (rl.action_profile != "full" && rl.action_profile != "compact" && rl.action_profile != "np_only")
         throw std::invalid_argument("rl.action_profile must be full, compact or np_only");
-    if (rl.observation_profile != "road_preview" && rl.observation_profile != "road_preview_v2" && rl.observation_profile != "road_preview_joint")
+    if (rl.observation_profile != "road_preview" && rl.observation_profile != "road_preview_v2" &&
+        rl.observation_profile != "road_preview_joint" && rl.observation_profile != "road_preview_phase_v1")
         throw std::invalid_argument("Invalid rl.observation_profile");
+    if (rl.observation_profile == "road_preview_phase_v1" && !rl.reward.waveBalance())
+        throw std::invalid_argument("Phase observation requires frozen wave geometry");
     if (rl.weight_action_mode != "legacy" && rl.weight_action_mode != "continuous_weights")
         throw std::invalid_argument("Invalid rl.weight_action_mode");
     if (rl.policy_action_names.empty()) {
@@ -455,6 +460,7 @@ void validateConfig(const AppConfig& c) {
               r.wave_bounds[1] < r.wave_bounds[2] && std::isfinite(r.wave_bounds[2])) ||
             !std::all_of(r.wave_rmse_refs.begin(), r.wave_rmse_refs.end(), valid) ||
             !std::all_of(r.wave_peak_refs.begin(), r.wave_peak_refs.end(), valid) ||
+            (r.phaseBalance() && !std::all_of(r.wave_mae_refs.begin(), r.wave_mae_refs.end(), valid)) ||
             !valid(r.w_wave_tracking) || !valid(r.w_wave_peak))
             throw std::invalid_argument("Invalid wave-balance reward parameters");
     }
@@ -698,6 +704,10 @@ std::string configToIni(const AppConfig& c) {
         out << "wave_rmse_2_m = " << c.rl.reward.wave_rmse_refs[1] << '\n';
         out << "wave_peak_1_m = " << c.rl.reward.wave_peak_refs[0] << '\n';
         out << "wave_peak_2_m = " << c.rl.reward.wave_peak_refs[1] << '\n';
+        if (c.rl.reward.phaseBalance()) {
+            out << "wave_mae_1_m = " << c.rl.reward.wave_mae_refs[0] << '\n';
+            out << "wave_mae_2_m = " << c.rl.reward.wave_mae_refs[1] << '\n';
+        }
         out << "w_wave_tracking = " << c.rl.reward.w_wave_tracking << '\n';
         out << "w_wave_peak = " << c.rl.reward.w_wave_peak << '\n';
     }

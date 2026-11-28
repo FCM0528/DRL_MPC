@@ -400,3 +400,43 @@ uv @py python/report.py --fast-adaptation $r --out $report
 第一阶段固定 Np 步差 2，比较权重倍率 1.08、1.20、1.30。各候选只有在六工况的阶跃及冻结策略安全回放均通过后才参加预实验。训练每算法每工况完赛 100 回合，使用相同 seed 42 排程。选参数先比较合法性，再比较跨工况、算法和指标的最差 Neutral 归一化误差及均值，最后比较 Strong 阶跃响应时间及较小的速率。第二阶段冻结权重倍率并比较 Np 步差 2、4。复用同契约的已完成对照。
 
 在选出的共同限速配置上，三算法各比较标准设置和两个单因素变体。DDPG 比较探索噪声，TD3 比较目标策略平滑噪声，TQC 比较 Actor 学习率。TD3 的 `policy_delay=1` 在选定噪声后单独对照，报告标为延迟更新机制消融。原始六工况均参与训练。只有验收新增原生开发工况和固定参考后，才启动正式训练与独立选模。现有训练产物可仅用最后一条命令在新目录离线重建。
+
+## 阶段感知环境消融
+
+保留 `out/python-rl-build` 的既有 Release 可执行文件供旧锁重放。新的源码编译到 `out/python-phase-build`。先做 A，再将通过门槛的环境传给 B、C、D。每阶段沿用相同 seed 42、每工况 100 个完赛回合及标准优化器。候选需全部安全，最差横向误差比至少下降 2%，两波段同时改善的工况数不减少，任一算法、工况及波段指标的相对退化不超过 10%。不达门槛时保留上一环境，继续单因素验证。
+
+```powershell
+$env:OMP_NUM_THREADS='1'
+$env:MKL_NUM_THREADS='1'
+$env:OPENBLAS_NUM_THREADS='1'
+$env:PYTHONDONTWRITEBYTECODE='1'
+$p=@('run','--offline','--no-project','--with-requirements','python/requirements.txt','python')
+$old='D:/DRL_MPC_runs/all6_fast_adaptation_drl_20261125_192650/pilots/weight/w1p30_np2/study_lock.json'
+$base='D:/DRL_MPC_runs/all6_baseline_first_drl_20261123_205951'
+$stamp=Get-Date -Format yyyyMMdd_HHmmss
+$r="D:/DRL_MPC_runs/all6_phase_aware_balanced_drl_$stamp"
+$bridge='out/python-phase-build/Release/MPC_RL_Bridge.exe'
+$controller='out/python-phase-build/Release/MPC_DoubleLaneChange.exe'
+
+uv @p python/phase_study.py --study $old --out "$r/potential" --potential
+if($LASTEXITCODE -ne 0){throw 'Segment-potential diagnostic failed'}
+uv @p python/phase_study.py --study $old --out "$r/prediction_final" --prediction --bridge $bridge
+if($LASTEXITCODE -ne 0){throw 'Native prediction diagnostic failed'}
+uv @p python/phase_study.py --study $old --out "$r/historical_v3" --historic-rewards 'runs/dual_segment_balanced_4drl_20261123/replay' $base
+if($LASTEXITCODE -ne 0){throw 'Historical reward audit failed'}
+uv @p python/phase_study.py --study $old --out "$r/envelope" --factors A
+if($LASTEXITCODE -ne 0){throw 'Action-envelope stage failed'}
+$a=Get-Content "$r/envelope/progress.json" -Raw | ConvertFrom-Json
+uv @p python/phase_study.py --study $a.retained --out "$r/sequence" --factors B C D --bridge $bridge --controller $controller
+if($LASTEXITCODE -ne 0){throw 'Environment ablation failed'}
+$s=Get-Content "$r/sequence/progress.json" -Raw | ConvertFrom-Json
+if((Resolve-Path -LiteralPath $s.retained).Path -ne (Resolve-Path -LiteralPath $old).Path){
+  uv @p python/phase_study.py --study $old --confirm-candidate $s.retained --out "$r/confirmation" --bridge $bridge --controller $controller
+  if($LASTEXITCODE -ne 0){throw 'Seed 43 confirmation failed'}
+}
+uv @p python/report.py --phase-study $r --out "reports/all6_phase_aware_balanced_drl_$stamp"
+```
+
+动作范围 A 用三基线最小值的 0.8 倍及最大值的 1.25 倍作对数映射边界。旧 v2 对真实权重变化的惩罚用本配置的对数跨度归一，该跨度随动作范围变化，奖励公式和系数保持固定。B 保留前 20 项，再增加横向误差变化率、Ay、两波段进度及 0.25/0.85 s 有符号预瞄曲率。C 用距离增量及波段长度归一，累计两段绝对、平方误差及峰值，只扣除累计损失的增量。峰值项同时覆盖各段峰值的增量及两段最差峰值的增量。折扣补偿只作用于波段累计惩罚。策略观测包含六项累计量、站位及决策进度，保持航向、转向、QP 和终止机制，并加入临近 Ay、Beta 门槛的平滑项。D 每批 256 条先均分六工况，剩余位置随机分配，保存请求动作与真实工况、区段。均匀对照的抽样概率来自历史池比例。
+
+MPC 预测诊断记录当前 QP 已投影的转向计划下的线性化状态预测。从同一决策站位对齐未来真实 CarSim 控制样本。报告同时给出计划转向与后续实际命令差，用于区分一步模型残差和长时域重规划影响。分段固定目标只产生诊断轨迹，未写入训练经验池。seed 43 双方复核通过后才启动正式训练。在缺少独立开发工况时，正式报告使用 final 作为训练内诊断。

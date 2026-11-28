@@ -15,6 +15,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -72,6 +73,8 @@ class Episode {
     int max_steps_ = 0;
     std::ofstream trace_;
     std::ofstream decision_trace_;
+    std::ofstream prediction_trace_;
+    PhaseRewardProgress phase_progress_;
     std::vector<SimulationRecord> records_;
 
     double gripAtCurrentX() const { return model_.road_grip.at(state_.x); }
@@ -122,6 +125,12 @@ public:
                                     (budget_speed * cfg_.mpc.dt)) + 1000;
         trace_.open(dir_ / "bridge_trace.csv");
         decision_trace_.open(dir_ / "decision_reward.csv");
+        if (std::getenv("DRL_MPC_AUDIT_PREDICTION")) {
+            prediction_trace_.open(dir_ / "prediction_trace.csv");
+            if (!prediction_trace_) throw std::runtime_error("Cannot create prediction_trace.csv");
+            prediction_trace_ << std::setprecision(17)
+                << "origin_step,horizon,origin_x_m,predicted_x_m,predicted_y_m,predicted_heading_rad,predicted_yaw_rate_radps,predicted_steer_rad\n";
+        }
         if (!trace_) throw std::runtime_error("Cannot create bridge_trace.csv");
         if (!decision_trace_) throw std::runtime_error("Cannot create decision_reward.csv");
         decision_trace_ << "decision,steps,qp_failures,failed,incomplete,step_reward_sum,normalized_mean,qp_penalty,terminal_penalty,decision_reward\n";
@@ -129,13 +138,18 @@ public:
                << "step,x_m,y_m,vx_mps,ey_m,epsi_rad,steer_rad,np,q_y,q_psi,r_delta,qp_failed,vy_mps,psi_rad,yaw_rate_radps,sideslip_rad,"
                   "time_s,body_ax_mps2,body_ay_mps2,measured_beta_rad,driver_curvature_inv_m,"
                   "front_lateral_force_n,rear_lateral_force_n,actual_steer_rad,reference_curvature_inv_m,"
-                  "front_lagged_slip_rad,rear_lagged_slip_rad,e_heading_rad,e_course_rad,e_yaw_rate_radps,reward_y_loss,reward_heading_loss,reward_course_loss,action_np_normalized,action_q_y_normalized,action_q_psi_normalized,action_r_delta_normalized,target_np,target_q_y,target_q_psi,target_r_delta,reward_peak_loss,reward_growth_loss,reward_steering_loss,reward_parameter_switch_loss,reward_safety_loss,reward_other_loss,reward_total_loss,reward_step,reward_wave_tracking_loss,reward_wave_peak_loss\n";
+                  "front_lagged_slip_rad,rear_lagged_slip_rad,e_heading_rad,e_course_rad,e_yaw_rate_radps,reward_y_loss,reward_heading_loss,reward_course_loss,action_np_normalized,action_q_y_normalized,action_q_psi_normalized,action_r_delta_normalized,target_np,target_q_y,target_q_psi,target_r_delta,reward_peak_loss,reward_growth_loss,reward_steering_loss,reward_parameter_switch_loss,reward_safety_loss,reward_other_loss,reward_total_loss,reward_step,reward_wave_tracking_loss,reward_wave_peak_loss";
+        if (cfg_.rl.reward.phaseBalance()) trace_ << ",previous_x_m";
+        trace_ << '\n';
     }
 
     RoadPreviewObservation observation() const {
-        return makeRoadPreviewObservation(state_, *reference_,
+        auto obs = makeRoadPreviewObservation(state_, *reference_,
             [this](double x) { return model_.road_grip.at(x); }, cfg_.distance_m,
             cfg_.mpc, cfg_.rl, current_.np, previous_steer_, &current_);
+        if (cfg_.rl.reward.phaseBalance())
+            phase_progress_.appendObservation(obs,state_.x,cfg_.distance_m,total_steps_/cfg_.rl.decision_steps);
+        return obs;
     }
 
     void sendReset() const {
@@ -181,6 +195,15 @@ public:
                 const auto before = state_;
                 const auto start = std::chrono::steady_clock::now();
                 const auto command = controller_->control(state_, previous_steer_, previous_increment_);
+                if (prediction_trace_.is_open() && command.converged) {
+                    for (int horizon : {1,4,8,16,28,44}) {
+                        if (horizon > current_.np) continue;
+                        const auto predicted = controller_->predictedStateAt(horizon,previous_steer_);
+                        prediction_trace_ << total_steps_ << ',' << horizon << ',' << before.x << ','
+                            << predicted[5] << ',' << predicted[4] << ',' << predicted[2] << ',' << predicted[3]
+                            << ',' << controller_->predictedSteeringAt(horizon-1) << '\n';
+                    }
+                }
                 const bool bad_qp = !command.converged;
                 if (bad_qp) ++qp_failed_count;
                 if (!std::isfinite(command.steer))
@@ -213,12 +236,18 @@ public:
                     i == 0 ? previous_action.np : current_.np,
                     current_, reward_previous_action, state_.vy,
                     state_.r - state_.vx * next.curvature, sideslip, lateralErrorRate(state_, next), state_.x);
-                const auto terms = cfg_.rl.reward.jointTracking() ?
+                auto terms = cfg_.rl.reward.jointTracking() ?
                     jointRewardTerms(ey, epsi, command.steer, current_.np, cfg_.mpc,
                         cfg_.rl, prior_steer, i == 0 ? previous_action.np : current_.np,
                         current_, reward_previous_action, state_.vy,
                         state_.r - state_.vx * next.curvature, sideslip,
                         lateralErrorRate(state_, next), state_.x) : JointRewardTerms{};
+                if (cfg_.rl.reward.phaseBalance()) {
+                    const double beta = std::isfinite(state_.measured_beta) ? state_.measured_beta : sideslip;
+                    phase_progress_.update(terms,cfg_.rl,before.x,state_.x,ey,state_.body_ay,beta,
+                                           total_steps_/cfg_.rl.decision_steps);
+                    row.reward = -cfg_.rl.reward.reward_scale * terms.total();
+                }
                 step_reward_sum += row.reward;
                 if (!cfg_.rl.reward.tracking_v2 && bad_qp && cfg_.rl.penalize_qp_failure)
                     row.reward -= cfg_.rl.reward.reward_scale * cfg_.rl.reward.failure_penalty;
@@ -244,7 +273,9 @@ public:
                        << ',' << target_action.r_delta << ',' << terms.peak << ',' << terms.growth
                        << ',' << terms.steering << ',' << terms.parameter_switch << ',' << terms.safety
                        << ',' << terms.other << ',' << terms.total() << ',' << row.reward
-                       << ',' << terms.wave_tracking << ',' << terms.wave_peak << '\n';
+                       << ',' << terms.wave_tracking << ',' << terms.wave_peak;
+                if (cfg_.rl.reward.phaseBalance()) trace_ << ',' << before.x;
+                trace_ << '\n';
             } catch (const std::exception& e) {
                 std::cerr << "BRIDGE_STEP_FAILURE " << e.what() << '\n';
                 failed = true;

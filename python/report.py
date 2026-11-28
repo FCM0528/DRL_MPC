@@ -2577,6 +2577,176 @@ def render_fast_adaptation(source, output):
     return output/'index.html'
 
 
+def render_phase_study(source, output):
+    """Offline report for a strictly ordered suite of native environment trials."""
+    import shutil
+    from dataset_manager import read_json,sha,write_json
+    from evaluate import write_rows
+    from dual_segment import measure,score_case
+    from fast_adaptation import ERRORS,read_rows,tracking_error
+    from multi_case import load_study
+
+    source,output=Path(source).resolve(strict=True),Path(output).resolve()
+    stages=read_json(source/'envelope'/'progress.json')['stages']
+    seq=read_json(source/'sequence'/'progress.json')
+    stages.extend(seq['stages'])
+    incumbent=read_json(source/'envelope'/'protocol.json')['reference']
+    seed42_retained=seq['retained']
+    confirmation_path=source/'confirmation'/'confirmation.json'
+    confirmation=read_json(confirmation_path) if confirmation_path.is_file() else None
+    retained=seed42_retained if confirmation and confirmation['promoted'] else incumbent
+    formal_path=source/'confirmation'/'formal.json'
+    if formal_path.is_file():
+        formal=read_json(formal_path)
+        if not confirmation or not confirmation['promoted'] or sha(formal['study'])!=formal['study_sha256']:
+            raise ValueError('Formal study requires an unchanged, confirmed environment')
+    else:
+        formal=None
+    main_trial=Path(formal['study'] if formal else seed42_retained if seed42_retained!=incumbent else
+                    next((stage['trial'] for stage in reversed(stages) if stage.get('trial')),incumbent))
+    render_all6(main_trial,main_trial.parent/'replay',output)
+    index=(output/'index.html').read_text(encoding='utf-8')
+    summary=read_json(output/'summary.json')
+    audit=output/'audit'
+    for folder,label in ((source/'envelope','envelope'),(source/'sequence','sequence'),
+                        (source/'potential','potential'),(source/'confirmation','confirmation')):
+        for name in ('protocol.json','progress.json','confirmation.json'):
+            if (folder/name).is_file():
+                shutil.copy2(folder/name,audit/(label+'_'+name))
+
+    copies=((source/'potential'/'segment_potential.csv','segment_potential.csv'),
+            (source/'prediction_final'/'prediction_error_audit.csv','prediction_error_audit.csv'),
+            (source/'historical_v3'/'reward_ablation.csv','reward_ablation.csv'))
+    for path,name in copies:
+        rows=read_rows(path)
+        for row in rows:
+            if sha(row['trace'])!=row['trace_sha256']:
+                raise ValueError(f'Changed diagnostic trace: {row["trace"]}')
+        shutil.copy2(path,output/name)
+    envelopes,observations,safety,ablations,counts=[],[],[],[],[]
+    behavior,exposure_summary,gmin=[],[],[]
+    reference,_,baselines=load_study(incumbent)
+    trials=[('fast_reference',Path(incumbent))]
+    for stage in stages:
+        factor=stage['factor']; preflight=Path(stage['preflight']).parent
+        preflight_lock=read_json(stage['preflight'])
+        if sha(preflight/'preflight.csv')!=preflight_lock['preflight_sha256']:
+            raise ValueError('Changed native acceptance evidence')
+        envelopes.extend(dict(r,factor=factor) for r in read_rows(preflight/'action_envelope_comparison.csv'))
+        obs=preflight/'phase_observation_audit.csv'
+        if obs.is_file():
+            observations.extend(dict(r,factor=factor) for r in read_rows(obs))
+        safety.extend(dict(r,factor=factor,source='native_probe') for r in read_rows(preflight/'preflight.csv'))
+        if stage.get('trial'):
+            trials.append((factor,Path(stage['trial'])))
+    for factor,trial in trials:
+        trial_lock=read_json(trial)
+        replay=trial.parent/'replay'
+        digest=read_json(replay/'replay_lock.json')['policy_replay_metrics_sha256']
+        metrics_file=replay/'policy_replay_metrics.csv'
+        if sha(metrics_file)!=digest:
+            raise ValueError('Changed pilot replay evidence')
+        rows=read_rows(metrics_file)
+        for row in rows:
+            if sha(row['trace'])!=row['trace_sha256']:
+                raise ValueError('Changed pilot replay trace')
+            data=control_trace(row['trace'])
+            baseline=baselines['cases'][row['physical_signature']]['baselines']
+            fixed=baseline['neutral']['metrics']
+            bounds=reference['cases'][row['physical_signature']]['bounds_m']
+            metrics=measure(data,bounds,include_mae=True)
+            record=row|metrics
+            scored=score_case(data,bounds,{role+'_mpc':baseline[role]['metrics'] for role in ('weak','neutral')},
+                              legal=row['legal']=='True',allow_missing_baseline=True)
+            ablations.append(dict(record,factor=factor,gmin=scored['gmin'],strict_waves=scored['passed'],
+                                  all_waves_better=all(record[k] is not None and record[k]<fixed[k] for k in ERRORS[:6])))
+            envelope=trial_lock['cases'][row['physical_signature']]['action_envelope']
+            behavior.extend(dict(stat,factor=factor,algorithm=row['controller'],scenario_id=row['scenario_id'])
+                            for stat in tracking_error(data,envelope))
+            safety.append(dict(row,factor=factor,source='trained_final'))
+        sampling=read_json(replay/'replay_buffer_audit.json')
+        for algo in ('ddpg','td3','tqc'):
+            m=read_json(trial.parent/algo/'manifest.json')
+            selected=[r for r in ablations if r['factor']==factor and r['controller']==algo]
+            minima=[r['gmin'] for r in selected if r['gmin'] is not None]
+            gmin.append(dict(factor=factor,algorithm=algo,six_case_gmin=min(minima) if len(minima)==6 else None,
+                            strict_cases=sum(r['strict_waves'] for r in selected),
+                            all_six_wave_metrics_improved_cases=sum(r['all_waves_better'] for r in selected),
+                            safe_cases=sum(r['legal']=='True' for r in selected)))
+            audit_data=sampling[algo].get('case_balanced_replay')
+            exposure=m['training_data']['exposure_by_scenario']
+            exposure_summary.append(dict(factor=factor,algorithm=algo,completed_episodes=m['completed_episodes'],
+                decisions=m['training_data']['collected_decisions'],updates=m['training_data']['gradient_updates'],
+                training_qp_failures=sum(v['qp_failures'] for v in exposure.values()),
+                safety_abnormal_episodes=sum(v['safety_abnormal_episodes'] for v in exposure.values())))
+            for case,exposed in exposure.items():
+                counts.append(dict(factor=factor,algorithm=algo,scenario_id=case,
+                    decisions=exposed['decisions'],uniform_probability=exposed['replay_fraction'],
+                    actual_draws=audit_data['draws'][case] if audit_data else None,
+                    actual_draw_probability=audit_data['draws'][case]/sum(audit_data['draws'].values()) if audit_data else None,
+                    batches=audit_data['batches'] if audit_data else None,
+                    warmup_batches=audit_data['warmup_batches'] if audit_data else None,
+                    transitions_by_segment=audit_data['transitions_by_segment'][case] if audit_data else None,
+                    training_unsafe_episodes=exposed['safety_abnormal_episodes']))
+    safety_fields=('factor','source','scenario_id','controller','target','legal','terminated','qp_failures',
+                   'peak_measured_ay_mps2','peak_measured_beta_deg','steering_rate_rms_degps')
+    write_rows(output/'action_envelope_comparison.csv',envelopes)
+    write_rows(output/'phase_observation_audit.csv',observations)
+    write_rows(output/'replay_sampling_audit.csv',counts)
+    write_rows(output/'stage_metrics.csv',ablations)
+    write_rows(output/'stage_gmin.csv',gmin)
+    write_rows(output/'stage_training_summary.csv',exposure_summary)
+    write_rows(output/'action_stage_diagnostics.csv',behavior)
+    write_rows(output/'safety_metrics.csv',[{k:r.get(k) for k in safety_fields} for r in safety])
+    rankings=read_rows(output/'algorithm_ranking_by_case.csv')
+    def ranking_counts(include):
+        rows=[r for r in rankings if r['metric'] in include]
+        return dict(entries=len(rows),strict=sum(r['hypothesis_supported']=='True' for r in rows),
+                    margin=sum(r['meets_both_margins']=='True' for r in rows),
+                    tqc_first=sum(r['tqc_first']=='True' for r in rows),
+                    td3_beats_ddpg=sum(float(r['td3'])<float(r['ddpg']) for r in rows if r['td3'] and r['ddpg']))
+    rank9=ranking_counts(ERRORS[:-1])
+    rank7=ranking_counts((*ERRORS[:6],'rmse_y_m'))
+    summary.update(stages=stages,retained=retained,seed42_retained=seed42_retained,confirmation=confirmation,
+                   formal=formal,main_trial=str(main_trial),independent_validation=False,ranking54=rank9,ranking42=rank7)
+    write_json(output/'summary.json',summary)
+    files=('action_envelope_comparison','phase_observation_audit','reward_ablation','replay_sampling_audit',
+           'prediction_error_audit','segment_potential','stage_metrics','segment_metrics','algorithm_ranking_by_case',
+           'six_case_gmin','safety_metrics','stage_gmin','stage_training_summary','action_stage_diagnostics')
+    links=' · '.join(f'<a href="{k}.csv">{k}</a>' for k in files)
+    rows=[]
+    for stage in stages:
+        candidate,comparison=stage.get('candidate',{}),stage.get('reference',{})
+        rows.append(f'<tr><td>{stage["factor"]}</td><td>{stage["preflight_safe"]}</td>'
+                    f'<td>{candidate.get("legal","—")}</td><td>{candidate.get("worst_ratio","—")}</td>'
+                    f'<td>{comparison.get("worst_ratio","—")}</td><td>{candidate.get("dual_count","—")} / 18</td>'
+                    f'<td>{len(stage["local_regressions"]) if candidate else "—"}</td>'
+                    f'<td>{stage.get("promoted",False)}</td></tr>')
+    retained_label='原快速执行配置' if retained==incumbent else f'{Path(retained).parent.parent.name} 组配置'
+    main_label=('达到复核门槛后完成的正式训练' if formal else
+                f'{main_trial.parent.parent.name} 组预实验' if main_trial!=Path(incumbent) else '原快速执行配置')
+    if confirmation:
+        repeated='通过' if confirmation['promoted'] else '未通过'
+        confirmation_description=f'Seed 43 的成对复核{repeated}进阶门槛。'
+    elif seed42_retained!=incumbent:
+        confirmation_description='Seed 42 候选待 Seed 43 成对复核。'
+    else:
+        confirmation_description='Seed 42 无候选达到复核门槛。'
+    body=f'''<section><h1>六工况动作、观测、奖励和经验采样消融</h1>
+<p>A 三基线动作范围，B 阶段感知，C 双波段奖励，D 工况均衡经验采样。比较使用真实 CarSim 和冻结基线 v3。</p>
+<p>综合方案保留{html.escape(retained_label)}。{confirmation_description} 主图和排名使用{html.escape(main_label)}的真实回放。独立开发验证仍待新增原生工况。</p>
+<details><summary>候选契约与实验门槛</summary>
+<p>每阶段每算法使用 Seed 42 和同一工况排程，每工况训练 100 个完赛回合。MPC 和 RL 周期为 0.04 s 和 0.08 s。Np 范围 28–44，每次最多变化 2 步，权重每次最大倍率为 1.30。</p>
+<p>A 以三基线权重的 0.8 倍最小值和 1.25 倍最大值为边界，保留 Weak 零点和分段对数映射。B 在原有 20 项之外加入横向误差变化率、实测 Ay、两段几何进度和近远有符号曲率。C 以同工况 Neutral 的误差为参考，按真实行程归一，使用分段绝对、平方、峰值与最差段累计量的增量。D 将 256 条样本均匀分配到六个工况，剩余名额随机轮换。</p>
+<p>进阶要求所有回放安全完赛、最差横向比至少改善 2%、双段六项同时改善的组合数至少持平，且相较已接受配置无超过 10% 的分段退化。双段统计的参照是同工况 Neutral。</p></details>
+<p>{links}</p><table><thead><tr><th>阶段</th><th>预检安全</th><th>全部回放安全</th><th>最差误差比</th><th>对照误差比</th>
+<th>双段六项均改善</th><th>局部退化超过 10%</th><th>纳入</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table><p>54 项中严格符合排序 {rank9["strict"]} 项，且相邻差距均达到 2% 的有 {rank9["margin"]} 项。</p></section>'''
+    start=index.index('<h1>')
+    (output/'index.html').write_text(index[:start]+body+index[start:],encoding='utf-8')
+    return output/'index.html'
+
+
 def main():
     parser = argparse.ArgumentParser(description="Rebuild training and comparison charts")
     parser.add_argument("evaluation_dir", type=Path, nargs="?")
@@ -2590,6 +2760,7 @@ def main():
     parser.add_argument('--all6-lock',type=Path,help='Render the completed six-case shared-policy study')
     parser.add_argument('--all6-calibration',type=Path,help='Render the independent fixed-baseline stage audit')
     parser.add_argument('--fast-adaptation',type=Path,help='Render the frozen rate and single-factor pilot artifacts')
+    parser.add_argument('--phase-study',type=Path,help='Render the sealed phase-aware environment experiment')
     parser.add_argument('--strong-tuning',type=Path,help='Frozen scenario Strong MPC search and audit; append to the wave report or render alone')
     parser.add_argument("--dataset-manifest", type=Path, default=Path("datasets/carsim/manifests/dataset_v1.json"))
     parser.add_argument('--locked-validation',action='store_true',help='Plot existing evaluate_dual output, with frozen historical 70 km/h metrics')
@@ -2598,6 +2769,11 @@ def main():
     parser.add_argument('--out',type=Path,help='New figure directory for locked validation')
     parser.add_argument('--case',type=int,default=0)
     args = parser.parse_args()
+    if args.phase_study:
+        if not args.out:
+            parser.error('--phase-study requires --out')
+        print(render_phase_study(args.phase_study,args.out))
+        return
     if args.fast_adaptation:
         if not args.out:
             parser.error('--fast-adaptation requires --out')

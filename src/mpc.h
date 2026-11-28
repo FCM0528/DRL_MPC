@@ -77,6 +77,7 @@ public:
     const std::vector<double>& lastControlMoves() const { return last_solution_; }
     bool hasLastSolution() const { return has_solution_; }
     double predictedSteeringAt(int prediction_step) const;
+    PredictionState predictedStateAt(int horizon, double prior_steer) const;
 
 private:
     VehicleParameters vehicle_;

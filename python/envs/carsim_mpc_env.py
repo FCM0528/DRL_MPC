@@ -29,10 +29,12 @@ class CarSimMPCEnv(gym.Env):
         self.observation_profile = resolve_config_value(
             self.config, "rl", "observation_profile", "road_preview_v2"
         ).lower()
-        dimensions = {"road_preview": 12, "road_preview_v2": 14, "road_preview_joint": 20}
+        dimensions = {"road_preview": 12, "road_preview_v2": 14, "road_preview_joint": 20,
+                      "road_preview_phase_v1": 26}
         if self.observation_profile not in dimensions:
             raise ValueError(f"Unknown observation profile: {self.observation_profile}")
-        self._observation_size = dimensions[self.observation_profile]
+        self.reward_profile = resolve_config_value(self.config,"rl_reward","mode","legacy")
+        self._observation_size = dimensions[self.observation_profile] + 8*(self.reward_profile=="joint_tracking_wave_balance_v3")
         self.observation_space = spaces.Box(
             -np.inf, np.inf, shape=(self._observation_size,), dtype=np.float32
         )
@@ -42,6 +44,7 @@ class CarSimMPCEnv(gym.Env):
         self.scenario_pool = [self.simfile]
         self.case_schedule = None
         self.case_configs = None
+        self.transition_cases = None
         self.scenario_decision_counts = {}
         self.scenario_exposure = {}
         self._episode_decisions = 0
@@ -59,7 +62,8 @@ class CarSimMPCEnv(gym.Env):
         self.case_configs=list(configs)
         self.case_schedule=EpisodeBlockSchedule(len(cases),episodes_per_case,seed)
         if any(action_contract(c)!=(self.policy_action_names,self.action_mapping_version) or
-               resolve_config_value(c,'rl','observation_profile')!=self.observation_profile for c in configs):
+               resolve_config_value(c,'rl','observation_profile')!=self.observation_profile or
+               resolve_config_value(c,'rl_reward','mode','legacy')!=self.reward_profile for c in configs):
             raise ValueError('All conditioned configs must have the same observation and action spaces')
 
     @property
@@ -165,6 +169,11 @@ class CarSimMPCEnv(gym.Env):
                 self.case_schedule.advance(completed)
                 self._terminal_observation=obs.copy()
         info.update(case_index=self._case_index,simfile=path)
+        if self.transition_cases is not None:
+            case=self.transition_cases[self._case_index]
+            start,split,end=case['bounds_m']
+            x=info['x_m']
+            info.update(scenario_id=case['scenario_id'],segment=1 if start<=x<split else 2 if split<=x<=end else 0)
         return obs, reward, terminated, truncated, info
 
     def _record_episode(self, completed=False):

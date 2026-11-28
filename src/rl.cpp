@@ -64,7 +64,7 @@ JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
     }
     t.other += r.w_horizon * clip((np - config.min_np) / span_np, 0.0, 1.0) +
         r.w_vy * std::pow(clip(vy / 2.0, -3.0, 3.0), 2);
-    if (r.waveBalance() && x >= r.wave_bounds.front() && x <= r.wave_bounds.back()) {
+    if (r.waveBalance() && !r.phaseBalance() && x >= r.wave_bounds.front() && x <= r.wave_bounds.back()) {
         const std::size_t i = x < r.wave_bounds[1] ? 0 : 1;
         const double weight = (r.wave_bounds.back() - r.wave_bounds.front()) /
             (2 * (r.wave_bounds[i+1] - r.wave_bounds[i]));
@@ -73,6 +73,46 @@ JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
         t.wave_peak = weight * r.w_wave_peak * huber(std::max(0.0, std::abs(ey) / r.wave_peak_refs[i] - 0.7));
     }
     return t;
+}
+
+void PhaseRewardProgress::update(JointRewardTerms& t, const RlConfig& config, double previous_x,
+                                double x, double ey, double ay, double beta, int decision) {
+    const auto& b = config.reward.wave_bounds;
+    const auto& r = config.reward;
+    const auto maximum = [](const std::array<double,2>& values) { return std::max(values[0], values[1]); };
+    const double old_worst = maximum(absolute_), old_peak = maximum(peak_);
+    const double old_peak_sum = peak_[0]+peak_[1];
+    double linear = 0., quadratic = 0.;
+    for (std::size_t i = 0; i < 2; ++i) {
+        const double span = b[i+1] - b[i];
+        const double dx = std::max(0., std::min(x,b[i+1])-std::max(previous_x,b[i]));
+        const double a = std::abs(ey)/r.wave_mae_refs[i] * dx/span;
+        const double s = std::pow(ey/r.wave_rmse_refs[i],2) * dx/span;
+        absolute_[i] += a;
+        squared_[i] += s;
+        linear += a;
+        quadratic += s;
+        if (x >= b[i] && (i == 0 ? x < b[i+1] : x <= b[i+1]))
+            peak_[i] = std::max(peak_[i], std::abs(ey)/r.wave_peak_refs[i]);
+    }
+    if (x >= b[0] && x <= b[2]) {
+        t.lateral = 0.;
+        t.peak = 0.;
+    }
+    const double scale = 20. * config.decision_steps * std::pow(config.discount_gamma, -decision);
+    t.wave_tracking = scale * (.25*linear + .075*quadratic + .25*(maximum(absolute_)-old_worst));
+    t.wave_peak = scale * (.15*(peak_[0]+peak_[1]-old_peak_sum) + .20*(maximum(peak_)-old_peak));
+    const auto nearLimit = [](double value, double limit) {
+        return std::pow(std::max(0.,(std::abs(value)/limit-.8)/.2),2);
+    };
+    t.safety += .25*(nearLimit(ay,.85*9.80665)+nearLimit(beta,.08726646259971647));
+}
+
+void PhaseRewardProgress::appendObservation(RoadPreviewObservation& obs, double x, double end, int decision) const {
+    for (const auto& stats : {absolute_,squared_,peak_})
+        for (double value : stats) obs.push_back(std::asinh(value));
+    obs.push_back(clip(x/end,0.,1.));
+    obs.push_back(std::asinh(decision/100.));
 }
 
 double scalarizedRlReward(double ey, double epsi, double steer, int np,
@@ -302,11 +342,12 @@ RoadPreviewObservation makeRoadPreviewObservation(
             clip(previous_steer / mpc.max_steer, -1.0, 1.0),
             clip(2.0 * (current_np - config.min_np) /
                 static_cast<double>(config.max_np - config.min_np) - 1.0, -1.0, 1.0)};
-    if (config.observation_profile == "road_preview_v2" || config.observation_profile == "road_preview_joint") {
+    const bool phase = config.observation_profile == "road_preview_phase_v1";
+    if (config.observation_profile == "road_preview_v2" || config.observation_profile == "road_preview_joint" || phase) {
         obs.push_back(clip(min_grip / 1.5, 0.0, 1.0));
         obs.push_back(clip(near_demand / config.grip_demand_clip, 0.0, 1.0));
     }
-    if (config.observation_profile == "road_preview_joint") {
+    if (config.observation_profile == "road_preview_joint" || phase) {
         const auto& current = executed ? *executed : neutralRlAction(config);
         obs.push_back(clip(angleDifference(state.psi, point.psi) / config.reward.heading_scale_rad, -4.0, 4.0));
         obs.push_back(clip(vehicleSideslip(state) / config.reward.sideslip_threshold_rad, -4.0, 4.0));
@@ -317,6 +358,16 @@ RoadPreviewObservation makeRoadPreviewObservation(
                                          std::log(center / config.minWeight(pair.second)));
             obs.push_back(clip(std::log(pair.first / center) / span, -1.0, 1.0));
         }
+    }
+    if (phase) {
+        const auto& b = config.reward.wave_bounds;
+        obs.push_back(clip(lateralErrorRate(state,point)/2.,-4.,4.));
+        obs.push_back(clip(state.body_ay/9.80665,-1.5,1.5));
+        for (std::size_t i=0; i<2; ++i)
+            obs.push_back(clip((state.x-b[i])/(b[i+1]-b[i]),0.,1.));
+        for (double seconds : {.25,.85})
+            obs.push_back(clip(25.*reference.controlCurvature(std::min(end_x,state.x+seconds*x_speed),
+                                                             mpc.reference_curvature_sigma_m),-1.,1.));
     }
     return obs;
 }

@@ -295,22 +295,30 @@ def train_all6(path, algorithm, bridge, destination):
     raw=TrainingEnv(bridge,first['config'],first['simfile'],root/'solver_train')
     raw.keep_training_traces=True
     raw.bind_case_schedule([(c['simfile'],c['config']) for c in cases.values()],lock['episodes_per_case'],lock['seed'])
+    raw.transition_cases=list(cases.values())
     env=Monitor(raw,filename=str(root/'train_monitor.csv'))
     design=tqc_design(settings['tqc_profile'],settings['tqc_drop'],settings) if algorithm=='tqc' else deterministic_design(algorithm,settings)
     kwargs=dict(design,seed=lock['seed'],verbose=1,gamma=first['parity']['gamma_per_decision'],
                 tensorboard_log=str(root/'tensorboard'))
     if algorithm in ('ddpg','td3'):
         kwargs['action_noise']=NormalActionNoise(np.zeros(4),np.full(4,settings[f'{algorithm}_exploration_noise_sigma']))
+    if lock.get('replay_sampling')=='case_balanced_replay_v1':
+        from balanced_replay import CaseBalancedReplayBuffer
+
+        kwargs.update(replay_buffer_class=CaseBalancedReplayBuffer,replay_buffer_kwargs={
+            'scenario_ids':[item['scenario_id'] for item in cases.values()],'seed':lock['seed']})
     manifest=dict(algorithm=algorithm,seed=lock['seed'],case_contracts=cases,episodes_per_case=lock['episodes_per_case'],
         dataset=dict(dataset_version=dataset['dataset_version'],dataset_hash=dataset['dataset_hash'],
                      scenario_ids=dataset['train_scenarios'],sampling_strategy=BALANCED_SAMPLING_RULE),
-        study_lock=str(path),study_lock_sha256=sha(path),reward_scheme=REWARD_MODE,action_mapping_version=ACTION_VERSION,
-        observation_profile='road_preview_joint',observation_dim=20,policy_action_dims=4,policy_action_names=list(raw.policy_action_names),
+        study_lock=str(path),study_lock_sha256=sha(path),reward_scheme=lock.get('reward_scheme',REWARD_MODE),action_mapping_version=ACTION_VERSION,
+        observation_profile=raw.observation_profile,observation_dim=raw.observation_space.shape[0],
+        policy_action_dims=4,policy_action_names=list(raw.policy_action_names),
         training_settings=settings,algorithm_design=design,selection_split='training_diagnostic',
         independent_validation=False,independent_test=False,training_data=dict(source='online_carsim_closed_loop',
             scenario_sampling_rule=BALANCED_SAMPLING_RULE,weights_initialization='random',initial_replay_decisions=0,
             replay_prefilled=False,synthetic_rollouts=False,fixed_mpc_labels=False,validation_used_for_updates=False))
-    manifest.update({k:lock[k] for k in ('baseline_version','reward_contract_version','action_execution','study_phase') if k in lock})
+    manifest.update({k:lock[k] for k in ('baseline_version','reward_contract_version','action_execution',
+                                        'study_phase','action_envelope_rule','replay_sampling') if k in lock})
     write_json(root/'manifest.json',manifest,exclusive=True)
     shutil.copy2(lock['training_config'],root/'source_training.ini')
     write_json(root/'completion_schedule.json',dict(case_ids=dataset['train_scenarios'],

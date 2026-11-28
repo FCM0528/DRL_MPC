@@ -13,11 +13,12 @@ using RoadPreviewObservation = std::vector<double>;
 struct RlRewardConfig {
     std::string mode = "legacy";
     bool waveBalance() const {
-        return mode == "joint_tracking_wave_balance" || mode == "joint_tracking_wave_balance_v2";
+        return mode == "joint_tracking_wave_balance" || mode == "joint_tracking_wave_balance_v2" || phaseBalance();
     }
+    bool phaseBalance() const { return mode == "joint_tracking_wave_balance_v3"; }
     bool jointTracking() const { return mode == "joint_tracking" || waveBalance(); }
     std::array<double,3> wave_bounds{};
-    std::array<double,2> wave_rmse_refs{}, wave_peak_refs{};
+    std::array<double,2> wave_rmse_refs{}, wave_peak_refs{}, wave_mae_refs{};
     double w_wave_tracking = 0.0, w_wave_peak = 0.0;
     double w_heading = 1.0;
     double w_course = 0.0;
@@ -105,6 +106,14 @@ struct JointRewardTerms {
         return lateral + heading + course + peak + growth + steering +
                parameter_switch + safety + other + wave_tracking + wave_peak;
     }
+};
+
+class PhaseRewardProgress {
+    std::array<double,2> absolute_{}, squared_{}, peak_{};
+public:
+    void update(JointRewardTerms& terms, const RlConfig& config, double previous_x,
+                double x, double ey, double ay, double beta, int decision);
+    void appendObservation(RoadPreviewObservation& obs, double x, double end, int decision) const;
 };
 JointRewardTerms jointRewardTerms(double ey, double epsi, double steer, int np,
     const MpcParameters& mpc, const RlConfig& config, double previous_steer,

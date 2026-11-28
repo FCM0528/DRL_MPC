@@ -73,6 +73,16 @@ registry 和 manifest 使用相对库根路径；CLI `--root` 可配置库位置
 
 每次 export 产生新版本，旧版本拒绝覆盖；dataset_hash 覆盖划分、有序 ID、完整元数据及来源哈希，但不覆盖可重定位的 dataset_root。manifest 内嵌工况记录，读取时不查询可变 registry。因此新增工况不会改变正在运行或历史版本的训练集合。
 
+## 新增原生开发验证工况
+
+本机 CarSim 2024.1 已打开原数据库。安装目录提供 COM 手册，但当前 Windows 客户端未注册 `CarSim.Application`。在 Browser 中从 `CarSim Run Control / Baseline / * * Quick Start Guide Example` 复制新 Run Control。源记录对应 `Runs/Run_6cb07365-85a3-4a3b-95f9-c5c844687601.par`，链接 `Procedures / steer001 / * FCM` 和 `Road: 3D Surface (All Properties) / 1200 m, One Lane, FCM#001 / Straight`。
+
+1. 创建独立的 62.5 km/h、77.5 km/h 和 70 km/h 开发 Run Control。每个速度变体先复制 Procedure `steer001`，在新 Procedure 中按 km/h 设置常速目标，并重新链接到对应的新 Run Control。
+2. 70 km/h、μ=0.7 变体还要复制所链接的 Road 数据集和 `Road: Friction Map, S-L Grid / Constant: 0.8 / Constant`。在新的 Friction Map 中设定 0.7，把新 Road 链接到新 Run Control。保持两个变速工况的路面附着 0.8。
+3. 保留车辆及轮胎、原 120 m 双移线 `LTARG_TABLE SPLINE_FLAT`、两路 `IMP_STEER_L1` 与 `IMP_STEER_R1` 的 Replace/deg 输入，以及 `DRL-MPC / * FCM` 导出的原 20 路状态。该 20 路是 CarSim 原生输出通道，新增策略阶段观测由 Bridge 从现有信号和道路计算。
+4. 逐个点击生成原生 Solver 文件。每次生成后，将对应的原生 `simfile.sim` 与该 Run 的 `Run_all.par` 成对归档。继续生成下一个工况前保留当前一对。核对 `SPEED_TARGET_CONSTANT`、`MU_ROAD_CONSTANT`、`PORTS_IMP 1,2`、`PORTS_EXP 1,20` 和车辆、I/O、LTARG 的哈希。
+5. 使用本指南的 `add`、`preflight`、`accept`、`export` 流程注册为 validation。为新工况确定合法固定参照并冻结物理签名和 Solver 证据，再用于独立模型选择。当前六工况划分和历史数据集版本各自继续使用原清单。
+
 train.py 继续接受旧的三列表 JSON，也接受版本 manifest。新版本训练记录 dataset_version/hash、各 split IDs/signatures、随机种子、采样规则、控制器配置链 SHA256、训练配置 SHA256。每次运行再次复制私有工况、控制配置和原始 manifest，历史旧接口及模型不变。formal_compare.py 的版本化输入也保留版本/hash，不再降级成丢失版本的路径列表。
 
 训练只把 train 传给环境，validation 只被确定性验证器读取，test 不进入采样池、Replay Buffer、周期验证或选模。test 的原生文件完整性校验不等于对其运行策略评价。本轮不评价预留 test。

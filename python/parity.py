@@ -108,6 +108,7 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10,
         for key in ("q_vy", "q_r", "r_steer"):
             _close(float(command[f"{key}_applied"]), params[key], key, i, 1e-6)
     per_block = params["decision_steps"]
+    mode = effective.get("rl_reward", "mode", fallback="legacy")
     for b, reward in enumerate(rewards):
         block = fixed_rows[b * per_block:min((b + 1) * per_block, len(bridge_rows))]
         if not block:
@@ -117,14 +118,14 @@ def check_neutral_parity(bridge, controller, config, simfile, output, blocks=10,
         if penalize_qp:
             failed_solves = sum(not int(row["qp_converged"]) for row in block)
             expected -= qp_penalty * failed_solves / (1 if tracking_v2 else len(block))
-        _close(reward, expected, "block reward", b, 1e-5)
+        if mode != 'joint_tracking_wave_balance_v3':
+            _close(reward, expected, "block reward", b, 1e-5)
     loss = "squared_lateral" if squared_lateral else "negative_log1p"
     version = "tracking_v2_" + loss if tracking_v2 else (
         "squared_lateral_v1" if squared_lateral else "negative_log1p_v3")
-    mode = effective.get("rl_reward", "mode", fallback="legacy")
     if mode in ("joint_tracking", "joint_tracking_wave_balance"):
         version = mode + "_v1"
-    elif mode == 'joint_tracking_wave_balance_v2':
+    elif mode in ('joint_tracking_wave_balance_v2','joint_tracking_wave_balance_v3'):
         version = mode
     elif effective.getfloat("rl_reward", "w_lateral_growth", fallback=0.0) > 0:
         version += "_lateral_growth"

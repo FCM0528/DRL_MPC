@@ -663,6 +663,15 @@ void testRlModule() {
     require(joint_obs.size() == 20 && std::all_of(joint_obs.begin(), joint_obs.end(),
                 [](double x) { return std::isfinite(x); }),
             "Joint preview must have 20 finite inputs");
+    preview_config.observation_profile = "road_preview_phase_v1";
+    preview_config.reward.wave_bounds = {20.,60.,85.};
+    state.body_ay = 2.;
+    const auto phase_obs = makeRoadPreviewObservation(state, reference, dry, config.distance_m,
+        config.mpc, preview_config, neutral.np, 0., &neutral);
+    require(phase_obs.size() == 26 && std::equal(joint_obs.begin(),joint_obs.end(),phase_obs.begin()) &&
+            std::all_of(phase_obs.begin()+20,phase_obs.end(),[](double x) { return std::isfinite(x); }) &&
+            phase_obs[22] == .5 && phase_obs[23] == 0.,
+            "Phase preview retains all 20 preceding inputs and uses current station only");
     preview_config.observation_profile = "road_preview";
     require(makeRoadPreviewObservation(state, reference, dry, config.distance_m,
                 config.mpc, preview_config, neutral.np, 0.0).size() == 12,

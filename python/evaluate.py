@@ -289,12 +289,26 @@ def reward_terms(data, config, max_steer, *, lookup=resolve_config_value):
         change=np.clip(np.log(v/np.r_[choices[len(choices)//2],v[:-1]])/logspan,-2,2)
         switch+=r('w_weight_change')*change**2/3
     terms['parameter_switch']=switch
-    if lookup(config,'rl_reward','mode') in ('joint_tracking_wave_balance','joint_tracking_wave_balance_v2'):
+    mode=lookup(config,'rl_reward','mode')
+    if mode in ('joint_tracking_wave_balance','joint_tracking_wave_balance_v2'):
         from dual_segment import wave_terms
         bounds=[r(f'wave_{key}_m') for key in ('start','split','end')]
         tracking,peak=wave_terms(data,bounds,[r('wave_rmse_1_m'),r('wave_rmse_2_m')],
             [r('wave_peak_1_m'),r('wave_peak_2_m')],(r('w_wave_tracking'),r('w_wave_peak')))
         terms.update(wave_tracking=tracking,wave_peak=peak)
+    elif mode=='joint_tracking_wave_balance_v3':
+        from phase_reward import phase_reward_terms
+
+        bounds=[r(f'wave_{key}_m') for key in ('start','split','end')]
+        refs=[[r(f'wave_{kind}_{i}_m') for i in (1,2)] for kind in ('mae','rmse','peak')]
+        decision_steps=int(lookup(config,'rl','decision_steps'))
+        gamma=float(lookup(config,'rl','discount_gamma'))
+        phase=phase_reward_terms(data,bounds,refs,decision_steps,gamma)
+        within=(data['x_m']>=bounds[0])&(data['x_m']<=bounds[-1])
+        for key in ('y','peak'):
+            terms[key]=np.where(within,0.,terms[key])
+        terms['safety']+=phase.pop('safety_addition')
+        terms.update(phase)
     terms['total']=sum(terms.values())
     return terms,course
 

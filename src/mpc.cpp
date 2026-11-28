@@ -215,6 +215,19 @@ double LateralMpc::predictedSteeringAt(int prediction_step) const {
     return last_solution_[std::min(prediction_step, p_.nc - 1)];
 }
 
+PredictionState LateralMpc::predictedStateAt(int horizon, double prior_steer) const {
+    if (!has_solution_ || horizon < 1 || horizon > p_.np)
+        throw std::out_of_range("Unavailable MPC prediction horizon");
+    auto predicted = nominal_states_[horizon];
+    for (int move=0; move<p_.nc; ++move) {
+        const double preceding = move == 0 ? prior_steer : last_solution_[move-1];
+        const double applied = last_solution_[move] - preceding - nominal_increments_[move];
+        for (std::size_t field=0; field<predicted.size(); ++field)
+            predicted[field] += sensitivity_[horizon-1][move][field]*applied;
+    }
+    return predicted;
+}
+
 MpcResult LateralMpc::control(const VehicleState& plant, double prev, double previous_increment) {
     if (!std::isfinite(prev) || std::abs(prev) > p_.max_steer)
         throw std::invalid_argument("Previous steering is outside the MPC angle bound");

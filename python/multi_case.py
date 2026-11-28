@@ -445,7 +445,7 @@ def verify_training_runs(lock_path, lock, runs, *, algorithms=('ddpg','td3','tqc
         run=run.resolve(strict=True)
         m=read_json(run/'manifest.json'); algo=m['algorithm']; data=m['training_data']
         if (algo in results or algo not in ('ddpg','td3','tqc') or m['study_lock_sha256']!=sha(lock_path) or
-            m['reward_scheme']!=REWARD_MODE or m['action_mapping_version']!=ACTION_VERSION or
+            m['reward_scheme']!=lock.get('reward_scheme',REWARD_MODE) or m['action_mapping_version']!=ACTION_VERSION or
             m['independent_validation'] or m['independent_test'] or m['selection_split']!='training_diagnostic' or
             m['completed_episodes']!=6*lock['episodes_per_case'] or
             set(data['exposure_by_scenario'])!={c['scenario_id'] for c in lock['cases'].values()} or
@@ -460,7 +460,8 @@ def verify_training_runs(lock_path, lock, runs, *, algorithms=('ddpg','td3','tqc
             sha(run/'final_model.zip')!=m['final_model_sha256'] or
             any(sha(run/name)!=expected for name,expected in m['evidence_sha256'].items())):
             raise ValueError(f'Run failed all-six provenance or episode quota checks: {run}')
-        if any(m.get(k)!=lock[k] for k in ('baseline_version','reward_contract_version','action_execution','study_phase') if k in lock):
+        if any(m.get(k)!=lock[k] for k in ('baseline_version','reward_contract_version','action_execution',
+               'study_phase','replay_sampling','observation_dim') if k in lock):
             raise ValueError(f'Run uses a different calibrated baseline/reward-reference contract: {run}')
         if 'study_phase' in lock:
             from train import load_training_settings
@@ -510,11 +511,29 @@ def verify_replay_rewards(run, manifest):
             if (len(expected)!=end-cursor or not np.allclose(actual,expected,rtol=5e-6,atol=1e-9) or
                 not len(terminal) or terminal[-1]!=1 or np.any(terminal[:-1])):
                 raise ValueError(f'Replay data differs from the native decision ledger: {directory}')
+            if manifest.get('replay_sampling')=='case_balanced_replay_v1':
+                with (directory/'bridge_trace.csv').open(newline='',encoding='utf-8') as raw:
+                    steps=list(csv.DictReader(raw))
+                case=manifest['case_contracts']
+                bounds=next(v['bounds_m'] for v in case.values() if v['scenario_id']==episode['scenario_id'])
+                rows=steps[::2]
+                actions=np.array([[float(r['action_'+key+'_normalized']) for key in PARAMETERS] for r in rows],dtype=np.float32)
+                stations=np.array([float(r['x_m']) for r in steps[1::2]+(steps[-1:] if len(steps)%2 else [])])
+                segments=np.where((stations>=bounds[0])&(stations<bounds[1]),1,
+                                  np.where((stations>=bounds[1])&(stations<=bounds[2]),2,0))
+                case_id=buffer.scenario_ids.index(episode['scenario_id'])
+                if (not np.allclose(buffer.actions[cursor:end,0],actions,rtol=0,atol=1.2e-7) or
+                    not np.array_equal(buffer.segments[cursor:end],segments) or
+                    not np.all(buffer.cases[cursor:end]==case_id)):
+                    raise ValueError('Balanced replay transitions disagree with native action or scenario ledger')
             maximum=max(maximum,float(np.max(np.abs(actual-expected))))
             cursor=end
     if cursor!=buffer.size() or cursor!=data['collected_decisions']:
         raise ValueError('The native decision ledger does not cover the whole persisted replay buffer')
-    return dict(samples=cursor,max_reward_abs_difference_float32=maximum)
+    audit=dict(samples=cursor,max_reward_abs_difference_float32=maximum)
+    if manifest.get('replay_sampling')=='case_balanced_replay_v1':
+        audit['case_balanced_replay']=buffer.sampling_audit()
+    return audit
 
 
 def replay_study(lock_path, runs, output, bridge, *, algorithms=('ddpg','td3','tqc')):
